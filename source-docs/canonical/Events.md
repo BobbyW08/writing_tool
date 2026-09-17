@@ -34,6 +34,8 @@ What nobody tells Sero: That the ritual grants eternal life. That he will never 
 
 Three elements required (learned later): (1) The ruling bloodline of the Asharan Empire. (2) The candidate's blood. (3) A quality possessed by only one specific person in the empire at any time — never Sero, never identified, permanently unexplained.
 
+Permanence: The ritual cannot be transferred to someone else and cannot be prematurely ended. It is fixed to Sero once granted. The only way out is an unnatural death (physical violence).
+
 What Sero learned: Nothing immediately. The implications unfold over decades.
 
 Ripples forward: The foundational event of the entire 2,000-year story. Every subsequent event happens because of this moment.
@@ -42,13 +44,15 @@ Ripples forward: The foundational event of the entire 2,000-year story. Every su
 
 Age ~23 | \[\[Locations\#Renmark|Renmark\]\] | \[\[Characters\#Sero|Sero\]\], \[\[Characters\#Giana|Giana\]\], \[\[Characters\#Vashten|Vashten\]\]
 
-What happened: The empire's second wave of civilian settlers from Keth carries a disease Caldori people have no immunity to. The settlers are immune — they don't know they're carrying it. The disease spreads quietly through Renmark. Giana falls ill. Sero abandons his post and comes home. Vashten comes too and stays with both of them. She dies within six months. Last days on the porch watching the ocean. She asks Sero to live a full life.
+What happened: The empire's second wave of civilian settlers from Keth carries a disease Caldori people have no immunity to. The settlers are immune — they don't know they're carrying it. The disease spreads quietly through Renmark, killing roughly a quarter of the city's population. Giana falls ill. Sero abandons his post and comes home. Vashten comes too and stays with both of them. She dies within six months. Last days on the porch watching the ocean. She asks Sero to live a full life.
 
 Why it happened: Not intention. Negligence through ignorance. The empire didn't know. The settlers didn't know. The harm didn't require malice to be devastating.
 
-Sero's response: Not withdrawal. Rage. The empire brought civilization and brought death. He goes to Vashten. Vashten tells him the truth about the ritual and says: "You can't kill your way out of this. And the Empress didn't intend it. But it happened anyway."
+Sero's response: Not withdrawal. Rage. The empire brought civilization and brought death. He goes to Vashten. Vashten gives him a partial truth, not the full mechanism: he cannot get sick because of the ritual. Vashten frames it mystically — the blood-wine ceremony put something like "god's blood" in him, continuously healing and empowering him. He does not tell Sero that he will never age, or the ritual's actual structure. He does say: "You can't kill your way out of this. And the Empress didn't intend it. But it happened anyway."
 
-What Sero learned: The harm doesn't require intention. Progress has a body count the architects often don't see. And he will now outlive everyone he will ever love.
+What Sero learned: The harm doesn't require intention. Progress has a body count the architects often don't see. And he will not get sick again — though he doesn't yet understand the full shape of what that means.
+
+The full truth comes later (see "The Journal at Vashten's Home" in Events to Be Developed) — Sero doesn't learn he will never age, or the ritual's actual mechanism, until he reads Vashten's own journal at Vashten's home across the ocean.
 
 Ripples forward: The emotional root of everything. The standard against which every subsequent relationship and moral decision is measured. His anger at systemic negligence becomes the engine of his early arc.
 
@@ -296,6 +300,7 @@ The decision: Does he reach out? Does he correct the record? He considers it. Ch
 
 | Event | Age | Type | Notes |
 | :-: | :-: | :-: | :-: |
+| The Journal at Vashten's Home | TBD | Personal/Discovery | Happens sometime after Giana's Death (Age 23), likely before Vashten's death (~Age 350–400). Sero and Vashten travel across the ocean to Vashten's home. Sero reads Vashten's own journal and learns the full truth: the ritual is why he never ages and heals quickly, not just why he can't get sick. Needs an exact Age and to be reconciled against the "First Journey to Keth" event (~Age 380, currently listed as Sero alone) — may be the same trip or a separate, earlier one. |
 | The Drawing Lesson | ~75 | Small/human | Someone teaches Sero to draw. Nobody important. That's the point. |
 | First Caeldrath Denial | ~680–700 | Political | Who denies him? Why specifically him? |
 | The Collapse Confrontation | ~820 | Personal | A dying official confronts Sero: "You could have stopped this." |

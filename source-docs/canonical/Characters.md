@@ -8,13 +8,13 @@ All characters, confirmed and developing. Sero observes everyone through his own
 
 Status: ✓ Locked | Protagonist
 
-Origin: Young scribe for a minor lord in \[\[Locations\#Renmark|Renmark\]\]. Smart but unmotivated. Cynical about rulers. Content with a simple life.
+Origin: Young scribe for a minor lord in \[\[Locations\#Renmark|Renmark\]\]. Smart but unmotivated. Cynical about rulers. Content with a simple life. Father: Eron.
 
 Physical appearance: Stopped aging in his early-to-mid 20s after the ritual. Looks permanently like a man in his early 30s. Not striking, not ugly. Average-looking. Never changes. This is both his greatest tool and his greatest source of loneliness.
 
 Personality: Capable and wise but doesn't take himself too seriously. Witty, blunt, rude in ways most people find off-putting. Laughs at absurdity. Hates ceremony. Respects competence. Distrusts authority reflexively then evaluates it case by case. Deeply caring in ways he rarely expresses directly.
 
-Personality inspirations: Spike Spiegel (Cowboy Bebop), Vash the Stampede (Trigun), Mat Cauthon (Wheel of Time), Miyamoto Musashi (early arc).
+Personality inspirations: Spike Spiegel (Cowboy Bebop), Vash the Stampede (Trigun), Mat Cauthon (Wheel of Time), Miyamoto Musashi (early arc). Philosophical touchstone: Zen Buddhism.
 
 Abilities:
 
@@ -58,7 +58,7 @@ Ages 1700–2000: Deliberate search. Accepts the answer might be no one. Boy B's
 
 Status: ✓ Locked | Sero's wife
 
-A scribe who trained Sero when he joined the shop. They fell in love immediately and completely. She loved him exactly as he was — cynicism, bluntness, and all. She wanted children but it never happened.
+A scribe who trained Sero when he joined the shop. They fell in love immediately and completely. She loved him exactly as he was — cynicism, bluntness, and all. She wanted children but it never happened. Her uncle Menas owns the scribe shop and wants her to marry up — a source of friction early on.
 
 Death: Died of the disease brought by the empire's second wave of civilian settlers. Sero was away on assignment. Word reached him. He abandoned his post and came home. Vashten was already there. She died within six months of falling sick, spent her last days on their porch watching the ocean. She asked Sero to live a full life.
 

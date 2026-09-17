@@ -12,9 +12,11 @@ The world Sero inhabits. Same physics and nature as real life. No supernatural f
 
 ## CALDOR
 
+**Status:** ✓ Locked
+
 *The main continent. Where most stories take place.*
 
-Caldor is the central stage. It was already a patchwork of kingdoms and city-states when the Asharan Empire arrived. Over 2,000 years it goes from conquered territory to fragmented ruin to rebuilt civilization.
+Caldor is the central stage. It was already a patchwork of kingdoms and city-states when the Asharan Empire arrived. Over 2,000 years it goes from conquered territory to fragmented ruin to rebuilt civilization. At its peak, the empire controlled roughly 50–70% of Caldor — Caeldrath remained the sole holdout.
 
 **Continental geography (rough):** Mountains in the north and interior. Fertile plains in the center. River networks running to the coasts. The western coast faces the calmer sea toward Keth. The eastern and southern coasts face rougher open water.
 
@@ -110,6 +112,8 @@ Remote interior of Caldor. A sealed underground chamber. Found by Sero at approx
 
 ## KETH
 
+**Status:** ✓ Locked
+
 *The empire's homeland. Hotter, drier, closer to the equator.*
 
 The Asharan Empire originated here. The home continent of the civilization that crossed the sea and conquered Caldor. More advanced than Caldor in almost every respect when the conquest happened.
@@ -134,6 +138,8 @@ Found by Sero on his first journey to Keth (~Age 380). The empire's deep histori
 **Later visits:** Third visit (~Ages 1420–1500) during the empire's slow decline. The empire on Keth survives Sero's timeline but contracts continuously.
 
 ## MOSSEND
+
+**Status:** ✓ Locked
 
 *The third continent. Virtually uninhabited.*
 
