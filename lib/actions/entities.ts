@@ -52,7 +52,7 @@ export async function createEntityAction(urlTypeSlug: string, formData: FormData
     slug,
     status,
     fields,
-    gapPrompt: status === "locked" ? null : gapPrompt,
+    gapPrompt,
     sourceDocId: null,
   });
 
@@ -60,9 +60,11 @@ export async function createEntityAction(urlTypeSlug: string, formData: FormData
   redirect(`/${typeConfig.urlSlug}/${slug}`);
 }
 
+// `urlTypeSlug` is the type the page was loaded under — the entity may be reassigned to a
+// different type via the form's `type` field, in which case we redirect to the new URL.
 export async function updateEntityAction(id: string, urlTypeSlug: string, formData: FormData) {
-  const typeConfig = entityTypeByUrlSlug(urlTypeSlug);
-  if (!typeConfig) throw new Error(`Unknown entity type: ${urlTypeSlug}`);
+  const currentTypeConfig = entityTypeByUrlSlug(urlTypeSlug);
+  if (!currentTypeConfig) throw new Error(`Unknown entity type: ${urlTypeSlug}`);
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) throw new Error("Name is required");
@@ -70,6 +72,8 @@ export async function updateEntityAction(id: string, urlTypeSlug: string, formDa
   if (!STATUS_OPTIONS.includes(status as (typeof STATUS_OPTIONS)[number])) throw new Error("Invalid status");
   const fields = parseFields(formData.get("fields") as string | null);
   const gapPrompt = String(formData.get("gapPrompt") ?? "").trim() || null;
+  const newDbType = String(formData.get("type") ?? currentTypeConfig.dbType);
+  const newTypeConfig = entityTypeByDbType(newDbType) ?? currentTypeConfig;
 
   const [current] = await db.select({ slug: entities.slug, name: entities.name }).from(entities).where(eq(entities.id, id)).limit(1);
   if (!current) throw new Error("Entity not found");
@@ -78,12 +82,13 @@ export async function updateEntityAction(id: string, urlTypeSlug: string, formDa
 
   await db
     .update(entities)
-    .set({ name, slug, status, fields, gapPrompt: status === "locked" ? null : gapPrompt })
+    .set({ name, slug, status, fields, gapPrompt, type: newTypeConfig.dbType })
     .where(eq(entities.id, id));
 
-  revalidatePath(`/${typeConfig.urlSlug}`);
-  revalidatePath(`/${typeConfig.urlSlug}/${slug}`);
-  redirect(`/${typeConfig.urlSlug}/${slug}`);
+  revalidatePath(`/${currentTypeConfig.urlSlug}`);
+  revalidatePath(`/${currentTypeConfig.urlSlug}/${slug}`);
+  if (newTypeConfig.urlSlug !== currentTypeConfig.urlSlug) revalidatePath(`/${newTypeConfig.urlSlug}`);
+  redirect(`/${newTypeConfig.urlSlug}/${slug}`);
 }
 
 export async function deleteEntityAction(id: string, urlTypeSlug: string) {
@@ -93,6 +98,7 @@ export async function deleteEntityAction(id: string, urlTypeSlug: string) {
   await db.delete(relationships).where(or(eq(relationships.entityIdA, id), eq(relationships.entityIdB, id)));
   await db.delete(eventLinks).where(eq(eventLinks.entityId, id));
   await db.update(events).set({ locationId: null }).where(eq(events.locationId, id));
+  await db.update(entities).set({ parentEntityId: null }).where(eq(entities.parentEntityId, id));
   await db.delete(entities).where(eq(entities.id, id));
 
   revalidatePath(`/${typeConfig.urlSlug}`);
@@ -127,4 +133,52 @@ async function revalidateEntityPaths(id: string) {
   if (!row) return;
   const typeConfig = entityTypeByDbType(row.type);
   if (typeConfig) revalidatePath(`/${typeConfig.urlSlug}/${row.slug}`);
+}
+
+export async function addSubItemAction(parentId: string, childId: string) {
+  if (parentId === childId) return;
+  await db.update(entities).set({ parentEntityId: parentId }).where(eq(entities.id, childId));
+  await revalidateEntityPaths(parentId);
+  await revalidateEntityPaths(childId);
+}
+
+export async function removeSubItemAction(childId: string) {
+  await db.update(entities).set({ parentEntityId: null }).where(eq(entities.id, childId));
+  await revalidateEntityPaths(childId);
+}
+
+// One-way move: an entity that's really an event gets recreated as one, with its custom
+// fields folded into draft_text (events have no free-form jsonb field). Relationships and
+// event_links pointing at the old entity row are dropped — they don't carry over cleanly
+// since an event can't be the target of an entity-to-entity relationship.
+export async function convertEntityToEventAction(entityId: string) {
+  const [entity] = await db.select().from(entities).where(eq(entities.id, entityId)).limit(1);
+  if (!entity) throw new Error("Entity not found");
+
+  const { eventExistsWithSlug } = await import("@/lib/data/events");
+  const base = slugify(entity.name) || "event";
+  let slug = base;
+  let n = 2;
+  while (await eventExistsWithSlug(slug)) slug = `${base}-${n++}`;
+
+  const fieldsText = Object.entries(entity.fields)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n\n");
+  const draftText = [entity.gapPrompt ? `Gap: ${entity.gapPrompt}` : null, fieldsText || null].filter(Boolean).join("\n\n") || null;
+
+  const [newEvent] = await db
+    .insert(events)
+    .values({ title: entity.name, slug, draftText, sourceDocId: entity.sourceDocId })
+    .returning({ id: events.id, slug: events.slug });
+
+  await db.delete(relationships).where(or(eq(relationships.entityIdA, entityId), eq(relationships.entityIdB, entityId)));
+  await db.delete(eventLinks).where(eq(eventLinks.entityId, entityId));
+  await db.update(events).set({ locationId: null }).where(eq(events.locationId, entityId));
+  await db.update(entities).set({ parentEntityId: null }).where(eq(entities.parentEntityId, entityId));
+  await db.delete(entities).where(eq(entities.id, entityId));
+
+  const typeConfig = entityTypeByDbType(entity.type);
+  if (typeConfig) revalidatePath(`/${typeConfig.urlSlug}`);
+  revalidatePath("/events");
+  redirect(`/events/${newEvent.slug}`);
 }

@@ -12,7 +12,9 @@ re-derive any of this.
 
 **Phase 0 (canonicalize), Phase 1 (schema), Phase 2 (ingestion) — done.**
 **Phase 3 (frontend) — entity/event CRUD done, wiki-link rendering done, single-line
-draggable timeline done. Sidebar multi-select + multi-lane convergence not started.**
+draggable timeline done (with click-to-zoom + sub-events + generic sub-items on top of
+the original scope, added mid-session per Bobby's live feedback). Sidebar multi-select +
+multi-lane convergence not started.**
 
 - Git initialized, `npm run build` confirmed clean (the flagged React 19 peer-dep warning
   on `react-calendar-timeline`'s `create-react-context` sub-dependency is cosmetic — it
@@ -104,6 +106,17 @@ rerun (violates hard rule 7). Added, additively, in `drizzle/0001_thin_skullbust
 - Composite unique constraint on `event_links(event_id, entity_id)`.
 - Composite unique constraint on `relationships(entity_id_a, entity_id_b)`.
 
+**`drizzle/0002_early_krista_starr.sql`** (added mid-session, per Bobby's request for a
+generic hierarchy): `entities.parent_entity_id` and `events.parent_event_id`, both
+nullable self-referencing FKs, no unique constraint (an entity/event has at most one
+parent, but nothing stops many children sharing one parent). Both additive, no data loss.
+**If you add a delete path for entities or events anywhere else in the app, remember to
+null out `parent_entity_id`/`parent_event_id` for that row's children first** — Postgres
+will reject the delete with a FK violation otherwise. Hit this exact bug once already
+(`deleteEntityAction` initially only handled `relationships`/`event_links`/`events.location_id`,
+not entities parented under the one being deleted) — fixed, but it's an easy thing to
+forget again if a new delete path gets added later (e.g. bulk delete, cascade-delete-children).
+
 ## Phase 3 — what's built
 
 Entity CRUD (`app/[entityType]/`) and event CRUD (`app/events/`), both fully wired to the
@@ -112,15 +125,23 @@ helpers (`lib/data/entities.ts`, `lib/data/events.ts`):
 - Home page with per-type entity counts + event count.
 - Entity type index pages (all 7 types: characters, locations, items, cultures, races,
   languages, artifacts), status-flagged, "Add new" link.
-- Entity detail/edit page: name, status, free-form `fields` (dynamic key/value editor,
-  `components/entity-fields-editor.tsx`), `gap_prompt` (shown when status ≠ locked),
-  related entities (add/remove, backed by `relationships`), linked events (add/remove,
-  backed by `event_links`, acts as the "mini timeline strip" the plan calls for), delete
-  with confirmation dialog.
+- Entity detail/edit page: name, category (`type` — reassignable, see below), status,
+  free-form `fields` (dynamic key/value editor, `components/entity-fields-editor.tsx`),
+  `gap_prompt` (always visible, blank shown as blank — see "no hidden fields" below),
+  sub-items (add/remove, backed by `parent_entity_id`), related entities (add/remove,
+  backed by `relationships`), linked events (add/remove, backed by `event_links`, acts as
+  the "mini timeline strip" the plan calls for), convert-to-event, delete with
+  confirmation dialog.
 - Event detail/edit page: title, year_label, sort_order, location (select from
-  location-type entities), the 4 structured fields, draft/notes, linked entities
-  (add/remove), delete with confirmation.
+  location-type entities), the 4 structured fields, draft/notes (all always visible,
+  blank shown as blank), sub-events (add/remove, backed by `parent_event_id`), linked
+  entities (add/remove), delete with confirmation.
 - "Add new" flows for both entities and events.
+- All entity/event/location pickers throughout the app are searchable comboboxes
+  (`components/combobox.tsx`, shadcn `Command`+`Popover`) with a real scrollbar — not
+  plain `<Select>`s. Typing filters by substring with prefix-matches ranked first (cmdk's
+  default scoring — no custom filter logic needed, satisfies "type G, get things starting
+  with G then containing G" as asked).
 
 All manually verified in-browser this session: create/edit/delete an entity, add/remove a
 relationship, add/remove an event link, event edit/delete — all round-tripped through the
@@ -154,12 +175,42 @@ Vashten's Home") are listed separately below as "Not yet positioned." `sort_orde
 abstract number, "Sero years") is mapped onto real calendar milliseconds
 (`lib/timeline-scale.ts`, epoch = year 1 AD, 1 sort_order unit = 1 real year) purely so
 `react-calendar-timeline`'s date-based layout/zoom engine can do the positioning math —
-nothing about this is a real date, don't let `sort_order`'s Age-1-AD framing leak into any
-UI copy. Dragging calls `updateEventSortOrderAction` (`lib/actions/events.ts`) — updates
-`sort_order` only — and shows a `sonner` toast prompting to optionally update the
-(unrelated, untouched) `year_label`, with a button that deep-links to the event's edit
-page. Verified end-to-end: dragged a real event, confirmed via server logs the action
-fired and only `sort_order` changed in the DB, then reverted the test drag.
+nothing about this is a real date. **The ruler only ever shows "Year N" (N = `sort_order`,
+can be negative, starts conceptually at 0 for the story's own year 1)** via a custom
+`TimelineHeaders`/`DateHeader` with `unit="year"` forced and a custom `labelFormat` —
+real calendar month/day breakdowns never leak through regardless of zoom level, which is
+what Bobby specifically asked for ("we can worry about ages... later, I want all
+timelines to start at 0000"). Dragging calls `updateEventSortOrderAction`
+(`lib/actions/events.ts`) — updates `sort_order` only — and shows a `sonner` toast
+prompting to optionally update the (unrelated, untouched) `year_label`, with a button
+that deep-links to the event's edit page.
+
+**Click behavior**: single-click zooms the view to fit that event (and its direct
+sub-events, if any, via `parent_event_id`) with ~20% padding; double-click navigates to
+the event's page. This is real `react-calendar-timeline` behavior, not a custom
+gesture — the library's own `selectItem` only fires `onItemClick` on a second click of an
+*already-selected* item (confirmed by reading the bundled source,
+`node_modules/react-calendar-timeline/dist/react-calendar-timeline.es.js`, search
+`selectItem`); `onItemDoubleClick` fires unconditionally. **Testing note**: this session's
+browser-automation tool could not reliably trigger the click/select gesture (confirmed via
+console-log instrumentation that `onItemClick` never fired through synthetic
+`left_click`), consistent with the drag-gesture quirk noted below — double-click was
+verified working, and the click-to-zoom code path was verified by reading the library
+source rather than by driving it through the automation tool. If you pick this up next
+and want to be extra sure, just click an event twice yourself in a real browser.
+
+Programmatic zoom (click-to-zoom, the "Reset view" button) discovered a real library
+quirk worth knowing: **`visibleTimeStart`/`visibleTimeEnd` props are only read once, at
+mount** — changing them on a later render does nothing. The only way to change the
+visible range after mount is to call the component instance's own `updateScrollCanvas`
+method directly via a ref (see `timelineRef` in `timeline-view-inner.tsx`) — the
+library's public `ref` TypeScript type doesn't expose that method, so it's called through
+a narrow local interface cast rather than the library's own (incomplete) ref type.
+
+Also fixed: **ctrl/pinch-scroll-to-zoom was also scrolling the page behind the timeline**
+— the library's own zoom handler doesn't call `preventDefault()` on the wheel event, and
+React's `onWheel` is passive by default so calling it there is a no-op anyway. Fixed with
+a native, non-passive `wheel` listener on the timeline's container div.
 
 **Not built yet** (still Phase 3, per the plan):
 - Sidebar multi-select filter across all entity types (`shadcn-multi-select-component`) —
@@ -167,11 +218,62 @@ fired and only `sort_order` changed in the DB, then reverted the test drag.
 - Multi-lane convergence view (`iStoryline.js` integration) for 2+ selected entities —
   flagged in the plan as likely the hardest single piece; doesn't exist yet at all.
 - The timeline's default zoom window is hand-tuned to ages ~(-5)–65 in
-  `timeline-view-inner.tsx` (`defaultTimeStart`/`defaultTimeEnd`) — legible at that range,
-  but nothing auto-adjusts it and zooming out to see the full ~2000-year span still
-  renders one DOM tick per year (dense/slow; a real perf smell, not just visual). Worth
-  a custom two-tier header (year + era/century) before this feels finished — the library
-  supports custom headers (`TimelineHeaders`/`DateHeader`), just not wired up yet.
+  `timeline-view-inner.tsx` (`DEFAULT_START`/`DEFAULT_END`) — legible at that range, but
+  nothing auto-adjusts it and zooming/panning out to see the full ~2000-year span still
+  renders one DOM tick per year (dense; a real perf consideration, not just visual — this
+  is what caused screenshot timeouts earlier in the session before the range was
+  narrowed). A coarser secondary header tier (decade/century) for wide zoom would help,
+  but Bobby didn't ask for it and it's not blocking.
+
+## Sub-items / sub-events (generic hierarchy)
+
+Added mid-session per explicit request ("items, locations, characters should all be able
+to have sub items under them... events should be filled with sub-events"). One generic
+self-referencing parent relationship each for `entities` (`parent_entity_id`) and
+`events` (`parent_event_id`) — see "Schema changes" above. UI is the same
+add/remove-via-searchable-combobox pattern as `relationships`/`event_links`: a "Sub-items"
+section on every entity detail page, a "Sub-events" section on every event detail page,
+plus a "Part of {parent}" line shown under the breadcrumb when the current entity/event
+has a parent. `lib/actions/entities.ts`'s `addSubItemAction`/`removeSubItemAction` and
+`lib/actions/events.ts`'s `addSubEventAction`/`removeSubEventAction` just set/null the
+column — no cycle detection beyond preventing an item from being its own parent (fine for
+a manually-curated single-user tool; if this ever becomes a problem, the fix is a
+recursive CTE checking the target isn't already a descendant before allowing the
+assignment). The timeline's click-to-zoom (above) is the main place sub-events currently
+do anything visible beyond the two detail pages.
+
+## Entity category (type) reassignment + entity→event conversion
+
+Also added per explicit request ("I need a way to change each entity's overarching
+category... we have story ideas in places, they should be in events"):
+- **Type reassignment**: the entity edit form now has a "Category" select (all 7 types).
+  `updateEntityAction` (`lib/actions/entities.ts`) accepts the new type, updates the row,
+  and redirects to the new type's URL (`/{newUrlSlug}/{slug}`) since routes are
+  per-type. Verified end-to-end with a throwaway test entity (item → location, confirmed
+  URL/breadcrumb/sidebar all updated correctly).
+- **Convert entity to event** (`components/convert-to-event-button.tsx`,
+  `convertEntityToEventAction`): for the case where something was ingested/created as an
+  entity but is really an event. One-way, confirmed via the same `AlertDialog` pattern as
+  delete. Creates a new event (title = entity name, `draft_text` = the entity's
+  `gap_prompt` + serialized `fields`, since events have no free-form jsonb field to fold
+  them into directly), then deletes the original entity. Relationships and event_links
+  pointing at the old entity are dropped — flagged clearly in the confirmation dialog
+  since there's no way to carry an entity-to-entity relationship over onto an event.
+  Verified end-to-end with a throwaway test item.
+
+## No hidden fields
+
+Explicit request: "allow me to just create an entity and assign all of those fields
+necessary, so they should all be editable for everyone. also, no hidden fields. if they
+are blank, show them as blank." Concretely, this meant: `gap_prompt` was previously only
+shown/editable when `status !== "locked"` — a real conditionally-hidden field. Removed
+that conditional everywhere (`EntityReadView`, the entity edit form) — `gap_prompt` is
+now always shown, blank rendered as an italic "(blank)" rather than the field
+disappearing. Same treatment applied to `EventReadView`'s four structured fields and
+`draft_text` (previously each silently rendered nothing if empty — now always shows the
+label with "(blank)"). Also surfaced `source_doc_id` on both entity and event read views
+(was a real column with no UI anywhere before this) as a read-only "Source doc" line,
+showing "(created in-app)" for anything not from ingestion.
 
 **Phase 3.5 / 4 / 5**: not started. Phase 3.5's gap data already exists (11 entities have
 `gap_prompt`s from ingestion) but there's no "Gaps" view yet; no AI suggestion pane; no
@@ -252,8 +354,12 @@ specific reason to expect a different result.
    single piece per the plan; try the library before falling back to custom D3.
 3. Timeline polish: a real two-tier header (year + era/century) instead of the single
    hand-tuned default zoom window — needed before the full ~2000-year range is usable
-   without dense/slow one-tick-per-year rendering (see the react-calendar-timeline
-   section above).
+   without dense one-tick-per-year rendering (see the react-calendar-timeline section
+   above). Also worth deciding whether the top-level timeline lane should show *only*
+   parent-level events (hiding sub-events until you zoom into their parent) now that
+   sub-events exist — currently every event with a `sort_order` shows on the main lane
+   regardless of `parent_event_id`, so a parent and its sub-events all appear side by side
+   at the default zoom.
 4. Decide what to do with the two flagged data gaps: the dangling "Assassination Attempt"
    event (Age ~540, no full `Events.md` entry) and the "Bard (The Traveler - Novel)" typo
    in "The Invasion" (Events.md) — both currently just logged as ingestion warnings.
@@ -262,6 +368,11 @@ specific reason to expect a different result.
 6. Phase 4: Markdown export serializer (must mirror the Phase 2 parser format exactly —
    hard rule 6); compilations feature.
 7. Phase 5: search, deploy to Vercel, optional Drive re-sync button.
+8. Skipped this session on request: replatforming onto Fumadocs was considered and
+   explicitly declined (it's a docs-site framework built around static/MDX content trees
+   and doesn't provide the live-editing CRUD forms/relationship pickers this app needs —
+   would mean rebuilding the same forms under a different page shell, not replacing them).
+   Don't re-raise this unless the requirements genuinely change.
 
 ## Gotchas encountered this session
 
@@ -284,6 +395,20 @@ specific reason to expect a different result.
   `npm run ingest` already has `--env-file=.env` wired into its `package.json` script
   definition, but any other one-off DB script needs `npx tsx --env-file=.env <script>.ts`
   explicitly.
+- Browser-automation clicks (this session used Claude-in-Chrome) intermittently miss —
+  the same click sometimes registers instantly, sometimes needs a retry, with no visible
+  difference in the page state. This bit basic `<button>` clicks (Save, Delete, dialog
+  confirmations), not just the timeline's drag/tap gestures. If a click-driven test seems
+  to silently do nothing, retry once or twice with a screenshot in between before
+  concluding the underlying feature is broken — check server logs (`/tmp/dev-server.log`
+  if using the same background-dev-server pattern) for whether the expected POST/Server
+  Action actually fired, since that's a more reliable signal than the screenshot.
+- Deleting a row that's a parent of others (via the new `parent_entity_id`/
+  `parent_event_id` columns) fails with a Postgres FK violation unless the delete action
+  first nulls out the children's parent reference — see "Schema changes since Phase 1"
+  above. Caught this via a real `NeonDbError` in the Next.js error overlay while testing
+  entity delete, not via a type error, since Drizzle doesn't know about the FK constraint
+  at the TypeScript level.
 - A Next.js dev server started *before* `npm install <new-shadcn-dependency>` won't see
   the new package even after the file that imports it is saved — Turbopack needs a full
   process restart (not just HMR) to pick up newly-installed node_modules. If you see a

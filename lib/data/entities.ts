@@ -36,6 +36,7 @@ export interface EntityDetail {
   fields: Record<string, string>;
   gapPrompt: string | null;
   sourceDocId: string | null;
+  parentEntityId: string | null;
 }
 
 export async function getEntityBySlug(slug: string): Promise<EntityDetail | null> {
@@ -121,6 +122,20 @@ export async function entityExistsWithSlug(slug: string): Promise<boolean> {
 
 export async function listAllEntitiesForPicker(): Promise<{ id: string; name: string; type: string; slug: string }[]> {
   return db.select({ id: entities.id, name: entities.name, type: entities.type, slug: entities.slug }).from(entities).orderBy(entities.type, entities.name);
+}
+
+export async function getChildEntities(parentId: string): Promise<EntitySummary[]> {
+  return db
+    .select({ id: entities.id, type: entities.type, name: entities.name, slug: entities.slug, status: entities.status, gapPrompt: entities.gapPrompt })
+    .from(entities)
+    .where(eq(entities.parentEntityId, parentId))
+    .orderBy(entities.name);
+}
+
+export async function getParentEntity(parentEntityId: string | null): Promise<{ id: string; name: string; slug: string; type: string } | null> {
+  if (!parentEntityId) return null;
+  const [row] = await db.select({ id: entities.id, name: entities.name, slug: entities.slug, type: entities.type }).from(entities).where(eq(entities.id, parentEntityId)).limit(1);
+  return row ?? null;
 }
 
 export async function relationshipExists(aId: string, bId: string): Promise<boolean> {

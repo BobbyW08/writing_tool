@@ -15,6 +15,13 @@
       "when": 1789665144324,
       "tag": "0001_thin_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789683357316,
+      "tag": "0002_early_krista_starr",
+      "breakpoints": true
     }
   ]
 }

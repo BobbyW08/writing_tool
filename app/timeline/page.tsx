@@ -7,14 +7,17 @@ export default async function TimelinePage() {
 
   const placed = events
     .filter((e): e is typeof e & { sortOrder: string } => e.sortOrder !== null)
-    .map((e) => ({ id: e.id, title: e.title, slug: e.slug, yearLabel: e.yearLabel, sortOrder: Number(e.sortOrder) }));
+    .map((e) => ({ id: e.id, title: e.title, slug: e.slug, yearLabel: e.yearLabel, sortOrder: Number(e.sortOrder), parentEventId: e.parentEventId }));
   const unplaced = events.filter((e) => e.sortOrder === null);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Timeline</h1>
-        <p className="text-sm text-muted-foreground">Drag an event to reposition it. Scroll to pan, pinch/ctrl-scroll to zoom.</p>
+        <p className="text-sm text-muted-foreground">
+          Drag to reposition. Scroll to pan, ctrl/pinch-scroll to zoom. Click an event to zoom into it (and its sub-events); double-click to
+          open it.
+        </p>
       </div>
 
       <TimelineView events={placed} />

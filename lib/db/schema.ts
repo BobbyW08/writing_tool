@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, numeric, timestamp, integer, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, jsonb, numeric, timestamp, integer, unique, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 // Data model per traveler-wiki-build-plan.md Phase 1. Kept close to the plan's SQL
 // verbatim so the two stay in sync — update both together if the schema changes.
@@ -12,6 +12,7 @@ export const entities = pgTable("entities", {
   fields: jsonb("fields").$type<Record<string, string>>().notNull().default({}),
   gapPrompt: text("gap_prompt"), // only set when status = 'placeholder'
   sourceDocId: text("source_doc_id"), // which source file this came from, for round-tripping
+  parentEntityId: uuid("parent_entity_id").references((): AnyPgColumn => entities.id), // optional generic sub-item hierarchy
 });
 
 export const events = pgTable("events", {
@@ -27,6 +28,7 @@ export const events = pgTable("events", {
   whatWasLearned: text("what_was_learned"),
   draftText: text("draft_text"), // freeform scene/notes written in-app for this event
   sourceDocId: text("source_doc_id"), // which source file this came from, for round-tripping
+  parentEventId: uuid("parent_event_id").references((): AnyPgColumn => events.id), // optional sub-event hierarchy
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 

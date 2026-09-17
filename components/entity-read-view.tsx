@@ -4,22 +4,22 @@ import type { WikiResolveMaps } from "@/lib/wiki-resolve";
 export function EntityReadView({
   fields,
   gapPrompt,
+  sourceDocId,
   maps,
 }: {
   fields: Record<string, string>;
   gapPrompt: string | null;
+  sourceDocId: string | null;
   maps: WikiResolveMaps;
 }) {
   const entries = Object.entries(fields);
 
   return (
     <div className="space-y-4">
-      {gapPrompt && (
-        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
-          <span className="font-medium">Gap: </span>
-          {gapPrompt}
-        </div>
-      )}
+      <div>
+        <div className="text-sm font-medium text-muted-foreground">Gap prompt</div>
+        <div className="text-sm">{gapPrompt || <span className="text-muted-foreground italic">(blank)</span>}</div>
+      </div>
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">No fields yet.</p>
       ) : (
@@ -32,6 +32,10 @@ export function EntityReadView({
           </div>
         ))
       )}
+      <div>
+        <div className="text-sm font-medium text-muted-foreground">Source doc</div>
+        <div className="text-sm text-muted-foreground">{sourceDocId || <span className="italic">(created in-app)</span>}</div>
+      </div>
     </div>
   );
 }

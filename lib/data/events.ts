@@ -8,11 +8,19 @@ export interface EventSummary {
   slug: string | null;
   yearLabel: string | null;
   sortOrder: string | null;
+  parentEventId: string | null;
 }
 
 export async function listEvents(): Promise<EventSummary[]> {
   return db
-    .select({ id: events.id, title: events.title, slug: events.slug, yearLabel: events.yearLabel, sortOrder: events.sortOrder })
+    .select({
+      id: events.id,
+      title: events.title,
+      slug: events.slug,
+      yearLabel: events.yearLabel,
+      sortOrder: events.sortOrder,
+      parentEventId: events.parentEventId,
+    })
     .from(events)
     .orderBy(asc(events.sortOrder));
 }
@@ -30,6 +38,7 @@ export interface EventDetail {
   whatWasLearned: string | null;
   draftText: string | null;
   sourceDocId: string | null;
+  parentEventId: string | null;
 }
 
 export async function getEventBySlug(slug: string): Promise<EventDetail | null> {
@@ -69,4 +78,25 @@ export async function getEventLinkedEntities(eventId: string): Promise<LinkedEve
 export async function eventExistsWithSlug(slug: string): Promise<boolean> {
   const [row] = await db.select({ id: events.id }).from(events).where(eq(events.slug, slug)).limit(1);
   return !!row;
+}
+
+export async function getChildEvents(parentId: string): Promise<EventSummary[]> {
+  return db
+    .select({
+      id: events.id,
+      title: events.title,
+      slug: events.slug,
+      yearLabel: events.yearLabel,
+      sortOrder: events.sortOrder,
+      parentEventId: events.parentEventId,
+    })
+    .from(events)
+    .where(eq(events.parentEventId, parentId))
+    .orderBy(asc(events.sortOrder));
+}
+
+export async function getParentEvent(parentEventId: string | null): Promise<{ id: string; title: string; slug: string | null } | null> {
+  if (!parentEventId) return null;
+  const [row] = await db.select({ id: events.id, title: events.title, slug: events.slug }).from(events).where(eq(events.id, parentEventId)).limit(1);
+  return row ?? null;
 }

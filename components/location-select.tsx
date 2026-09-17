@@ -1,6 +1,6 @@
 "use client";
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/combobox";
 
 export function LocationSelect({
   name,
@@ -12,17 +12,12 @@ export function LocationSelect({
   options: { id: string; name: string }[];
 }) {
   return (
-    <Select name={name} defaultValue={defaultValue ?? undefined}>
-      <SelectTrigger className="w-72">
-        <SelectValue placeholder="No location" />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((o) => (
-          <SelectItem key={o.id} value={o.id}>
-            {o.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Combobox
+      name={name}
+      defaultValue={defaultValue}
+      placeholder="No location"
+      emptyText="No locations found."
+      options={options.map((o) => ({ value: o.id, label: o.name }))}
+    />
   );
 }

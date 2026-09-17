@@ -86,9 +86,26 @@ export async function updateEventAction(id: string, formData: FormData) {
 
 export async function deleteEventAction(id: string) {
   await db.delete(eventLinks).where(eq(eventLinks.eventId, id));
+  await db.update(events).set({ parentEventId: null }).where(eq(events.parentEventId, id));
   await db.delete(events).where(eq(events.id, id));
   revalidatePath("/events");
   redirect("/events");
+}
+
+export async function addSubEventAction(parentId: string, childId: string) {
+  if (parentId === childId) return;
+  await db.update(events).set({ parentEventId: parentId }).where(eq(events.id, childId));
+  const rows = await db.select({ slug: events.slug }).from(events).where(eq(events.id, parentId));
+  const child = await db.select({ slug: events.slug }).from(events).where(eq(events.id, childId));
+  for (const r of [...rows, ...child]) if (r.slug) revalidatePath(`/events/${r.slug}`);
+  revalidatePath("/timeline");
+}
+
+export async function removeSubEventAction(childId: string) {
+  await db.update(events).set({ parentEventId: null }).where(eq(events.id, childId));
+  const [row] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, childId)).limit(1);
+  if (row?.slug) revalidatePath(`/events/${row.slug}`);
+  revalidatePath("/timeline");
 }
 
 export async function addEventLinkAction(eventId: string, entityId: string, role: string | null) {

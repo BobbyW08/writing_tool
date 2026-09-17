@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEventBySlug, getEventLocation, getEventLinkedEntities, listEvents } from "@/lib/data/events";
+import { getEventBySlug, getEventLocation, getEventLinkedEntities, listEvents, getChildEvents, getParentEvent } from "@/lib/data/events";
 import { listEntitiesByType, listAllEntitiesForPicker } from "@/lib/data/entities";
 import { entityTypeByDbType } from "@/lib/data/entity-types";
-import { updateEventAction, deleteEventAction, addEventLinkAction, removeEventLinkAction } from "@/lib/actions/events";
+import {
+  updateEventAction,
+  deleteEventAction,
+  addEventLinkAction,
+  removeEventLinkAction,
+  addSubEventAction,
+  removeSubEventAction,
+} from "@/lib/actions/events";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -21,12 +28,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
   const event = await getEventBySlug(slug);
   if (!event) notFound();
 
-  const [location, linkedEntities, locationOptions, allEntities, allEvents] = await Promise.all([
+  const [location, linkedEntities, locationOptions, allEntities, allEvents, children, parent] = await Promise.all([
     getEventLocation(event.locationId),
     getEventLinkedEntities(event.id),
     listEntitiesByType("location"),
     listAllEntitiesForPicker(),
     listEvents(),
+    getChildEvents(event.id),
+    getParentEvent(event.parentEventId),
   ]);
 
   const linkedIds = new Set(linkedEntities.map((e) => e.entityId));
@@ -34,10 +43,21 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
     .filter((e) => !linkedIds.has(e.id))
     .map((e) => ({ id: e.id, name: e.name, group: entityTypeByDbType(e.type)?.pluralLabel ?? e.type }));
 
+  const childIds = new Set(children.map((c) => c.id));
+  const subEventOptions = allEvents
+    .filter((e) => e.id !== event.id && !childIds.has(e.id) && e.id !== event.parentEventId)
+    .map((e) => ({ id: e.id, name: e.title, group: "Events" }));
+
   async function addEntityLink(formData: FormData) {
     "use server";
     const entityId = String(formData.get("entityId") ?? "");
     if (entityId) await addEventLinkAction(event!.id, entityId, null);
+  }
+
+  async function addSubEvent(formData: FormData) {
+    "use server";
+    const childId = String(formData.get("childEventId") ?? "");
+    if (childId) await addSubEventAction(event!.id, childId);
   }
 
   const wikiMaps = buildWikiResolveMaps(allEntities, allEvents);
@@ -48,6 +68,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
         <Link href="/events" className="text-sm text-muted-foreground hover:underline">
           ← Events
         </Link>
+        {parent && (
+          <div className="text-sm text-muted-foreground">
+            Part of{" "}
+            <Link href={`/events/${parent.slug}`} className="hover:underline">
+              {parent.title}
+            </Link>
+          </div>
+        )}
         <h1 className="mt-1 text-2xl font-semibold">{event.title}</h1>
         {event.yearLabel && <p className="text-sm text-muted-foreground">{event.yearLabel}</p>}
       </div>
@@ -55,20 +83,28 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
       <ViewEditToggle
         view={
           <div className="space-y-4">
-            {location && (
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Location</div>
-                <Link href={`/locations/${location.slug}`} className="text-sm underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground">
-                  {location.name}
-                </Link>
+            <div>
+              <div className="text-sm font-medium text-muted-foreground">Location</div>
+              <div className="text-sm">
+                {location ? (
+                  <Link
+                    href={`/locations/${location.slug}`}
+                    className="underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground"
+                  >
+                    {location.name}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground italic">(blank)</span>
+                )}
               </div>
-            )}
+            </div>
             <EventReadView
               whatHappened={event.whatHappened}
               whyItHappened={event.whyItHappened}
               whatItCaused={event.whatItCaused}
               whatWasLearned={event.whatWasLearned}
               draftText={event.draftText}
+              sourceDocId={event.sourceDocId}
               maps={wikiMaps}
             />
           </div>
@@ -121,6 +157,30 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
           </form>
         }
       />
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground">Sub-events</h2>
+        {children.length > 0 && (
+          <ul className="space-y-1">
+            {children.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm">
+                <Link href={`/events/${c.slug}`} className="hover:underline">
+                  {c.yearLabel ? <span className="text-muted-foreground">{c.yearLabel} — </span> : null}
+                  {c.title}
+                </Link>
+                <form action={removeSubEventAction.bind(null, c.id)}>
+                  <Button type="submit" variant="ghost" size="icon" aria-label="Remove sub-event">
+                    <X className="size-4" />
+                  </Button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        {subEventOptions.length > 0 && (
+          <AddLinkForm action={addSubEvent} options={subEventOptions} targetFieldName="childEventId" submitLabel="Add sub-event" />
+        )}
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">Entities involved</h2>
