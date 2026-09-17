@@ -1,0 +1,24 @@
+.react-calendar-timeline .rct-item {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.react-calendar-timeline .rct-item:hover {
+  opacity: 0.85;
+}
+
+.react-calendar-timeline .rct-header-root {
+  background: var(--color-muted);
+}
+
+.react-calendar-timeline .rct-dateHeader {
+  background: var(--color-background);
+  color: var(--color-muted-foreground);
+}
+
+.react-calendar-timeline .rct-calendar-header {
+  border-color: var(--color-border);
+}

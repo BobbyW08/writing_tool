@@ -11,7 +11,8 @@ re-derive any of this.
 ## Current state (as of 2026-09-17)
 
 **Phase 0 (canonicalize), Phase 1 (schema), Phase 2 (ingestion) — done.**
-**Phase 3 (frontend) — entity/event CRUD done, timeline views not started.**
+**Phase 3 (frontend) — entity/event CRUD done, wiki-link rendering done, single-line
+draggable timeline done. Sidebar multi-select + multi-lane convergence not started.**
 
 - Git initialized, `npm run build` confirmed clean (the flagged React 19 peer-dep warning
   on `react-calendar-timeline`'s `create-react-context` sub-dependency is cosmetic — it
@@ -28,11 +29,21 @@ re-derive any of this.
   events (38 from `Events.md`'s detailed entries + 75 one-liners from `Timeline.md`'s ERA
   tables that have no `Events.md` counterpart), 36 `event_links`, 4 `relationships`. Fully
   idempotent — reran 5+ times this session with identical results, no duplicates.
-  - `Timeline.md` and `Working-Doc.md` are **not** ingested by the parser itself — see
-    "Ingestion scope decisions" below for why, and how their useful content got in anyway.
+  - `Working-Doc.md` is **not** ingested by the parser at all — see "Ingestion scope
+    decisions" below for why, and how its useful content got in anyway. `Timeline.md`
+    *is* ingested (just its ERA tables' one-liners, via a separate small parser).
 - **Phase 3 CRUD is built and manually verified in-browser** (see "Phase 3 — what's
   built" below). `npm run dev` works; a dev server may already be running in the
   background from this session (check before starting another — port 3000).
+- **Wiki-link rendering (hard rule 8) is done.** `[[Type#Name|Label]]` syntax in stored
+  `fields`/`draft_text` now renders as real clickable links in a read-only view mode;
+  edit mode still shows the raw syntax (as it should — you're editing markdown-ish
+  source). See "Phase 3 — what's built" below.
+- **Single-line draggable timeline is done** (`/timeline`). Dragging updates `sort_order`
+  only and prompts (via a toast) to optionally update `year_label` — never auto-rewrites
+  it. **Important**: had to swap `react-calendar-timeline` from the pinned `^0.28.0` to
+  the `0.30.0-beta.19` prerelease — see "react-calendar-timeline React 19 incompatibility"
+  below, this is a real risk worth knowing about before touching that dependency again.
 
 ---
 
@@ -125,18 +136,42 @@ v4-compatible animation package the components' `data-[state=...]` classes need)
 add more shadcn components later, double check dialogs/popovers/selects actually render
 opaque — this class of bug is easy to miss from a screenshot alone if you don't zoom in.
 
+**Wiki-link rendering (hard rule 8)**: entity/event detail pages now default to a
+read-only view (`components/view-edit-toggle.tsx`) where `[[Type#Name|Label]]` syntax in
+`fields`/`draft_text` renders as a real `<Link>` via `components/wiki-text.tsx` +
+`lib/wiki-resolve.ts`. Resolution is purely computed (slugify the link target the same
+way ingestion does, look it up in a slug→route map built from all entities/events on the
+page — no extra DB round-trip per link). Unresolved links (the one known "Bard (The
+Traveler - Novel)" typo) just render as plain text instead of a broken link. Clicking
+"Edit" swaps to the existing form, which still shows raw `[[...]]` syntax — that's
+correct, the *stored* text stays raw for lossless Phase 4 export round-tripping; only the
+read view link-ifies it.
+
+**Single-line draggable timeline** (`app/timeline/page.tsx`, `components/timeline-view*`):
+all events with a non-null `sort_order` render as draggable items on one lane; events
+without one (currently 3: two "Various"-age catch-alls plus the new undated "Journal at
+Vashten's Home") are listed separately below as "Not yet positioned." `sort_order` (an
+abstract number, "Sero years") is mapped onto real calendar milliseconds
+(`lib/timeline-scale.ts`, epoch = year 1 AD, 1 sort_order unit = 1 real year) purely so
+`react-calendar-timeline`'s date-based layout/zoom engine can do the positioning math —
+nothing about this is a real date, don't let `sort_order`'s Age-1-AD framing leak into any
+UI copy. Dragging calls `updateEventSortOrderAction` (`lib/actions/events.ts`) — updates
+`sort_order` only — and shows a `sonner` toast prompting to optionally update the
+(unrelated, untouched) `year_label`, with a button that deep-links to the event's edit
+page. Verified end-to-end: dragged a real event, confirmed via server logs the action
+fired and only `sort_order` changed in the DB, then reverted the test drag.
+
 **Not built yet** (still Phase 3, per the plan):
-- Single-line draggable timeline (`react-calendar-timeline`).
-- Sidebar multi-select filter across all entity types
-  (`shadcn-multi-select-component`).
-- Multi-lane convergence view (`iStoryline.js` integration) — flagged in the plan as
-  likely the hardest single piece.
-- Wiki-link rendering: entity/event `fields`/`draft_text` text still contains raw
-  `[[Type#Name|Label]]` syntax from ingestion (preserved verbatim for lossless Phase 4
-  export round-tripping) — nothing yet renders it as an actual in-app hyperlink at
-  display time (hard rule 8). Right now it just shows as literal bracket text in the
-  Textareas. This needs a render-time transform before Phase 3 is really "done" — the
-  stored text should stay raw; only the read view should link-ify it.
+- Sidebar multi-select filter across all entity types (`shadcn-multi-select-component`) —
+  the timeline currently shows *all* events with no per-entity filtering.
+- Multi-lane convergence view (`iStoryline.js` integration) for 2+ selected entities —
+  flagged in the plan as likely the hardest single piece; doesn't exist yet at all.
+- The timeline's default zoom window is hand-tuned to ages ~(-5)–65 in
+  `timeline-view-inner.tsx` (`defaultTimeStart`/`defaultTimeEnd`) — legible at that range,
+  but nothing auto-adjusts it and zooming out to see the full ~2000-year span still
+  renders one DOM tick per year (dense/slow; a real perf smell, not just visual). Worth
+  a custom two-tier header (year + era/century) before this feels finished — the library
+  supports custom headers (`TimelineHeaders`/`DateHeader`), just not wired up yet.
 
 **Phase 3.5 / 4 / 5**: not started. Phase 3.5's gap data already exists (11 entities have
 `gap_prompt`s from ingestion) but there's no "Gaps" view yet; no AI suggestion pane; no
@@ -144,14 +179,57 @@ export serializer; no compilations.
 
 ---
 
+## react-calendar-timeline React 19 incompatibility — read before touching this dependency
+
+The plan's stack table names `react-calendar-timeline` (pinned `^0.28.0` originally) and
+claims it has "a 2025 TypeScript rewrite" and is React-19-safe. **That's wrong for the
+`0.28.0` release actually on npm's `latest` tag.** `0.28.0` uses React's legacy
+`childContextTypes`/`getChildContext` API, which React 19 removed outright (not
+deprecated — gone). This isn't the same issue as the `create-react-context` peer-dep
+warning noted earlier in this doc (that one really is harmless, since it prefers native
+`React.createContext`) — this is the timeline library's *own* code, and it crashes
+immediately on mount with "ReactCalendarTimeline uses the legacy childContextTypes API
+which was removed in React 19," both during Next.js server-side prerendering **and**
+client-side. The "2025 TypeScript rewrite" the plan is describing is real, but it's only
+shipped under npm's `beta` dist-tag as a `0.30.0-beta.x` prerelease series (currently up
+to `beta.19`), not under `latest`. That prerelease explicitly declares
+`"react": "^18 || ^19"` in its `peerDependencies`, dropped `create-react-context`/`moment`
+entirely (now uses `dayjs`), and ships its own TypeScript types (`@types/react-calendar-timeline`
+is no longer needed and was removed).
+
+**What's actually installed now**: `react-calendar-timeline@0.30.0-beta.19`, pinned exactly
+(not `^0.30.0-beta.19` — betas don't follow semver-safe patch bumps the same way; bumping
+to a newer beta should be a deliberate, tested choice, not an automatic `npm install`).
+API differences from the `0.28.0` docs/types you'll find by googling: CSS moved from
+`react-calendar-timeline/lib/Timeline.css` to `react-calendar-timeline/dist/style.css`;
+`defaultTimeStart`/`defaultTimeEnd` are plain numbers (ms) now, not `Date`/`Moment`;
+`keys`, `sidebarWidth`, `rightSidebarWidth`, `lineHeight`, `itemHeightRatio`, `minZoom`,
+`maxZoom`, `stackItems`, `timeSteps` are typed as required props even though
+`static defaultProps` still fills them at runtime — pass them explicitly to keep
+TypeScript happy (see `components/timeline-view-inner.tsx` for values that work).
+
+Also: this library **must** be loaded client-only. It measures its container and (even in
+the beta) doesn't survive Next.js's server-side prerendering — wrap it in
+`next/dynamic(() => import(...), { ssr: false })` (see `components/timeline-view.tsx`,
+which does this and is the file to import from; `components/timeline-view-inner.tsx` is
+the real implementation and should never be imported directly from a Server Component).
+
+If a future upgrade attempt breaks again: the fallback is hand-rolling the single-line
+view (positioned/draggable divs over a linear scale — genuinely not that much code given
+`lib/timeline-scale.ts` already has the sort_order↔position math) rather than fighting
+this dependency further. Hard rule 9 says try off-the-shelf first, but that's been tried
+twice now (`0.28.0` stable, `0.30.0-beta.19` prerelease) — a third attempt should have a
+specific reason to expect a different result.
+
 ## Decisions already made (don't re-litigate these)
 
 - Neon + Drizzle, not Supabase. No auth, single user, no multi-tenancy.
 - Drive import is one-time. The app DB is now the source of truth. No two-way sync gets
   built, ever.
 - `sort_order` (drag position) and `year_label` (display text) are separate fields on
-  purpose — dragging never overwrites the label text. (Not yet exercised by any UI, since
-  the draggable timeline isn't built, but both columns already exist and are populated.)
+  purpose — dragging never overwrites the label text. Now live and verified on
+  `/timeline`: dragging updates `sort_order` only and prompts (doesn't force) a
+  `year_label` update via toast.
 - Off-the-shelf libraries are pre-selected for: wiki-link parsing (`remark-wiki-link`,
   already used in ingestion), single-line timeline (`react-calendar-timeline`), multi-lane
   convergence layout (`i-storyline-js`), sidebar multi-select (copy the
@@ -168,21 +246,22 @@ export serializer; no compilations.
 
 ## Next up (in order)
 
-1. Render `[[Type#Name|Label]]` wiki-link syntax as real in-app hyperlinks in the entity
-   fields / event text read views (hard rule 8) — currently shows raw bracket syntax.
-2. Single-line draggable timeline view (`react-calendar-timeline`), all events by
-   `sort_order`, drag updates `sort_order` only (never `year_label` — hard rule 3).
-3. Sidebar multi-select filter (`shadcn-multi-select-component`) across all entity types.
-4. Multi-lane convergence view (`iStoryline.js`) for 2+ selected entities — the hardest
+1. Sidebar multi-select filter (`shadcn-multi-select-component`) across all entity types —
+   the timeline currently has no per-entity filtering at all.
+2. Multi-lane convergence view (`iStoryline.js`) for 2+ selected entities — the hardest
    single piece per the plan; try the library before falling back to custom D3.
-5. Decide what to do with the two flagged data gaps: the dangling "Assassination Attempt"
+3. Timeline polish: a real two-tier header (year + era/century) instead of the single
+   hand-tuned default zoom window — needed before the full ~2000-year range is usable
+   without dense/slow one-tick-per-year rendering (see the react-calendar-timeline
+   section above).
+4. Decide what to do with the two flagged data gaps: the dangling "Assassination Attempt"
    event (Age ~540, no full `Events.md` entry) and the "Bard (The Traveler - Novel)" typo
    in "The Invasion" (Events.md) — both currently just logged as ingestion warnings.
-6. Phase 3.5: a "Gaps" view listing the 11 entities that already have `gap_prompt`s from
+5. Phase 3.5: a "Gaps" view listing the 11 entities that already have `gap_prompt`s from
    ingestion; AI suggestion pane via Claude through the Vercel AI Gateway.
-7. Phase 4: Markdown export serializer (must mirror the Phase 2 parser format exactly —
+6. Phase 4: Markdown export serializer (must mirror the Phase 2 parser format exactly —
    hard rule 6); compilations feature.
-8. Phase 5: search, deploy to Vercel, optional Drive re-sync button.
+7. Phase 5: search, deploy to Vercel, optional Drive re-sync button.
 
 ## Gotchas encountered this session
 
@@ -212,4 +291,15 @@ export serializer; no compilations.
   kill and restart `npm run dev` rather than debugging the import.
 - The Claude-in-Chrome browser tab occasionally froze mid-session (screenshot/read calls
   timing out) for reasons unrelated to the app — opening a fresh tab each time
-  unstuck it. Not a code issue; don't chase it if it recurs, just cycle the tab.
+  unstuck it. Not a code issue; don't chase it if it recurs, just cycle the tab. One
+  specific case *was* real, though: a timeline default zoom window wide enough to render
+  hundreds of per-year tick DOM nodes reliably made screenshot calls time out even in a
+  fresh tab, while `get_page_text` still worked fine (proving the page itself wasn't
+  hung) — if a screenshot times out repeatedly right after a page loads real content,
+  suspect DOM size before assuming it's just the extension.
+- `react-calendar-timeline`'s drag-to-move needs genuine gradual pointer movement to
+  register with its underlying `interactjs` drag detection — a single fast
+  `left_click_drag` from A to B gets interpreted as a canvas pan instead (no
+  `onItemMove` fires). Several smaller sequential `left_click_drag` calls covering the
+  same path work. A real user's mouse won't have this problem; it only matters for
+  browser-automation testing.

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEventBySlug, getEventLocation, getEventLinkedEntities } from "@/lib/data/events";
+import { getEventBySlug, getEventLocation, getEventLinkedEntities, listEvents } from "@/lib/data/events";
 import { listEntitiesByType, listAllEntitiesForPicker } from "@/lib/data/entities";
 import { entityTypeByDbType } from "@/lib/data/entity-types";
 import { updateEventAction, deleteEventAction, addEventLinkAction, removeEventLinkAction } from "@/lib/actions/events";
@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { LocationSelect } from "@/components/location-select";
+import { EventReadView } from "@/components/event-read-view";
+import { ViewEditToggle } from "@/components/view-edit-toggle";
 import { DeleteButton } from "@/components/delete-button";
 import { AddLinkForm } from "@/components/add-link-form";
+import { buildWikiResolveMaps } from "@/lib/wiki-resolve";
 import { X } from "lucide-react";
 
 export default async function EventDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -18,11 +21,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
   const event = await getEventBySlug(slug);
   if (!event) notFound();
 
-  const [location, linkedEntities, locationOptions, allEntities] = await Promise.all([
+  const [location, linkedEntities, locationOptions, allEntities, allEvents] = await Promise.all([
     getEventLocation(event.locationId),
     getEventLinkedEntities(event.id),
     listEntitiesByType("location"),
     listAllEntitiesForPicker(),
+    listEvents(),
   ]);
 
   const linkedIds = new Set(linkedEntities.map((e) => e.entityId));
@@ -36,6 +40,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
     if (entityId) await addEventLinkAction(event!.id, entityId, null);
   }
 
+  const wikiMaps = buildWikiResolveMaps(allEntities, allEvents);
+
   return (
     <div className="max-w-3xl space-y-8">
       <div>
@@ -43,53 +49,78 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
           ← Events
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">{event.title}</h1>
+        {event.yearLabel && <p className="text-sm text-muted-foreground">{event.yearLabel}</p>}
       </div>
 
-      <form action={updateEventAction.bind(null, event.id)} className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="title">Title</Label>
-          <Input id="title" name="title" defaultValue={event.title} required />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="yearLabel">Year label</Label>
-            <Input id="yearLabel" name="yearLabel" defaultValue={event.yearLabel ?? ""} placeholder="Age ~350–400" />
+      <ViewEditToggle
+        view={
+          <div className="space-y-4">
+            {location && (
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Location</div>
+                <Link href={`/locations/${location.slug}`} className="text-sm underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground">
+                  {location.name}
+                </Link>
+              </div>
+            )}
+            <EventReadView
+              whatHappened={event.whatHappened}
+              whyItHappened={event.whyItHappened}
+              whatItCaused={event.whatItCaused}
+              whatWasLearned={event.whatWasLearned}
+              draftText={event.draftText}
+              maps={wikiMaps}
+            />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="sortOrder">Sort order</Label>
-            <Input id="sortOrder" name="sortOrder" type="number" defaultValue={event.sortOrder ?? ""} />
-          </div>
-        </div>
+        }
+        edit={
+          <form action={updateEventAction.bind(null, event.id)} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input id="title" name="title" defaultValue={event.title} required />
+            </div>
 
-        <div className="space-y-2">
-          <Label>Location</Label>
-          <LocationSelect name="locationId" defaultValue={event.locationId} options={locationOptions} />
-        </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="yearLabel">Year label</Label>
+                <Input id="yearLabel" name="yearLabel" defaultValue={event.yearLabel ?? ""} placeholder="Age ~350–400" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sortOrder">Sort order</Label>
+                <Input id="sortOrder" name="sortOrder" type="number" defaultValue={event.sortOrder ?? ""} />
+              </div>
+            </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="whatHappened">What happened</Label>
-          <Textarea id="whatHappened" name="whatHappened" defaultValue={event.whatHappened ?? ""} rows={3} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="whyItHappened">Why it happened</Label>
-          <Textarea id="whyItHappened" name="whyItHappened" defaultValue={event.whyItHappened ?? ""} rows={3} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="whatItCaused">What it caused</Label>
-          <Textarea id="whatItCaused" name="whatItCaused" defaultValue={event.whatItCaused ?? ""} rows={3} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="whatWasLearned">What was learned</Label>
-          <Textarea id="whatWasLearned" name="whatWasLearned" defaultValue={event.whatWasLearned ?? ""} rows={3} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="draftText">Draft / notes</Label>
-          <Textarea id="draftText" name="draftText" defaultValue={event.draftText ?? ""} rows={4} />
-        </div>
+            <div className="space-y-2">
+              <Label>Location</Label>
+              <LocationSelect name="locationId" defaultValue={event.locationId} options={locationOptions} />
+            </div>
 
-        <Button type="submit">Save</Button>
-      </form>
+            <div className="space-y-2">
+              <Label htmlFor="whatHappened">What happened</Label>
+              <Textarea id="whatHappened" name="whatHappened" defaultValue={event.whatHappened ?? ""} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="whyItHappened">Why it happened</Label>
+              <Textarea id="whyItHappened" name="whyItHappened" defaultValue={event.whyItHappened ?? ""} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="whatItCaused">What it caused</Label>
+              <Textarea id="whatItCaused" name="whatItCaused" defaultValue={event.whatItCaused ?? ""} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="whatWasLearned">What was learned</Label>
+              <Textarea id="whatWasLearned" name="whatWasLearned" defaultValue={event.whatWasLearned ?? ""} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="draftText">Draft / notes</Label>
+              <Textarea id="draftText" name="draftText" defaultValue={event.draftText ?? ""} rows={4} />
+            </div>
+
+            <Button type="submit">Save</Button>
+          </form>
+        }
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">Entities involved</h2>

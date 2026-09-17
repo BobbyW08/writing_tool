@@ -12,8 +12,11 @@ import { Button } from "@/components/ui/button";
 import { StatusSelect } from "@/components/status-select";
 import { StatusBadge } from "@/components/status-badge";
 import { EntityFieldsEditor } from "@/components/entity-fields-editor";
+import { EntityReadView } from "@/components/entity-read-view";
+import { ViewEditToggle } from "@/components/view-edit-toggle";
 import { DeleteButton } from "@/components/delete-button";
 import { AddLinkForm } from "@/components/add-link-form";
+import { buildWikiResolveMaps } from "@/lib/wiki-resolve";
 import { X } from "lucide-react";
 
 export default async function EntityDetailPage({ params }: { params: Promise<{ entityType: string; slug: string }> }) {
@@ -38,6 +41,8 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ e
 
   const linkedEventIds = new Set(linkedEvents.map((e) => e.eventId));
   const eventOptions = allEvents.filter((e) => !linkedEventIds.has(e.id)).map((e) => ({ id: e.id, name: e.title, group: "Events" }));
+
+  const wikiMaps = buildWikiResolveMaps(allEntities, allEvents);
 
   async function addRelationship(formData: FormData) {
     "use server";
@@ -64,31 +69,36 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ e
         <StatusBadge status={entity.status} />
       </div>
 
-      <form action={updateEntityAction.bind(null, entity.id, typeConfig.urlSlug)} className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
-          <Input id="name" name="name" defaultValue={entity.name} required />
-        </div>
+      <ViewEditToggle
+        view={<EntityReadView fields={entity.fields} gapPrompt={entity.gapPrompt} maps={wikiMaps} />}
+        edit={
+          <form action={updateEntityAction.bind(null, entity.id, typeConfig.urlSlug)} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" name="name" defaultValue={entity.name} required />
+            </div>
 
-        <div className="space-y-2">
-          <Label>Status</Label>
-          <StatusSelect name="status" defaultValue={entity.status} />
-        </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <StatusSelect name="status" defaultValue={entity.status} />
+            </div>
 
-        {entity.status !== "locked" && (
-          <div className="space-y-2">
-            <Label htmlFor="gapPrompt">Gap prompt</Label>
-            <Textarea id="gapPrompt" name="gapPrompt" defaultValue={entity.gapPrompt ?? ""} rows={2} />
-          </div>
-        )}
+            {entity.status !== "locked" && (
+              <div className="space-y-2">
+                <Label htmlFor="gapPrompt">Gap prompt</Label>
+                <Textarea id="gapPrompt" name="gapPrompt" defaultValue={entity.gapPrompt ?? ""} rows={2} />
+              </div>
+            )}
 
-        <div className="space-y-2">
-          <Label>Fields</Label>
-          <EntityFieldsEditor initialFields={entity.fields} />
-        </div>
+            <div className="space-y-2">
+              <Label>Fields</Label>
+              <EntityFieldsEditor initialFields={entity.fields} />
+            </div>
 
-        <Button type="submit">Save</Button>
-      </form>
+            <Button type="submit">Save</Button>
+          </form>
+        }
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">Related entities</h2>

@@ -8,6 +8,9 @@ export function AppSidebar() {
         The Traveler
       </Link>
       <div className="space-y-1">
+        <Link href="/timeline" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+          Timeline
+        </Link>
         <Link href="/events" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
           Events
         </Link>

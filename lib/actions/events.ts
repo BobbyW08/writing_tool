@@ -105,3 +105,13 @@ export async function removeEventLinkAction(eventId: string, entityId: string) {
   const [row] = await db.select({ slug: events.slug }).from(events).where(eq(events.id, eventId)).limit(1);
   if (row?.slug) revalidatePath(`/events/${row.slug}`);
 }
+
+// Dragging a timeline item updates sort_order only — never year_label (hard rule 3).
+// The UI prompts the user to optionally update the label separately; it's never rewritten here.
+export async function updateEventSortOrderAction(eventId: string, sortOrder: number) {
+  await db
+    .update(events)
+    .set({ sortOrder: String(sortOrder), updatedAt: new Date() })
+    .where(eq(events.id, eventId));
+  revalidatePath("/timeline");
+}
