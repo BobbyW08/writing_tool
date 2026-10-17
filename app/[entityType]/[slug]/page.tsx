@@ -33,6 +33,7 @@ import { ViewEditToggle } from "@/components/view-edit-toggle";
 import { DeleteButton } from "@/components/delete-button";
 import { ConvertToEventButton } from "@/components/convert-to-event-button";
 import { AddLinkForm } from "@/components/add-link-form";
+import { EntityContinuity } from "@/components/entity-continuity";
 import { buildWikiResolveMaps } from "@/lib/wiki-resolve";
 import { X } from "lucide-react";
 
@@ -224,6 +225,8 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ e
           <AddLinkForm action={addEventLink} options={eventOptions} targetFieldName="eventId" submitLabel="Add to event" />
         )}
       </section>
+
+      <EntityContinuity entityId={entity.id} />
 
       <div className="flex items-center gap-2 border-t pt-6">
         <ConvertToEventButton action={convertEntityToEventAction.bind(null, entity.id)} itemLabel={entity.name} />

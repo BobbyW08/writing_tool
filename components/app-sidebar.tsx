@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ENTITY_TYPES } from "@/lib/data/entity-types";
+import { ContinuityBadge } from "@/components/continuity-badge";
 
 export function AppSidebar() {
   return (
@@ -13,6 +15,15 @@ export function AppSidebar() {
         </Link>
         <Link href="/events" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
           Events
+        </Link>
+        <Link href="/snippets" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+          Snippets
+        </Link>
+        <Link href="/continuity" className="flex items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+          Continuity
+          <Suspense fallback={null}>
+            <ContinuityBadge />
+          </Suspense>
         </Link>
         {ENTITY_TYPES.map((t) => (
           <Link key={t.urlSlug} href={`/${t.urlSlug}`} className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">

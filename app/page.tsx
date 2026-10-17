@@ -25,6 +25,14 @@ export default async function HomePage() {
             </CardHeader>
           </Card>
         </Link>
+        <Link href="/snippets">
+          <Card className="transition-colors hover:bg-accent">
+            <CardHeader>
+              <CardTitle>Snippets</CardTitle>
+              <CardDescription>Write and check against canon</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
         {ENTITY_TYPES.map((t) => (
           <Link key={t.urlSlug} href={`/${t.urlSlug}`}>
             <Card className="transition-colors hover:bg-accent">
