@@ -11,7 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "ingest": "tsx --env-file=.env scripts/ingest.ts",
-    "import:drive": "tsx scripts/import-from-drive.ts"
+    "test:continuity": "tsx scripts/test-continuity.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
