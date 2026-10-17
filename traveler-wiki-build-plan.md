@@ -1,357 +1,410 @@
-# The Traveler — Story Wiki & Timeline: Build Plan (v1.0)
+# The Traveler: Story Wiki and Timeline, Build Plan (v2.0)
 
 ## What this is
 
-A personal web app for organizing "The Traveler" story universe: characters, locations,
-events, items, cultures, races, languages, and artifacts, all cross-linked, with a
-filterable timeline. v1.0 also acts as a lightweight creative assistant: it can suggest
-story ideas (never write prose for the user) and let the user drop in placeholders for
-undecided worldbuilding so writing never has to stop to go look something up.
+A personal writing tool for "The Traveler" story universe. All writing and all worldbuilding is
+done directly in Payload CMS, and everything is stored there: characters, locations, events,
+items, factions and cultures, races, languages, lore, story ideas, and the prose itself. Every
+record carries a permanent ID code (C10, L4, E27, S12) so any entry can be referenced by typing
+its code. The frontend reads the same data and adds the views the admin cannot: a draggable
+timeline, a node map, and relationship views.
+
+v2.0 also keeps the creative-assist layer: it can suggest options (never prose), track
+placeholders for undecided worldbuilding, and check new writing against canon.
 
 **This is not:**
 - A ghostwriter. It never generates narrative prose the user would paste into a draft.
 - A project/task manager.
-- A multi-user product. Single user, no auth needed for v1.0.
+- A multi-user product. One user, one real login at most.
 
-## Editing model — the app is where writing happens
+## Editing model: Payload is where writing happens
 
-This is a live-editing tool, not a read-only viewer. The user needs to be able to:
-- Add, edit, or delete any entity or event directly in the app.
-- Drag an event on the timeline to move it to a different point in time.
-- Write an event's scene/notes inside the app, set its Age, and have it appear on the
-  timeline immediately — no separate doc to maintain and re-sync.
+- Add, edit, or delete any record in the Payload admin, which has a full editor for every field.
+- Write chapters, scenes and snippets in the `writing` collection. Type ID codes (C10, L4) in the text.
+- Drag an event on the frontend timeline to change its `startYear`.
+- The Payload database is the only source of truth. The one-time moves into it (the old app's
+  database, and the story catalog) are migrations, never ongoing sync.
 
-**Consequence for source of truth:** once this app exists, the database is the living
-source of truth going forward, not the Google Drive docs. Drive import (Phase 0/2) is
-a one-time migration of existing content, not an ongoing two-way sync — trying to keep
-both Drive and the app simultaneously editable would create constant conflict-resolution
-problems for no real benefit. If the user wants an export/backup copy in Drive later,
-that's a one-way app→Drive push, not sync.
+## Where things stand (end of v1)
 
-## Source material — what already exists
+The first version was built as a custom Next.js app with its own database and hand-built forms.
+Phases 0 to 2 (canonicalize, schema, ingestion), Phase 3 (entry and event pages, wiki-link
+rendering, single-line draggable timeline) and Phase 3.6 (snippet intake and continuity check)
+are done. The data is real: 47 entries (36 characters, 11 locations), 113 events, 36 event links,
+4 relationships. The sidebar filter, multi-lane convergence view, gaps view, suggestion pane,
+export and compilations were not started. Full detail is in `BUILD_GUIDE.md`.
 
-The user has been writing this world in Google Drive as structured Markdown/Docs for a
-while, and the format is already close to database-ready:
+v2.0 moves that work onto Payload. The admin replaces every hand-built form. What carries over
+is the data, the pure continuity logic, the timeline component, and the source documents.
 
-- One file per entity type: `Characters.md`, `Events.md`, `Locations.md` (others like
-  Cultures/Items/Races/Languages may or may not exist yet — check before assuming).
-- Each entity is a `##`/`###` header (e.g. `## SERO — THE TRAVELER`, `### Renmark`).
-- Entities have a `Status:` line — values seen so far: `✓ Locked`, `~ Needs a name`,
-  `~ In development`, `? Open`. Anything not `✓ Locked` is effectively a placeholder
-  already — v1.0 should treat these as first-class "incomplete" entities, not errors.
-- Fields under each entity are loose but consistent-ish: labeled lines like
-  `Origin:`, `Personality:`, `What happened:`, `Why it happened:`.
-- Cross-references use wiki-link syntax: `[[Locations#Renmark|Renmark]]`,
-  `[[Characters#Nyneave|Nyneave]]`. These are the relationship graph — parse them.
-- `Events.md` follows an especially clean template: `Age | Location | Characters
-  involved`, then `What happened / Why it happened / What it caused / What Sero
-  learned`. This maps almost directly to the `events` table below.
-- **Known issue:** duplicate/stale copies of these files exist across multiple Drive
-  folders (at least 3 seen: a "Traveler" folder, a "THE_TRAVELER" folder, and an older
-  working folder). Phase 0 must resolve this before any ingestion, or the parser will
-  ingest conflicting facts.
+---
 
-## Phase 0 — Canonicalize the source (one-time import prep)
+## Architecture
 
-- [ ] Note: there isn't a large volume of existing material in Drive, so this import is
-      light — the app becomes the primary writing space going forward, not a viewer for
-      a large existing archive.
-- [ ] Pick ONE Drive folder as the canonical source for the initial import. Move/
-      consolidate the latest version of each file there; archive the rest (don't
-      delete yet — just get them out of the import path).
-- [ ] Confirm the full set of entity-type files that should exist (Characters,
-      Locations, Events, and whichever of Cultures/Races/Languages/Items/Artifacts
-      the user has started). Create empty stub files for any category the user wants
-      tracked but hasn't started yet.
-- [ ] Agree on the field-label vocabulary per entity type (it doesn't need to be rigid,
-      but the parser needs to know what labels to expect, e.g. `Status:`, `Origin:`,
-      `Significance:`).
+- **One Next.js app, two route groups.** `app/(payload)/` serves `/admin` and `/api`.
+  `app/(app)/` serves the frontend views.
+- **Payload 3.x stable** with the Postgres adapter and the Lexical editor. Collections live in
+  `collections/`, shared fields in `fields/`, endpoints in `endpoints/`, shared helpers in `lib/`.
+- **Local API everywhere in the frontend.** Server components and server actions call
+  `getPayload({ config })`. There is no second data layer.
+- **Database.** A new Neon database used only by Payload (`PAYLOAD_DATABASE_URL`). The old
+  database stays untouched and read-only as the migration source until the migration is verified.
+- **Access.** Local development uses `autoLogin` so there is no login screen. A deployed copy
+  keeps one real login. The Local API in Payload 3.x bypasses access control by default, so
+  frontend server code is trusted code; do not expose write actions to the public.
+- **Environment.** `PAYLOAD_DATABASE_URL`, `PAYLOAD_SECRET`, `AI_GATEWAY_API_KEY`,
+  `CONTINUITY_MODEL` (optional), `DEV_PASSWORD` (optional, dev autoLogin).
+  `DATABASE_URL` points at the old database and is used only by the migration script.
 
-## Phase 1 — Data model (Postgres via Neon + Drizzle ORM)
+---
 
-**Not Supabase.** Use [Neon](https://neon.tech) (serverless Postgres, one-click Vercel
-marketplace integration, generous free tier, owned by Databricks as of 2025) with
-[Drizzle ORM](https://orm.drizzle.team) for schema/queries. This gives the same
-Postgres + `jsonb` capability the schema below needs, without Supabase's bundled
-auth/storage/realtime layer this project doesn't use. `drizzle-kit` handles migrations.
+## ID codes
 
-```sql
-entities
-  id            uuid pk
-  type          text        -- 'character' | 'location' | 'event' | 'item' | 'culture'
-                             -- | 'race' | 'language' | 'artifact'
-  name          text
-  slug          text unique
-  status        text        -- 'locked' | 'in_development' | 'needs_name' | 'placeholder'
-  fields        jsonb        -- free-form label -> value, from parsed markdown
-  gap_prompt    text null    -- only set when status = 'placeholder' (see Phase 3.5)
-  source_doc_id text         -- which source file this came from, for round-tripping
+Every record you author or decide on has a code made of one letter and a number.
 
-events
-  id                uuid pk
-  title             text
-  year_label        text     -- "Age ~350-400" (display text; ranges/approximations OK)
-  sort_order        numeric  -- numeric position on the timeline axis (in "Sero years")
-  location_id       uuid fk -> entities
-  what_happened     text
-  why_it_happened   text
-  what_it_caused    text
-  what_was_learned  text
-  draft_text        text null  -- freeform scene/notes written in-app for this event
-  updated_at        timestamptz
+| Prefix | Collection | Notes |
+|---|---|---|
+| C | characters | |
+| L | locations | |
+| E | events | |
+| I | items | Items and artifacts together (`itemType` says which) |
+| F | factions | Groups that sit inside a culture (`kind` says what sort) |
+| U | cultures | A people and their way of life. Many factions can sit inside one |
+| R | races | |
+| G | languages | |
+| K | lore | Myths, history, belief systems, magic |
+| S | stories | Story ideas and the stories they become |
+| W | writing | Chapters, scenes, snippets |
+| X | relationships | A typed link between two entries |
+| Q | continuity-flags | A continuity question or notice |
+| T | tags | Tags, with UNK built in |
+| A | compilations | Reserved for Phase 7 |
 
-event_links            -- many-to-many: which entities are involved in which events
-  event_id    uuid fk -> events
-  entity_id   uuid fk -> entities
-  role        text null   -- optional: 'protagonist', 'location', 'item_involved', etc.
+Behavior:
+- Assigned automatically on create by the `assignCode` hook, from the hidden `counters` collection.
+- Permanent. A rename never changes a code. A delete never frees a number. An update that tries
+  to change a code is ignored.
+- Import support: a record created with a code already filled in (for example `C10`) keeps it, and
+  the counter moves past it.
+- `extractCodes(text)` in `lib/codes.ts` finds codes in any text. A code must stand alone (not
+  inside a longer word), so `C10` matches and `ABC10` and `C3PO` do not.
+- `GET /api/codes/C10` returns the entry. `POST /api/codes/resolve` with `{ "text": "..." }`
+  returns every entry mentioned plus any codes that do not exist. `GET /api/codes/C10/links`
+  returns every relationship touching it, from either side.
+- Log rows (field history, confirmations) have no codes. They are system records, not things you
+  point at.
 
-relationships           -- non-event connections, derived from [[wiki-links]]
-  entity_id_a  uuid fk -> entities
-  entity_id_b  uuid fk -> entities
-  label        text null  -- optional context, e.g. "trained by"
-```
+---
 
-Design notes:
-- `event_links` is the piece that makes "show me every event involving X" work —
-  this is the whole point of the timeline-filtering feature. Don't skip it or fold it
-  into a simpler structure.
-- `status = 'placeholder'` entities are real rows, not a separate table — they show up
-  in normal entity lists (clearly marked) and can be filled in later without migrating
-  data.
-- `sort_order` is what actually moves when the user drags an event on the timeline —
-  it's independent of `year_label` so a drag doesn't have to force a clean number onto
-  an intentionally vague label like "Age ~150-350." After a drag, prompt the user to
-  optionally update `year_label` to match; don't auto-rewrite their wording.
-- `draft_text` is the "write it in the app" field — an event can exist purely as
-  metadata (title + Age, no prose yet) or carry the actual scene notes. Either way, as
-  soon as `sort_order`/`year_label` is set, it shows up on the timeline.
+## Collections
 
-## Phase 2 — Ingestion pipeline
+Starter code for everything below is in `payload-starter/src/`. It typechecks against Payload 3.x
+and has not yet been run against a database.
 
-- [ ] Script pulls the canonical docs from Drive — reuse the same Drive→GitHub Apps
-      Script pattern the user already built for their other content pipeline; it's the
-      same auth and pull mechanism, just pointed at this folder instead.
-- [ ] Parser splits each file on `##`/`###` headers → one entity per header.
-- [ ] Parser reads labeled lines (`Status:`, `Origin:`, etc.) into `fields` (jsonb).
-- [ ] Parser extracts every `[[Type#Name|Label]]` into a `relationships` row — use
-      [`remark-wiki-link`](https://www.npmjs.com/package/remark-wiki-link) (or the
-      `@portaljs` fork, which explicitly supports the `[[Page|Alias]]` syntax already
-      in use) rather than hand-rolling a regex parser for this.
-- [ ] `Events.md` gets a dedicated parse path since its template is stricter — extract
-      Age/Location/Characters directly into `events` + `event_links`.
-- [ ] Any entity whose `Status:` isn't `✓ Locked` gets `status` set accordingly; if it's
-      clearly a stub (e.g. "Needs a name"), also generate a first-pass `gap_prompt`
-      (see Phase 3.5 — same generation logic applies whether the placeholder came from
-      existing docs or was created live in the app).
-- [ ] Re-running ingestion should upsert, not duplicate — key on `source_doc_id` +
-      header text or a stable slug.
+### Fields every entry shares
+`code`, `slug` (set once from the name, stable after), `name`, `aliases`, `summary`, `status`,
+`gapPrompt`, `details` (free-form labeled rows, the replacement for the old `fields` JSON),
+`body` (notes, rich text), `parent` (makes it a sub-item of another entry in the same collection),
+and a collapsed "origin of this record" section with `sourceDocId` and `legacyId`.
 
-## Phase 3 — Frontend (Next.js, deploy on Vercel)
+Every record also has `tags` and a `reviewNote`. See "Tags and the UNK tag" below.
 
-- [ ] Index page per entity type (Characters, Locations, Events, Cultures, Races,
-      Languages, Items, Artifacts) — simple list/grid, placeholders visually flagged.
-      Each has an "Add new" action.
-- [ ] Entity detail page: rendered fields, list of linked entities, and a mini timeline
-      strip showing just this entity's events (via `event_links`). Fully editable
-      in-place — add/edit/remove fields, add/remove relationships to other entities.
-- [ ] Event detail/edit view: edit title, Age/year_label, location, linked characters,
-      the four structured fields, and the freeform `draft_text` scene notes. Saving
-      with a year_label/sort_order set is what makes it appear on the timeline —
-      no separate publish step.
-- [ ] Full delete support for entities and events, with a confirmation step (this is a
-      personal creative tool, but accidental deletes of locked canon should still be
-      hard to do by accident).
+`status` keeps the four values the old app used, so nothing is lost: `locked`, `in_development`,
+`needs_name`, `placeholder`. Every field is always visible, blank when empty.
 
-**Timeline view — sidebar filtering and multi-entity convergence**
+### World collections
+| Collection | Extra fields |
+|---|---|
+| characters | role, birthYear, deathYear, birthplace, race, culture |
+| locations | kind, culture |
+| items | itemType, createdYear, currentOwner, currentLocation |
+| cultures | homelands, languages spoken, emerged and ended years |
+| factions | kind (faction, organization, government, order, movement), `culture` (the culture it sits inside), foundedYear, endedYear |
+| races | none |
+| languages | none |
+| lore | category |
 
-This is the centerpiece feature, so it gets its own detail:
+### events
+`startYear`, `endYear`, `yearLabel`, `sortOrder` (tie-break only), `location`, `involves`
+(any world entry, many), `whatHappened`, `whyItHappened`, `whatItCaused`, `whatWasLearned`,
+`draftText` (rich text scene notes), `parent` for sub-events.
 
-- [ ] Left sidebar: a persistent, searchable, multi-select filter across **all** entity
-      types at once — not "pick a type, then pick one entity." The user can toggle on
-      any combination simultaneously (e.g. two characters + one artifact together).
-- [ ] Zero or one entity selected → today's single-line timeline, all events (or that
-      one entity's events) plotted by `sort_order`.
-- [ ] Two or more entities selected → switch to a **multi-lane view**: one horizontal
-      lane per selected entity, positioned chronologically. At any event whose
-      `event_links` include two or more of the currently-selected entities, their lanes
-      visually converge into a single point at that moment on the timeline, then
-      separate again afterward if their paths diverge. Example: select two characters
-      and an artifact — their three lanes run independently until the theft event that
-      links all three, where they braid together at that point, then split again.
-- [ ] The query underneath this is straightforward given the existing schema: for the
-      selected entity IDs, pull every event where `event_links` contains any of them
-      (to draw each lane), and flag events where it contains 2+ of them (convergence
-      points) — no schema changes needed, this is a query/rendering feature on top of
-      what Phase 1 already models.
-- [ ] Clicking a convergence point opens that event's detail (same event page as
-      elsewhere in the app).
-- [ ] **Build note — this is the one real find of the research pass:**
-      [`iStoryline.js`](https://github.com/remaerd/iStoryline.js) (npm:
-      `i-storyline-js`) is an existing, MIT-licensed JS library built specifically for
-      this — it computes storyline/braided-convergence layouts from character/scene
-      data (the academic lineage is the StoryFlow/iStoryline research papers on
-      narrative visualization). It takes a story script (characters + scenes) and
-      returns computed line paths, leaving you to render them with your own SVG/canvas.
-      This turns the hardest part of this feature — the convergence layout math —
-      from a custom build into a data-mapping problem: transform `entities` +
-      `event_links` into the shape it expects, feed it in, render its output. Try this
-      before reaching for a fully custom D3 renderer; fall back to hand-rolled D3 only
-      if its layout model doesn't fit once you're actually integrating it.
-- [ ] Drag-to-reschedule (see below) should still work in multi-lane mode — dragging a
-      convergence point moves every entity involved in that event together.
+### stories (story ideas)
+One record per story idea, from first spark to finished story.
+- `stage`: idea, outlined, drafting, written, shelved
+- `format`: novel, novella, short story, vignette, other
+- `era`: the seven eras from the story catalog
+- `startYear`, `endYear`, `yearLabel`, `floating` (true when the story has no fixed place yet)
+- `beats`: the ordered story points, as your own notes
+- `involves`: characters, places, items that appear (placeholder names are real Characters with
+  status `needs_name`)
+- `dramatizes`: the events this story tells
+- `catalogNumber`: its number in the original catalog
 
-- [ ] Timeline events are **draggable** — dragging an event to a new position updates
-      its `sort_order` via an API call on drop (optimistic update in the UI, persist in
-      the background). In single-line mode,
-      [`react-calendar-timeline`](https://www.npmjs.com/package/react-calendar-timeline)
-      is the better fit than raw `vis-timeline` here — it's React-native (props-based,
-      not an imperative wrapper), actively maintained with a 2025 TypeScript rewrite,
-      and has drag/resize/zoom and grouped "lanes" built in out of the box. In
-      multi-lane convergence mode, drag is handled by whatever renders iStoryline's
-      output (see above).
-- [ ] Sidebar multi-select: don't build this from scratch either —
-      [`shadcn-multi-select-component`](https://github.com/sersavan/shadcn-multi-select-component)
-      is a copy-paste shadcn/ui component with grouped options (group by entity type),
-      search, and multi-level filtering already built — close to exactly what the
-      sidebar needs with just data wiring.
-- [ ] Any `[[wiki-link]]`-derived relationship rendered in body text becomes a real
-      in-app hyperlink automatically (this replaces the raw `[[...]]` syntax at render
-      time — don't show it raw to the user).
+### writing
+The actual prose. `kind` (chapter, scene, snippet), `story`, `order`, `startYear` (where it sits
+in-universe), `text` (rich text), `mentions`, a hidden `plainText` copy kept in sync by a hook, and
+a collapsed continuity-check status section. Saving new or changed text starts the continuity check.
 
-## Phase 3.5 — Creative-assist layer (core v1.0 feature)
+### relationships
+One record per link, stored once. `from`, `to` (any entry), `type`, `startYear`, `endYear`, `notes`.
+Reverse direction is found by querying both ends and using the inverse label. The types are in
+`lib/relationshipTypes.ts`: family (parent, sibling, spouse, relative), people (love interest,
+friend, ally, rival, enemy, mentor, serves, killed), places (born in, lives in, located in, rules,
+visited), groups (member, leader, culture, race, speaks), items (owns, wields, created), events and stories
+(participated in, took place at, caused, appears in, mentioned in), and a catch-all.
 
-**Placeholder / stub flow**
-- [ ] When creating or editing an entity/event and referencing something that doesn't
-      exist yet (a culture, a place, an item), the app can create a stub entity inline
-      rather than blocking — `status = 'placeholder'`.
-- [ ] On stub creation, auto-generate a `gap_prompt`: a short, specific note of what
-      needs deciding, derived from the context it was mentioned in. Example: creating
-      a placeholder culture from "the culture that controls the Lost Archive site"
-      should produce something like: *"Placeholder: culture controlling the Lost
-      Archive site — needs: government type, relationship to the Asharan Empire, why
-      they'd threaten/destroy the archive."*
-- [ ] A "Gaps" view lists every placeholder entity with its prompt, so they can be
-      resolved in a batch later. This can absorb the user's existing "Gaps in Story and
-      Worldbuilding" section from the Story Bible doc.
+### tags
+`name` (unique) and `description`, with a `T` code. **UNK** is created automatically on startup and cannot
+be deleted. Any tag you create yourself works the same way.
 
-**Suggestion / brainstorm pane**
-- [ ] From any entity or event page, a "Get suggestions" panel calls the Claude API
-      with: the current entity/event's fields + everything linked to it via
-      `relationships`/`event_links` (so suggestions respect established canon).
-- [ ] System prompt must explicitly constrain output to options/questions, never
-      finished narrative prose — e.g. "Suggest 2–3 possible reasons this could happen
-      without contradicting the provided canon" or "Here's a tension this could create
-      with [character]'s arc" — never "here's how the scene could go."
-- [ ] Output renders as a list of discrete, selectable suggestions — user picks, edits,
-      or discards; nothing is auto-inserted into any entity's fields without the user
-      accepting it.
+### continuity
+`continuity-flags` (Q codes), `field-history`, `snippet-confirmations`. Same meaning as in v1, now
+pointing at `writing` instead of snippets.
 
-## Phase 4 — Export & compilation
+---
 
-**Single-page Markdown export**
-- [ ] Every entity and event detail page gets an "Export as Markdown" action that
-      downloads a `.md` file for that item alone.
-- [ ] The export serializer mirrors the import format from Phase 2, in reverse:
-      header + `Status:` line + labeled fields + relationships rendered back out as
-      `[[Type#Name|Label]]` wiki-links. Import and export should share the same format
-      spec so one round-trips into the other cleanly.
-- [ ] File name derived from the entity/event slug.
+## Tags and the UNK tag
 
-**Compilations (chapters / ages)**
-- [ ] New concept: a **compilation** — an ordered, user-curated set of events and/or
-      entities, typed as `'age'`, `'chapter'`, or freeform. This is what lets the user
-      assemble "Chapter 7" or "Age ~350-400" as an actual document rather than just a
-      timeline filter.
-- [ ] Schema:
-      ```sql
-      compilations
-        id           uuid pk
-        title        text        -- e.g. "Chapter 7: Vashten's Final Years"
-        type         text        -- 'age' | 'chapter' | 'custom'
-        description  text null
+Every record (entries, relationships, writing, stories) has a `tags` field and an always-visible
+`reviewNote` ("Check this").
 
-      compilation_items          -- ordered contents, mixed events and entities
-        compilation_id  uuid fk -> compilations
-        event_id        uuid fk -> events, null
-        entity_id       uuid fk -> entities, null
-        position        integer  -- manual order within the compilation
-      ```
-- [ ] On import (Phase 2), auto-generate one `type = 'age'` compilation per distinct
-      `year_label` bucket as a starting point, pre-populated with that Age's events in
-      chronological order — the user can then rename, reorder, add, or remove freely.
-      This gives every existing Age a compilation for free without requiring the user
-      to build chapters from scratch.
-- [ ] Compilation detail page: ordered list of items, drag-to-reorder — use
-      [`@dnd-kit`](https://dndkit.com) (`dnd-kit/sortable`), the current standard for
-      React list reordering; `react-beautiful-dnd` is deprecated as of 2026. Add/remove
-      items from anywhere in the app, rename/retitle.
-- [ ] "Export compilation" produces a single combined `.md` file: each item's content
-      in order under its own header — an event's `draft_text` if present, otherwise its
-      structured What happened/Why/What it caused/What was learned fields; an entity's
-      full field set if an entity is included directly. This is effectively a live,
-      user-assembled version of the old "Consolidated Story Bible" doc, generated from
-      current data instead of hand-copied. **No library needed for the concatenation
-      itself** — it's just the single-page export serializer run per item and joined in
-      order with header separators. `pandoc` is worth having available as an optional
-      post-step if a compilation ever needs to become a PDF/EPUB later, but plain
-      Markdown concatenation covers the v1.0 requirement.
+**UNK means "I applied what I think is right, but you should double check it."** Wherever Claude, an
+import, or the migration fills something in on a best guess, it applies its best tags, adds `UNK`, and
+writes what to verify in `reviewNote`. Examples: a placeholder name matched to an existing character, a
+guessed era or format on a story, a wiki-link rewritten to a code, an entry's category chosen during
+the migration, and every record the continuity check creates on its own.
 
-## Available vs. custom — honest breakdown
+- Only the user removes `UNK`, after he has confirmed the record.
+- `GET /api/unk` returns the review queue across all collections. The Payload admin can also filter any
+  list by the UNK tag.
+- Frontend views show UNK records with a visible marker, and the node map draws them with a dashed outline.
+- The suggestion pane never writes tags or fields. It only suggests.
+
+---
+
+## Time model
+
+Plain whole numbers. Year 0 is the year SERO is born, and the story moves forward from there.
+Negative years sit before that, so prequels need no migration. `startYear` is a position and what a
+timeline drag changes. `yearLabel` is display text ("Age ~350-400") and is never rewritten by a
+drag; after a drag the app prompts whether to update it. `sortOrder` only breaks ties inside one
+year. The timeline's abstract-year-to-calendar mapping in `lib/timeline-scale.ts` stays as is.
+
+---
+
+## Migration from the old database (one time)
+
+A script `scripts/migrate-legacy.ts` reads the old database (read-only) and writes to Payload
+through the Local API.
+
+| Old | New |
+|---|---|
+| `entities` type character, location, race, language | characters, locations, races, languages |
+| `entities` type item, artifact | items (`itemType` = artifact for artifacts) |
+| `entities` type culture | cultures |
+| `entities.fields` (label to value) | `details` rows, same order |
+| `entities.parent_entity_id`, `events.parent_event_id` | `parent`, resolved in a second pass |
+| `events` | events: `sort_order` becomes `startYear`, `year_label` stays `yearLabel`, `sortOrder` set to 0 |
+| `event_links` | `involves` (collection chosen from the linked entry's type) |
+| `relationships` (4 rows) | relationships with type `related_to` |
+| `snippets` | writing, `kind` = snippet, `sort_order` becomes `startYear` |
+| `continuity_flags`, `field_history`, `snippet_confirmations` | continuity-flags, field-history, snippet-confirmations |
+| `compilations`, `compilation_items` | skipped if empty |
+
+Rules for the script:
+- Idempotent. Every record carries `legacyId`. A re-run updates, never duplicates (hard rule 8).
+- Code numbering. Entries are numbered in the order they appear in their source document
+  (Sero is C1), then in-app entries alphabetically. The script writes `legacy-code-map.json`
+  and a dry-run mode prints the full old-name to new-code list for review before anything is written.
+- Wiki-links. `[[Characters#Giana|Giana]]` in any text is rewritten to `Giana (C2)`, using the same
+  slug logic the old ingestion used. Any record whose text was rewritten gets `UNK` and a `reviewNote`
+  listing the links that changed. Unresolvable links (the known "Bard (The Traveler - Novel)" typo)
+  are left as plain text and listed in the report.
+- Plain text to rich text. Long text moving into a rich text field (`draftText`, snippet text)
+  goes through the Lexical markdown converter.
+- Verification. After a run, counts must match (47 entries, 113 events, 36 links, 4 relationships,
+  plus snippets, flags and history), and a spot check of five entries and five events is compared
+  field by field against the old rows.
+- The old database is not modified and not deleted until the user says the migration is verified.
+
+## Story catalog import (one time)
+
+`scripts/import-story-catalog.ts` reads `source-docs/ideas/Sero_Story_Catalog.md` (40 stories).
+- Each `### ` heading is a story. Era comes from the `## ERA` heading above it.
+- The italic line gives years and format: `*Age 20–23 | Novel*`, `*Age ~350–400 | Short Story*`,
+  `*Floating, suggested Age 250–280 | Short Story*` (sets `floating`). `Short Story/Novella` is
+  stored as the first format with a note.
+- Bullets become `beats`. The `Characters:` line becomes `involves`.
+- Placeholder names (marked with an asterisk, listed in the catalog's master table) are matched
+  against existing Characters first. Matches link to the existing entry. Unmatched names become new
+  Characters with status `needs_name` and a generated `gapPrompt`.
+- Dry run first. It writes `story-import-review.md` listing every story with its matched and
+  unmatched names, so the user decides before `--apply`.
+- Same upsert rule as the migration: keyed on `sourceDocId` and `catalogNumber`.
+- Every guess (a name matched to an existing character, an era or format interpretation, a floating
+  story's suggested range) gets the `UNK` tag with a `reviewNote`.
+- Triage task: some story ideas may already sit inside the migrated events (the Timeline one-liners
+  and the "events to be developed" rows). The review file flags events whose title closely matches a
+  catalog story so the user can decide which to link with `dramatizes` and which to convert.
+
+---
+
+## Frontend views (read pages and visualizations)
+
+All views read through the Local API and link every entry to its admin edit page.
+
+- **Home.** Counts per collection, open continuity items, placeholders waiting.
+- **Entry read pages.** Details, notes, linked events, relationships (read from both ends), sub-items.
+  ID codes in any text render as links showing the entry's name.
+- **Code lookup.** A search box that takes a code (C10) or a name and jumps to the entry.
+- **Timeline.** Single-line draggable view (`react-calendar-timeline`), all events by `startYear`.
+  Dragging changes `startYear` only and offers to update `yearLabel`.
+- **Sidebar multi-select filter.** Searchable, grouped by collection, any combination at once.
+- **Multi-lane convergence view.** With two or more selected, one lane each, lanes braid together at
+  events whose `involves` contains two or more of them. Layout from `i-storyline-js`; fall back to a
+  custom render only if its model does not fit. Dragging a convergence point moves every entry involved.
+- **Node map.** Nodes are entries, edges are relationships (and optionally `involves` and `parent`).
+  Color by collection, filter by relationship type or by a starting entry plus N steps.
+  Built on React Flow.
+- **Relationship view per entry.** The entry in the middle, grouped by relationship type, family
+  shown as a tree. Powered by `/api/codes/:code/links`.
+- **Story board.** Stories grouped by era and stage, with floating stories in their own lane.
+- **Review queue.** Everything tagged UNK in one list, with its `reviewNote` and a link to the admin edit page.
+
+---
+
+## Continuity check (ported)
+
+The behavior is the same as v1 and the rules in `CLAUDE.md` hard rule 1 still hold: the model reads
+and reports, every detail that reaches canon is a verbatim quote of the user's own words verified
+word for word, automatic additions have an Undo, and conflicts wait for a decision.
+
+What carries over unchanged (no data access, already tested by `npm run test:continuity`):
+`lib/continuity/analyze.ts`, `constants.ts`, `links.ts`, `plan.ts`, `text.ts`, `types.ts`.
+
+What is rewritten on the Local API: `run-check.ts`, the actions, and the data queries. A snippet
+becomes a `writing` record, an entity becomes an entry in the matching collection, `fields`
+becomes `details`. The check reads `writing.plainText`.
+
+Trigger: saving a `writing` record whose text or `startYear` changed starts the check (a Payload
+`afterChange` hook that sets `checkStatus` and runs the check after the response, with a manual
+"Check now" action as the fallback). The decision screens (inbox, side-by-side review, entry
+history) stay on the frontend, because the admin cannot show a highlighted side-by-side.
+
+Decision options are unchanged: keep canon, update canon, both are true, it changed over time,
+decide later.
+
+First real run still pending: apply it against the migrated data and tune the two prompts in
+`analyze.ts` from what it reports.
+
+---
+
+## Creative-assist layer
+
+**Placeholders and gaps.** Placeholders are real records. A Gaps view lists every entry whose
+status is not `locked`, with its `gapPrompt`, so they can be resolved in a batch. Creating a stub
+generates a `gapPrompt` from the context it was mentioned in. Entries that already have prompts
+from the old ingestion carry them over.
+
+**Suggestion pane.** From any entry or event page, "Get suggestions" calls the model with the
+current record and everything linked to it, referenced by code. The system prompt constrains output
+to options, questions, and tensions. Never finished prose. Output is a list of discrete suggestions;
+nothing is inserted until the user accepts it.
+
+---
+
+## Export and compilations
+
+- Every entry and event gets "Export as Markdown": header, `Status:` line, labeled details, and
+  relationships written out. The serializer mirrors the migration's source format so a round trip
+  loses nothing.
+- A `compilations` collection (code prefix A): an ordered set of events and entries, typed as age,
+  chapter, or custom. Drag to reorder with `@dnd-kit/sortable`. "Export compilation" joins each
+  item's Markdown in order into one file. One compilation per age can be generated automatically
+  as a starting point.
+
+---
+
+## Phases
+
+### Phase 0: Preserve the current state
+- [ ] Commit everything now in the working tree (the continuity feature and doc changes are not yet
+      committed) and tag it `pre-payload`.
+- [ ] Apply migration `0003` to the old database so the old schema matches the code (or confirm no
+      snippets exist yet and skip it).
+- [ ] Export a snapshot of the old database (`pg_dump` or the Neon branch feature) as the safety copy.
+
+### Phase 1: Payload running, writing possible
+- [ ] Create a new Neon database for Payload. Add `PAYLOAD_DATABASE_URL` and `PAYLOAD_SECRET` to `.env`.
+- [ ] Update Next.js to the latest patched 16.x, install `payload`, `@payloadcms/next`,
+      `@payloadcms/db-postgres`, `@payloadcms/richtext-lexical`, `sharp`, `graphql`, all at one version.
+- [ ] Restructure routes: add `app/(payload)/`, move the existing frontend into `app/(app)/`.
+      Wrap `next.config.mjs` with `withPayload`. Add the `@payload-config` alias in `tsconfig.json`.
+- [ ] Copy `payload-starter/src/*` to the repo root (collections, fields, endpoints, lib).
+- [ ] Generate types and the import map, start `npm run dev`, open `/admin`, create one entry of each
+      kind, confirm codes are assigned and `/api/codes/C1` resolves.
+- [ ] **Milestone: the admin is usable for writing.**
+
+### Phase 2: Bring the data across
+- [ ] Write and dry-run `scripts/migrate-legacy.ts`, review the code map, then apply and verify counts.
+- [ ] Write and dry-run `scripts/import-story-catalog.ts`, review, then apply.
+- [ ] **Milestone: existing canon and all 40 story ideas are in Payload.**
+
+### Phase 3: Rewire the frontend and retire the old app code
+- [ ] UNK marker on every list and read page, and a basic review queue page.
+- [ ] Home, entry read pages, event read pages on the Local API with ID-code linkification.
+- [ ] Timeline reading and writing through the Local API (`startYear`).
+- [ ] Remove the old forms, actions, data layer, database code and legacy dependencies (list in
+      `BUILD_GUIDE.md`) once the migration is verified.
+
+### Phase 4: Continuity check port
+- [ ] Rewrite `run-check.ts`, actions and data queries on the Local API; keep the pure files.
+- [ ] Rewire the inbox, review screen, entry history and sidebar badge.
+- [ ] Run `npm run test:continuity`, then a first real writing check, then tune prompts.
+
+### Phase 5: Views
+- [ ] Sidebar multi-select filter.
+- [ ] Multi-lane convergence view.
+- [ ] Node map and per-entry relationship view.
+- [ ] Story board.
+- [ ] Timeline polish: two-tier header for wide zoom, decide whether sub-events hide until zoom.
+
+### Phase 6: Creative assist
+- [ ] Gaps view.
+- [ ] Review queue (UNK) view, if not already built in Phase 3.
+- [ ] Suggestion pane.
+
+### Phase 7: Export and compilations
+- [ ] Markdown export, `compilations` collection, ordered compile, combined export.
+
+### Phase 8: Polish and deploy
+- [ ] Search across everything (by name, alias, or code).
+- [ ] Switch from dev auto-push to migrations, deploy to Vercel with a real single-user login.
+
+---
+
+## Available vs. custom
 
 | Piece | Source | Notes |
 |---|---|---|
-| Postgres hosting + ORM | **Available** — Neon + Drizzle | Managed service, one-click Vercel setup |
-| Wiki-link parsing | **Available** — `remark-wiki-link` | Matches existing `[[Page\|Alias]]` syntax directly |
-| Drive pull mechanism | **Reused** — your existing Apps Script pipeline | Same auth/pull pattern, new destination |
-| Basic draggable timeline | **Available** — `react-calendar-timeline` | Drag/resize/zoom/lanes out of the box |
-| Sidebar multi-select filter | **Available** — `shadcn-multi-select-component` | Copy-paste shadcn component, grouping built in |
-| List reordering (compilations) | **Available** — `dnd-kit/sortable` | Current standard, accessible |
-| Multi-lane convergence layout | **Available, needs integration** — `iStoryline.js` | Layout math is done; wiring your data model in and rendering its output is custom |
-| Entity/event schema & CRUD | **Custom** | This is your specific data model — no shortcut here |
-| Markdown export serializer | **Custom, simple** | Mirrors the import format; small, well-defined |
-| Compilation concatenation | **Custom, trivial** | String-join of already-serialized markdown |
-| AI suggestion pane | **Custom** | Direct Claude API call + prompt design, no library needed |
-| Placeholder/gap-prompt generation | **Custom** | Small, specific to this app's flow |
+| Writing UI, forms, versions, drafts | **Available**, Payload admin | Replaces every hand-built form |
+| Rich text editing | **Available**, Lexical | Built into Payload |
+| Postgres hosting | **Available**, Neon | Dedicated database for Payload |
+| Single-line draggable timeline | **Available**, `react-calendar-timeline` | Already working in v1 |
+| Multi-lane convergence layout | **Available, needs integration**, `iStoryline.js` | Not started |
+| Node map | **Available**, React Flow | Data mapping plus styling |
+| Sidebar multi-select | **Available**, `shadcn-multi-select-component` | Copy-paste component |
+| List reordering | **Available**, `@dnd-kit/sortable` | For compilations |
+| ID codes, code lookup endpoints | **Custom, small** | Written, in the starter |
+| Entity and relationship collections | **Custom** | Written, in the starter |
+| One-time migration and catalog import | **Custom** | Phase 2 |
+| Continuity check logic | **Custom, ported** | Pure logic kept, data layer rewritten |
+| Suggestion pane | **Custom** | A prompt, not an algorithm |
+| Markdown export | **Custom, simple** | Mirrors the source format |
 
-**Existing full worldbuilding apps (Kanka, Fantasia Archive)** were also checked —
-Kanka is the closest open-source match (GPLv3, self-hostable, strong cross-linking) but
-it's PHP/Laravel; Fantasia Archive is open-source too but a downloadable Electron app.
-Neither shares a stack with this build, so there's no code to lift directly — worth a
-skim for entity-taxonomy ideas, but not a source of reusable components here.
+## Explicitly out of scope
 
-**Rough overall split:** the data layer, the timeline drag interaction, the wiki-link
-parsing, and the sidebar filter are all real, maintained, off-the-shelf pieces —
-genuinely more "wire it up" than "write it." The convergence timeline gets a major
-head start from iStoryline.js but still needs real integration work. What's fully
-custom is comparatively small: the entity/event schema itself (because it's your
-world), the export/compilation glue (simple, but nobody else has this exact format to
-reuse), and the AI suggestion layer (a prompt, not an algorithm). Nothing in this plan
-requires inventing an algorithm from scratch anymore — the one piece that looked like
-it might (convergence layout) turned out to already exist.
-
-## Phase 5 — Polish
-
-- [ ] Basic search across entities.
-- [ ] Deploy to Vercel.
-- [ ] Optional: re-sync button to re-pull from the canonical Drive source on demand
-      (one-time import only — see Editing model above).
-
-## Explicitly out of scope for v1.0
-
-- No auth/multi-user support.
-- No AI-generated prose insertion anywhere — suggestions and gap prompts only.
-- No ongoing two-way Drive sync. Drive import is one-time (Phase 0/2); after that, the
-  app's database is the source of truth and Drive docs are no longer kept in sync.
-
-## Suggested session breakdown
-
-1. Phase 0 (canonicalize) + Phase 1 (schema) — mostly manual/config work, one session.
-2. Phase 2 (parser/ingestion, one-time import) — one session, test against real
-   Characters.md/Events.md.
-3. Phase 3 (entity pages + CRUD forms) — one session.
-4. Phase 3 continued (basic single-line draggable timeline) — one session.
-5. Phase 3 continued (sidebar multi-select + multi-lane convergence view) — one
-   session, likely the hardest single piece in v1.0 given the custom rendering.
-6. Phase 3.5 (placeholders + suggestion pane) — one session.
-7. Phase 4 (single-page export + compilations) — one session.
-8. Phase 5 (polish/deploy) — one session.
+- No multi-user support and no public access.
+- No AI-generated prose insertion anywhere. Suggestions and gap prompts only.
+- No ongoing sync with Google Drive or any second store.
