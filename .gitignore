@@ -7,3 +7,6 @@
 next-env.d.ts
 .claude/settings.local.json
 .neon
+cookies.txt
+dev-server.log
+dev-server-err.log

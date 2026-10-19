@@ -53,7 +53,7 @@ is the data, the pure continuity logic, the timeline component, and the source d
   keeps one real login. The Local API in Payload 3.x bypasses access control by default, so
   frontend server code is trusted code; do not expose write actions to the public.
 - **Environment.** `PAYLOAD_DATABASE_URL`, `PAYLOAD_SECRET`, `AI_GATEWAY_API_KEY`,
-  `CONTINUITY_MODEL` (optional), `DEV_PASSWORD` (optional, dev autoLogin).
+  `CONTINUITY_MODEL` (optional), `DEV_LOGIN_EMAIL` (dev autoLogin, set to your admin email).
   `DATABASE_URL` points at the old database and is used only by the migration script.
 
 ---
