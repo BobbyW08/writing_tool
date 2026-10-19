@@ -6,33 +6,20 @@ looks like. Update "Current state" and "Next up" at the end of every session.
 
 ---
 
-## Current state (as of 2026-10-17)
+## Current state (as of 2026-10-19)
 
-**Direction change:** the app is moving onto Payload CMS. All writing and storage happens in
-Payload, every record gets a permanent ID code (C10, L4, E27, S12), and story ideas are a
-collection of their own. The plan (`traveler-wiki-build-plan.md`, v2.0) and `CLAUDE.md` were
-rewritten for this. **No Payload code is installed in the app yet.** The next step is Phase 0.
+**Phase 1 complete.** Payload CMS 3.91.0 is installed and verified. The new Neon database is
+live and isolated from the old one. The admin is reachable at `/admin`, all 13 collections are
+registered, and the ID-code system, code lookup endpoints, continuity flags, and UNK tag are all
+working. The counters are reset and the database is empty, ready for the data migration.
 
-What exists today is the v1 app:
-- Phases 0 to 2 done (canonicalize, schema, ingestion). Phase 3 done for entry and event CRUD,
-  wiki-link rendering, and a single-line draggable timeline. Phase 3.6 (snippets and continuity
-  check) built and verified offline.
-- Sidebar multi-select, multi-lane convergence, Gaps view, suggestion pane, export, and
-  compilations were never started.
-- Real data in the old Neon database: 47 entries (36 characters, 11 locations), 113 events
-  (38 from `Events.md`, 75 one-liners from `Timeline.md`), 36 event links, 4 relationships.
-- Stack as installed: Next 16.3.2, React 19.2.8, TypeScript 6.0.3, Drizzle 0.45.2,
-  `react-calendar-timeline` 0.30.0-beta.19, `ai` 7.0.77. The `.env` file has `DATABASE_URL` and
-  `AI_GATEWAY_API_KEY` set.
+Stack now installed: Next 16.4.2, Payload 3.91.0, TypeScript 6.0.3, `@payloadcms/db-postgres`,
+`@payloadcms/richtext-lexical`, `@payloadcms/next`. Two route groups: `app/(payload)/` (Payload
+admin and API) and `app/(app)/` (old frontend, to be rewired later).
 
-**Uncommitted work (important).** The last git commit (`f3c17ad`) predates Phase 3.6. Eleven tracked
-files are modified and the whole continuity feature (`app/continuity/`, `app/snippets/`, six
-components, `drizzle/0003` journal entry) is untracked. Migration `0003` has not been applied to
-the database. Commit and tag this before changing anything (Phase 0).
-
-**Payload starter delivered.** `payload-starter/` contains the collections, ID-code hook, code
-lookup endpoints, and relationship types. It typechecks against Payload 3.x and has not been run
-against a database.
+Old data confirmed intact in the read-only database: 47 entities, 113 events, 38 event_links,
+4 relationships. No continuity tables (migration 0003 was never applied to the old DB -- fine,
+those tables are in the new DB via Payload now).
 
 ---
 
@@ -137,15 +124,15 @@ against a database.
 
 ## Next up (in order)
 
-0. **Phase 0.** Commit the working tree and tag `pre-payload`. Apply migration `0003` or confirm
-   there are no snippets. Take a snapshot of the old database.
-1. **Phase 1.** Create the Payload database, update Next, install Payload, add the route groups,
-   copy the starter, run `/admin`. Milestone: writing is possible.
-2. **Phase 2.** Write the migration script and story catalog import, dry run, review, apply, verify.
-3. **Phase 3.** Rewire home, read pages and timeline to the Local API, retire the old CRUD code.
-4. **Phase 4.** Port the continuity check, then run the first real writing check.
-5. **Phase 5.** Sidebar filter, convergence view, node map, relationship view, story board.
-6. **Phases 6 to 8.** Gaps view and suggestion pane, export and compilations, search and deploy.
+1. **Phase 2 (NEXT).** Run the data migration from `PHASE_2_DATA.md`. Three gates:
+   - 2A: migrate old DB (47 entities -> characters/locations/etc, 113 events, 38 event_links,
+     4 relationships). Sero must come out as C1 (counters are reset, ready).
+   - 2B: import the story catalog (40 stories from `Sero_Story_Catalog.md`).
+   - 2C: mine the Consolidated Story Bible and gap analysis, run canonical coverage check.
+2. **Phase 3.** Rewire home, read pages and timeline to the Local API, retire the old CRUD code.
+3. **Phase 4.** Port the continuity check, then run the first real writing check.
+4. **Phase 5.** Sidebar filter, convergence view, node map, relationship view, story board.
+5. **Phases 6 to 8.** Gaps view and suggestion pane, export and compilations, search and deploy.
 
 Still-open data items from the earlier ingestion, to decide during Phase 2:
 - The dangling "Assassination Attempt" event (Age ~540) that has no full `Events.md` entry. It

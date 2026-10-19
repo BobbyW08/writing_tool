@@ -329,22 +329,23 @@ nothing is inserted until the user accepts it.
 ## Phases
 
 ### Phase 0: Preserve the current state
-- [ ] Commit everything now in the working tree (the continuity feature and doc changes are not yet
+- [x] Commit everything now in the working tree (the continuity feature and doc changes are not yet
       committed) and tag it `pre-payload`.
-- [ ] Apply migration `0003` to the old database so the old schema matches the code (or confirm no
-      snippets exist yet and skip it).
-- [ ] Export a snapshot of the old database (`pg_dump` or the Neon branch feature) as the safety copy.
+- [x] Apply migration `0003` to the old database so the old schema matches the code (or confirm no
+      snippets exist yet and skip it). -- skipped, no snippets in old DB; tables exist in new DB.
+- [x] Export a snapshot of the old database (`pg_dump` or the Neon branch feature) as the safety copy.
+      -- old DB is a live read-only Neon branch; treated as the safety copy.
 
-### Phase 1: Payload running, writing possible
-- [ ] Create a new Neon database for Payload. Add `PAYLOAD_DATABASE_URL` and `PAYLOAD_SECRET` to `.env`.
-- [ ] Update Next.js to the latest patched 16.x, install `payload`, `@payloadcms/next`,
+### Phase 1: Payload running, writing possible -- DONE 2026-10-19
+- [x] Create a new Neon database for Payload. Add `PAYLOAD_DATABASE_URL` and `PAYLOAD_SECRET` to `.env`.
+- [x] Update Next.js to the latest patched 16.x, install `payload`, `@payloadcms/next`,
       `@payloadcms/db-postgres`, `@payloadcms/richtext-lexical`, `sharp`, `graphql`, all at one version.
-- [ ] Restructure routes: add `app/(payload)/`, move the existing frontend into `app/(app)/`.
+- [x] Restructure routes: add `app/(payload)/`, move the existing frontend into `app/(app)/`.
       Wrap `next.config.mjs` with `withPayload`. Add the `@payload-config` alias in `tsconfig.json`.
-- [ ] Copy `payload-starter/src/*` to the repo root (collections, fields, endpoints, lib).
-- [ ] Generate types and the import map, start `npm run dev`, open `/admin`, create one entry of each
+- [x] Copy `payload-starter/src/*` to the repo root (collections, fields, endpoints, lib).
+- [x] Generate types and the import map, start `npm run dev`, open `/admin`, create one entry of each
       kind, confirm codes are assigned and `/api/codes/C1` resolves.
-- [ ] **Milestone: the admin is usable for writing.**
+- [x] **Milestone: the admin is usable for writing.**
 
 ### Phase 2: Bring the data across
 - [ ] Write and dry-run `scripts/migrate-legacy.ts`, review the code map, then apply and verify counts.
