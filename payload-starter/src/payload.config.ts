@@ -19,9 +19,9 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     // Local development only: signs you straight in, no login screen.
-    // A deployed copy keeps a real single-user login.
-    autoLogin: isDev
-      ? { email: 'me@traveler.local', password: process.env.DEV_PASSWORD || 'dev-only-password' }
+    // Set DEV_LOGIN_EMAIL in .env.local to your admin account email.
+    autoLogin: isDev && process.env.DEV_LOGIN_EMAIL
+      ? { email: process.env.DEV_LOGIN_EMAIL }
       : false,
   },
   collections: [
