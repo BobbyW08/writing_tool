@@ -8,18 +8,17 @@ looks like. Update "Current state" and "Next up" at the end of every session.
 
 ## Current state (as of 2026-10-19)
 
-**Phase 1 complete.** Payload CMS 3.91.0 is installed and verified. The new Neon database is
-live and isolated from the old one. The admin is reachable at `/admin`, all 13 collections are
-registered, and the ID-code system, code lookup endpoints, continuity flags, and UNK tag are all
-working. The counters are reset and the database is empty, ready for the data migration.
+**Phase 2A complete.** All old-DB data is in Payload. The migration is idempotent (second run
+produced all U, no new records, same counts). Counters: C=37, E=114, L=12, X=5, T=2.
 
-Stack now installed: Next 16.4.2, Payload 3.91.0, TypeScript 6.0.3, `@payloadcms/db-postgres`,
-`@payloadcms/richtext-lexical`, `@payloadcms/next`. Two route groups: `app/(payload)/` (Payload
-admin and API) and `app/(app)/` (old frontend, to be rewired later).
+New DB now holds: 36 characters (C1=SERO, C2=Giana ... C36=Boy B), 11 locations (L1=CALDOR ...
+L11=THE NEW LANDS), 113 events (E1=The Ritual ... E113), 4 relationships (X1-X4, all UNK).
+UNK queue has 10 records: E2, E16 (wiki-link rewrites), E36-E39 (year unknown), X1-X4 (type review).
 
-Old data confirmed intact in the read-only database: 47 entities, 113 events, 38 event_links,
-4 relationships. No continuity tables (migration 0003 was never applied to the old DB -- fine,
-those tables are in the new DB via Payload now).
+`scripts/migrate-legacy.ts` is the apply script. It stages to `staging/` first, then applies
+with `-- --apply`. The counter check is now a warn (not fatal) to allow idempotent re-runs.
+
+Phase 1 complete as of 2026-10-19. Phase 2A complete as of 2026-10-19.
 
 ---
 
@@ -124,11 +123,10 @@ those tables are in the new DB via Payload now).
 
 ## Next up (in order)
 
-1. **Phase 2 (NEXT).** Run the data migration from `PHASE_2_DATA.md`. Three gates:
-   - 2A: migrate old DB (47 entities -> characters/locations/etc, 113 events, 38 event_links,
-     4 relationships). Sero must come out as C1 (counters are reset, ready).
-   - 2B: import the story catalog (40 stories from `Sero_Story_Catalog.md`).
-   - 2C: mine the Consolidated Story Bible and gap analysis, run canonical coverage check.
+1. **Phase 2B (NEXT).** Import the story catalog (`scripts/import-story-catalog.ts`).
+   40 stories from `source-docs/ideas/Sero_Story_Catalog.md` -> `stories` collection.
+   Gate 2B before applying.
+2. **Phase 2C.** Mine Consolidated Story Bible and gap analysis for coverage check.
 2. **Phase 3.** Rewire home, read pages and timeline to the Local API, retire the old CRUD code.
 3. **Phase 4.** Port the continuity check, then run the first real writing check.
 4. **Phase 5.** Sidebar filter, convergence view, node map, relationship view, story board.

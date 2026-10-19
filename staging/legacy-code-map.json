@@ -1,0 +1,802 @@
+{
+  "C1": {
+    "legacyId": "6abd43d5-fa10-4209-852b-74ba8fbe872e",
+    "name": "SERO — THE TRAVELER",
+    "collection": "characters"
+  },
+  "C2": {
+    "legacyId": "e96e5e06-a973-4cfd-a2c9-2246557ec9c4",
+    "name": "Giana",
+    "collection": "characters"
+  },
+  "C3": {
+    "legacyId": "efe080bc-1d78-4ca2-af23-1df5a3ed975a",
+    "name": "Vashten",
+    "collection": "characters"
+  },
+  "C4": {
+    "legacyId": "e44ddd39-ac0e-44a7-8139-34c017292727",
+    "name": "Bard (Original)",
+    "collection": "characters"
+  },
+  "C5": {
+    "legacyId": "46102ba8-bc33-42ae-b007-637baa41a9ab",
+    "name": "Nyneave",
+    "collection": "characters"
+  },
+  "C6": {
+    "legacyId": "76d493c9-8fee-47dd-bc74-ad5576f0fd04",
+    "name": "The First Empress",
+    "collection": "characters"
+  },
+  "C7": {
+    "legacyId": "09caad9b-394f-4bb6-a558-f18add6c68d4",
+    "name": "The Shaman / Priest",
+    "collection": "characters"
+  },
+  "C8": {
+    "legacyId": "b5a8f830-67db-42a0-8d05-a714c6c9035c",
+    "name": "THE FOURTH RULER",
+    "collection": "characters"
+  },
+  "C9": {
+    "legacyId": "99e2bf71-d110-41cc-8642-508e75206c6f",
+    "name": "The Commander",
+    "collection": "characters"
+  },
+  "C10": {
+    "legacyId": "d206bff5-ae1a-4e1b-9ebb-0ba620fb8a0d",
+    "name": "The General Who Stays",
+    "collection": "characters"
+  },
+  "C11": {
+    "legacyId": "4bb76f63-d254-4607-b95c-1fcaf2b2d70f",
+    "name": "The Politician Back Home",
+    "collection": "characters"
+  },
+  "C12": {
+    "legacyId": "c46cbc07-580a-42d4-ab86-23fbbfb2189c",
+    "name": "The First Underground Leader",
+    "collection": "characters"
+  },
+  "C13": {
+    "legacyId": "74e0c9b0-2b29-48a2-8f6e-d3fd1ae0ae26",
+    "name": "The Engineer",
+    "collection": "characters"
+  },
+  "C14": {
+    "legacyId": "5252cb0e-5518-43d8-8258-a6ffbbd86df3",
+    "name": "The First Generation Born Underground",
+    "collection": "characters"
+  },
+  "C15": {
+    "legacyId": "7e34dd3f-3fa3-4354-beec-ce9885a0ed12",
+    "name": "The One Who Knows Too Much",
+    "collection": "characters"
+  },
+  "C16": {
+    "legacyId": "641b3a0b-9394-4baa-92b8-f798b7ca13b7",
+    "name": "The Recorded Voice",
+    "collection": "characters"
+  },
+  "C17": {
+    "legacyId": "de9716b2-3586-4178-ba2e-f435b07fd04d",
+    "name": "The Sleeper",
+    "collection": "characters"
+  },
+  "C18": {
+    "legacyId": "a4431910-d2c7-4f52-b210-f55ac9a0439a",
+    "name": "The Accidental Inheritor",
+    "collection": "characters"
+  },
+  "C19": {
+    "legacyId": "1fe70b55-2aca-47a8-b32d-ab099aed0c25",
+    "name": "The Minor King",
+    "collection": "characters"
+  },
+  "C20": {
+    "legacyId": "41401038-2ca7-4b39-bdf8-8808ab2ac73e",
+    "name": "The Usurper With a Point",
+    "collection": "characters"
+  },
+  "C21": {
+    "legacyId": "83fff3a0-02dd-40e1-8fac-d6f7dad176fe",
+    "name": "The Regent Who Won't Let Go",
+    "collection": "characters"
+  },
+  "C22": {
+    "legacyId": "f74ca778-e2b3-48db-be7b-c7b6f833ca40",
+    "name": "The Merchant Who Became a King",
+    "collection": "characters"
+  },
+  "C23": {
+    "legacyId": "284cbf96-60ac-4347-9160-7a4836a1e66d",
+    "name": "The Hunter",
+    "collection": "characters"
+  },
+  "C24": {
+    "legacyId": "ad802c83-68dc-4282-b822-02dce351aca6",
+    "name": "The Truth Cultist",
+    "collection": "characters"
+  },
+  "C25": {
+    "legacyId": "4f67b02c-8d5a-4783-b4ef-3d539b27478b",
+    "name": "The Prophet Who Might Be Right",
+    "collection": "characters"
+  },
+  "C26": {
+    "legacyId": "0d3a3b64-9f0a-449d-87c5-2f73737919d1",
+    "name": "The Moderate Nobody Listens To",
+    "collection": "characters"
+  },
+  "C27": {
+    "legacyId": "97702358-044d-46d1-b117-f1d2d633d13d",
+    "name": "The Gatekeeper",
+    "collection": "characters"
+  },
+  "C28": {
+    "legacyId": "e595af19-2669-49a6-ab7e-18e97fad8e0c",
+    "name": "The Scholar Who Left",
+    "collection": "characters"
+  },
+  "C29": {
+    "legacyId": "d5bd7d55-a363-48fe-81c0-5c9ed54f655f",
+    "name": "The Ruler Who Finally Opens the Gate",
+    "collection": "characters"
+  },
+  "C30": {
+    "legacyId": "64e9e159-508d-48a1-a675-fcee294e3031",
+    "name": "The Woman Who Remembers",
+    "collection": "characters"
+  },
+  "C31": {
+    "legacyId": "dc8f6c71-dd2d-4c95-affe-9dab955696c1",
+    "name": "The Forger",
+    "collection": "characters"
+  },
+  "C32": {
+    "legacyId": "dc0e4954-ad20-4bb5-8126-624a974a7ffa",
+    "name": "The Rival Chronicler",
+    "collection": "characters"
+  },
+  "C33": {
+    "legacyId": "afb92996-be04-4328-a79f-ddd15b8343f3",
+    "name": "The Child Who Asked Too Much",
+    "collection": "characters"
+  },
+  "C34": {
+    "legacyId": "fde6362e-1e29-4e66-bbcb-8daf181e7514",
+    "name": "The Successor Who Said No",
+    "collection": "characters"
+  },
+  "C35": {
+    "legacyId": "8b3f4d9c-8dca-4f79-a637-3d10e4877c8e",
+    "name": "Boy A",
+    "collection": "characters"
+  },
+  "C36": {
+    "legacyId": "8de6bd5c-7f5d-454c-87fe-f564fc1f13b0",
+    "name": "Boy B",
+    "collection": "characters"
+  },
+  "L1": {
+    "legacyId": "b549a20e-1887-42a3-b822-50a15b6b28ac",
+    "name": "CALDOR",
+    "collection": "locations"
+  },
+  "L2": {
+    "legacyId": "768c3002-0c27-44cf-a63b-64aacd2fed36",
+    "name": "Renmark",
+    "collection": "locations"
+  },
+  "L3": {
+    "legacyId": "f1d68fc9-95c6-430a-95aa-cfd30febf077",
+    "name": "The Imperial Capital",
+    "collection": "locations"
+  },
+  "L4": {
+    "legacyId": "e907dac7-6107-4693-b2ae-52efb6aa335e",
+    "name": "The Underground City",
+    "collection": "locations"
+  },
+  "L5": {
+    "legacyId": "4ef7566e-992a-4869-9b72-f4efc4e8f04d",
+    "name": "Caeldrath",
+    "collection": "locations"
+  },
+  "L6": {
+    "legacyId": "24602224-4ce7-4f8a-8e3b-93830b2bd69b",
+    "name": "The Interior — Star-Farer Archive Location",
+    "collection": "locations"
+  },
+  "L7": {
+    "legacyId": "587d7085-fc1f-4589-8d57-6e7a6f3d5257",
+    "name": "KETH",
+    "collection": "locations"
+  },
+  "L8": {
+    "legacyId": "01553170-e910-4a2a-bb0f-f231bab472f7",
+    "name": "The Keth Archive",
+    "collection": "locations"
+  },
+  "L9": {
+    "legacyId": "6a0baa7d-b90a-4cfb-91d2-b7a3fae4bcb6",
+    "name": "MOSSEND",
+    "collection": "locations"
+  },
+  "L10": {
+    "legacyId": "eac5bdcc-b7c8-4aa5-8daf-d3aa3f4ece09",
+    "name": "THE MOUNTAIN PEOPLE'S HOMELAND",
+    "collection": "locations"
+  },
+  "L11": {
+    "legacyId": "d0ef8d9f-0b01-43c6-8a59-cde0c7cbc428",
+    "name": "THE NEW LANDS",
+    "collection": "locations"
+  },
+  "E1": {
+    "legacyId": "f01f85d7-9049-4e9b-859f-438511b6771b",
+    "name": "The Ritual",
+    "collection": "events"
+  },
+  "E2": {
+    "legacyId": "0f39af50-12cd-4730-8c37-3a3ebdbde13c",
+    "name": "The Arrival of the Asharan Empire",
+    "collection": "events"
+  },
+  "E3": {
+    "legacyId": "49bc6c7c-d44e-41f4-89f1-2abf86b1e4f8",
+    "name": "Giana's Death",
+    "collection": "events"
+  },
+  "E4": {
+    "legacyId": "83b09105-4f74-4470-b78f-66ea3750e0ea",
+    "name": "Star-Farers Archive Discovery",
+    "collection": "events"
+  },
+  "E5": {
+    "legacyId": "826859e2-cbb6-4819-ba68-e06d17771f7d",
+    "name": "The Drawing Lesson",
+    "collection": "events"
+  },
+  "E6": {
+    "legacyId": "630cece7-ac7c-46dd-9baf-bed294146321",
+    "name": "Bard's Trial and Death",
+    "collection": "events"
+  },
+  "E7": {
+    "legacyId": "4de3eeef-1fff-4f94-ab09-4a060666d422",
+    "name": "The Religious War",
+    "collection": "events"
+  },
+  "E8": {
+    "legacyId": "bcbd6b14-19f7-4c45-85a3-994429d6f722",
+    "name": "The Minor King",
+    "collection": "events"
+  },
+  "E9": {
+    "legacyId": "00562281-632b-47fc-99f5-ce84df7a6823",
+    "name": "First Journey to Keth",
+    "collection": "events"
+  },
+  "E10": {
+    "legacyId": "0fccd161-e299-4d87-a3b7-d4039b776e4b",
+    "name": "The Language That Died",
+    "collection": "events"
+  },
+  "E11": {
+    "legacyId": "464d59a5-2b0d-4f13-993b-488f91319b71",
+    "name": "First Caeldrath Denial",
+    "collection": "events"
+  },
+  "E12": {
+    "legacyId": "0cbe90a2-8fa0-4b4e-bee4-d27b66a766a0",
+    "name": "The Library Fire",
+    "collection": "events"
+  },
+  "E13": {
+    "legacyId": "b458ff88-3c76-44c6-bfd8-7273dd4db8ed",
+    "name": "The Collapse",
+    "collection": "events"
+  },
+  "E14": {
+    "legacyId": "ac7397e1-3948-4fa2-a4b5-11b9eddfea8b",
+    "name": "The Underground Evacuation",
+    "collection": "events"
+  },
+  "E15": {
+    "legacyId": "04773b43-412a-4665-b476-41433f99f4f5",
+    "name": "The Collapse Confrontation",
+    "collection": "events"
+  },
+  "E16": {
+    "legacyId": "bddd5a54-9025-4c55-b6d5-5de76afcedb6",
+    "name": "The Invasion",
+    "collection": "events"
+  },
+  "E17": {
+    "legacyId": "7b0f5bcc-3040-405a-984d-a58db193b572",
+    "name": "The Failed Retirement",
+    "collection": "events"
+  },
+  "E18": {
+    "legacyId": "cd2aca10-f7c8-4c8e-8f32-e39c74f9bd98",
+    "name": "What the Long Collapse Sounds Like",
+    "collection": "events"
+  },
+  "E19": {
+    "legacyId": "11ecf6c4-7a02-4629-b23c-8bee3ad1983c",
+    "name": "First Failed Ritual Attempt",
+    "collection": "events"
+  },
+  "E20": {
+    "legacyId": "b950dd6b-9e00-4f1d-8f21-d0a12a5fd6e2",
+    "name": "The Apathy Years",
+    "collection": "events"
+  },
+  "E21": {
+    "legacyId": "3b4e9b4a-2365-4ca7-afc6-cd0c5d6a41cb",
+    "name": "The Plague of Truth",
+    "collection": "events"
+  },
+  "E22": {
+    "legacyId": "7ad825f4-7946-46d4-9613-55358fbd21ff",
+    "name": "Printing Technology Arrives",
+    "collection": "events"
+  },
+  "E23": {
+    "legacyId": "959e18b5-ba63-4d1b-87d6-1fc750b9d0bc",
+    "name": "The Cartographer's Lie",
+    "collection": "events"
+  },
+  "E24": {
+    "legacyId": "642167a4-aec5-4f6c-a40a-3af5c7860006",
+    "name": "Second Failed Ritual Attempt",
+    "collection": "events"
+  },
+  "E25": {
+    "legacyId": "778daf6d-d97d-4cd1-9d74-20ccba2431e3",
+    "name": "The One Who Lived",
+    "collection": "events"
+  },
+  "E26": {
+    "legacyId": "8a62bddd-cf0e-471e-9916-7cb16c377a51",
+    "name": "The Long Peace",
+    "collection": "events"
+  },
+  "E27": {
+    "legacyId": "d197c427-6802-48d9-81f3-d7bf6f829d36",
+    "name": "The Successor Who Said No",
+    "collection": "events"
+  },
+  "E28": {
+    "legacyId": "7d53aad0-9830-4343-b8d5-c52643cf36c4",
+    "name": "Third Visit to Keth",
+    "collection": "events"
+  },
+  "E29": {
+    "legacyId": "53ce4b84-f112-4dc8-94c4-98058e3bc296",
+    "name": "Third Failed Ritual Attempt",
+    "collection": "events"
+  },
+  "E30": {
+    "legacyId": "f06ab230-5175-4508-b8f7-83593565268f",
+    "name": "Early Newspapers",
+    "collection": "events"
+  },
+  "E31": {
+    "legacyId": "91fee471-f597-47f1-bb9f-170c4d2b7046",
+    "name": "The Invention He Recognized",
+    "collection": "events"
+  },
+  "E32": {
+    "legacyId": "008b5570-59ce-405d-98ff-e3094e68a15f",
+    "name": "The Technology Collapse",
+    "collection": "events"
+  },
+  "E33": {
+    "legacyId": "352649a1-d6c2-48d3-83ac-0129a297bea7",
+    "name": "The Wrong History Book",
+    "collection": "events"
+  },
+  "E34": {
+    "legacyId": "19c574a3-e0b7-44ed-83ef-f99151219987",
+    "name": "Before the Two Boys",
+    "collection": "events"
+  },
+  "E35": {
+    "legacyId": "ae69ac91-2dd6-41b1-a82b-cc989909ad0a",
+    "name": "The Final Refusal",
+    "collection": "events"
+  },
+  "E36": {
+    "legacyId": "3e4e76d2-a4df-4ed8-aac7-057f743a4552",
+    "name": "Political Chaos Events",
+    "collection": "events"
+  },
+  "E37": {
+    "legacyId": "5a176e72-4fa9-4e4d-b908-736a518a9038",
+    "name": "The Journal at Vashten's Home",
+    "collection": "events"
+  },
+  "E38": {
+    "legacyId": "92cb92a3-5517-4161-99d0-d118b0c6d95d",
+    "name": "Descendants Encounters",
+    "collection": "events"
+  },
+  "E39": {
+    "legacyId": "76d0da9f-7eff-4219-99b0-5e1850e12b9f",
+    "name": "Becomes a junior scribe. Meets Giana at the scribe shop. Falls in love immediately.",
+    "collection": "events"
+  },
+  "E40": {
+    "legacyId": "7e7d480a-cb41-4f4d-8d4d-5e7c13ac6d35",
+    "name": "Meets Vashten. Close friends within three years. The happiest period of Sero and Giana's lives.",
+    "collection": "events"
+  },
+  "E41": {
+    "legacyId": "507d6cc3-f9c2-4728-bed1-a167a7a1790a",
+    "name": "Giana falls ill. Sero abandons his post and returns home. Vashten comes and stays with both of them.",
+    "collection": "events"
+  },
+  "E42": {
+    "legacyId": "97dcec23-b18c-4d20-aa9a-2f4d9819df3b",
+    "name": "Second wave of Asharan settlers arrives from Keth. Disease spreads — settlers are immune, have no idea they're carrying it.",
+    "collection": "events"
+  },
+  "E43": {
+    "legacyId": "74b61978-24bf-43b3-a6f7-6444f32a4409",
+    "name": "First witnessed execution. Condemned empire citizens walk willingly to death while Sero pleads. More haunting than if they had resisted.",
+    "collection": "events"
+  },
+  "E44": {
+    "legacyId": "8eddd427-efe1-4ecb-83bc-6b565ab8ae1d",
+    "name": "Drought devastates eastern Caldor. Three years. Famine. Refugees flood west.",
+    "collection": "events"
+  },
+  "E45": {
+    "legacyId": "2cd2a9e0-8a15-4b8f-9680-219468573ed4",
+    "name": "First suspicion he is not aging. Tells himself it's genetics.",
+    "collection": "events"
+  },
+  "E46": {
+    "legacyId": "30146b62-531d-442e-b2df-5bdf63c7bc70",
+    "name": "Confirmation. Twenty years since the ritual. No ambiguity. He says nothing to anyone.",
+    "collection": "events"
+  },
+  "E47": {
+    "legacyId": "ae6857e2-3985-4a96-b53f-4070c1a633be",
+    "name": "Begins ranging across Caldor. Imperial letter of passage. Starts building private records alongside official ones.",
+    "collection": "events"
+  },
+  "E48": {
+    "legacyId": "3a5d6a49-339d-40d1-af6f-372d9e68badf",
+    "name": "Empire organizes first large-scale famine relief. Food moves from surplus to starving regions using new roads. It works.",
+    "collection": "events"
+  },
+  "E49": {
+    "legacyId": "e9cfac54-1ef0-42d7-94ca-cd591f30db33",
+    "name": "Inside the Star-Farers cache: fragmentary references to three other archives on Caldor, Keth, and Mossend. He begins to plan.",
+    "collection": "events"
+  },
+  "E50": {
+    "legacyId": "4f2463fc-3335-4bf8-85e0-722a8f274f60",
+    "name": "Caldor declared under imperial governance. Only Caeldrath remains. Empire makes one diplomatic approach. Caeldrath refuses. Empire routes around them.",
+    "collection": "events"
+  },
+  "E51": {
+    "legacyId": "6f09ab2d-52c8-4a40-a899-4251c96d475c",
+    "name": "Meets Bard. Roadside inn. Junior scribe who has heard of Sero as legend for 18 months. Shocked by his cynicism.",
+    "collection": "events"
+  },
+  "E52": {
+    "legacyId": "ef7c810e-08e6-4379-84a9-312063c61677",
+    "name": "The Century Together. Over 100 years traveling Caldor. Bard gets sick — Vashten arranges partial ritual. Bard survives with extended life.",
+    "collection": "events"
+  },
+  "E53": {
+    "legacyId": "284aeac6-ce80-4942-ad88-53c398114de5",
+    "name": "Someone on the road teaches Sero to draw. Early sketches are terrible. Improves over decades.",
+    "collection": "events"
+  },
+  "E54": {
+    "legacyId": "0f117fea-d820-40c9-8b6f-90f8dcff4c05",
+    "name": "Volcanic eruption west of Caldor. Disrupts harvests for two years.",
+    "collection": "events"
+  },
+  "E55": {
+    "legacyId": "7312b201-0571-43f2-bbe6-de9e358e1214",
+    "name": "Empire introduces universal currency across Asharan-controlled Caldor.",
+    "collection": "events"
+  },
+  "E56": {
+    "legacyId": "76d74b6c-4703-4234-b324-d5e61dee0487",
+    "name": "Plague outbreak in imperial capital. Empire's medicine limits casualties. Thousands still die.",
+    "collection": "events"
+  },
+  "E57": {
+    "legacyId": "44d1d1e8-9fc9-4780-8e82-f014c1a21beb",
+    "name": "Empire begins building aqueducts. Water-borne disease drops sharply.",
+    "collection": "events"
+  },
+  "E58": {
+    "legacyId": "89c5aec2-6e8a-497f-9960-4bd6c0a42259",
+    "name": "Sero refuses another companion. Vashten urges. He refuses.",
+    "collection": "events"
+  },
+  "E59": {
+    "legacyId": "91d6975b-f028-4a20-a7a2-345a22c6337a",
+    "name": "Long solitude begins. Over 250 years largely alone. More efficient, more closed, more precise.",
+    "collection": "events"
+  },
+  "E60": {
+    "legacyId": "b4469d6c-a0eb-4115-b686-37464ca63c02",
+    "name": "Bard dies of old age. Peaceful. Sero writes one entry in the ledger.",
+    "collection": "events"
+  },
+  "E61": {
+    "legacyId": "56f06f03-fbcf-400d-82a7-27d315e62370",
+    "name": "Northern succession war. Lasts eleven years. Empire mediates badly, installs preferred candidate, creates lasting resentment.",
+    "collection": "events"
+  },
+  "E62": {
+    "legacyId": "25b6986b-7d04-42e5-b060-54a1dc1fcb7f",
+    "name": "Empire establishes formal schools. Literacy begins climbing in major cities.",
+    "collection": "events"
+  },
+  "E63": {
+    "legacyId": "99ef3987-3f53-48bd-b9d9-d07ceecd65b8",
+    "name": "Great storm destroys southern fishing communities. Specific techniques and oral histories lost forever.",
+    "collection": "events"
+  },
+  "E64": {
+    "legacyId": "921274d8-a642-4de5-91ab-3562be219edd",
+    "name": "First Empress transition. The original Empress completes her 250-year reign. Sero is the only person alive who remembers her face when she was young. Does not attend.",
+    "collection": "events"
+  },
+  "E65": {
+    "legacyId": "4e78d0e2-b1fe-46f7-8851-6865b16bd775",
+    "name": "Sero accidentally discovers abandoned inland trade route. Becomes one of Caldor's busiest roads. No one remembers who found it.",
+    "collection": "events"
+  },
+  "E66": {
+    "legacyId": "09e65766-7ae2-4272-94da-ea70dd95f73e",
+    "name": "Gold discovered in northern mountains. First independent merchant class on Caldor.",
+    "collection": "events"
+  },
+  "E67": {
+    "legacyId": "73fc2689-5650-4235-ad8a-5dc7255dfa1f",
+    "name": "Famine and fever strike eastern Caldor simultaneously. ~100,000 dead.",
+    "collection": "events"
+  },
+  "E68": {
+    "legacyId": "d2465219-3bb4-45ea-9ebc-2bf128fc372b",
+    "name": "Vashten dies. Served five Empresses. Final act: appoints Nyneave to find Sero. Last person who knew Sero's original name.",
+    "collection": "events"
+  },
+  "E69": {
+    "legacyId": "67d22292-e6bd-4f06-a028-761bff3ba1d0",
+    "name": "Empire commissions continent-wide canal system. Takes 30 years. Outlasts the empire itself.",
+    "collection": "events"
+  },
+  "E70": {
+    "legacyId": "3b9c5585-175b-4afa-9116-773e47dd3ab3",
+    "name": "Plague on Keth. Two percent of the home continent dies before containment.",
+    "collection": "events"
+  },
+  "E71": {
+    "legacyId": "66ebf768-b798-409c-8ffb-a74e50d82b2e",
+    "name": "Finds Nyneave. Shows her the Renmark archive. Her first question tells him everything. She gets the job.",
+    "collection": "events"
+  },
+  "E72": {
+    "legacyId": "7596f103-feb2-4bdd-9c58-6c93cca6de82",
+    "name": "Third Empress takes power. First born after the conquest of Caldor. Has never seen Keth.",
+    "collection": "events"
+  },
+  "E73": {
+    "legacyId": "6ef34b7f-bf81-4400-9684-8a0402aee636",
+    "name": "Great library opens in imperial capital. Sero considers it one of the best things the empire has done.",
+    "collection": "events"
+  },
+  "E74": {
+    "legacyId": "7e1345c3-e840-4e84-aa3e-4336e9700a14",
+    "name": "Caldori languages begin dying in major cities. Asharan becomes dominant tongue. Rural areas maintain old languages.",
+    "collection": "events"
+  },
+  "E75": {
+    "legacyId": "0f140aa5-9342-4094-8189-8e7b44a636d5",
+    "name": "Nyneave's aging has visibly slowed. Neither she nor Sero can explain it. She begins documenting it herself.",
+    "collection": "events"
+  },
+  "E76": {
+    "legacyId": "25ec71c2-876d-42b9-a343-c5f09ba65168",
+    "name": "Major earthquake reveals pre-Asharan ruins. Imperial historians rush to claim them. Sero visits before the official excavation.",
+    "collection": "events"
+  },
+  "E77": {
+    "legacyId": "7f91cee3-b3dd-42f6-8fbd-6f140af10a78",
+    "name": "Improved navigation tools. Sea crossing between Caldor and Keth becomes faster.",
+    "collection": "events"
+  },
+  "E78": {
+    "legacyId": "101e5135-b4d4-45e6-a62b-f5f8f411e55b",
+    "name": "Assassination attempt. Well-organized. Nearly succeeds. Sero survives. Disappears from usual routes for two years.",
+    "collection": "events"
+  },
+  "E79": {
+    "legacyId": "911f1f6e-938f-4270-a434-ab1a96083346",
+    "name": "Northern famine. Four years of failed harvests. Worst since the conquest.",
+    "collection": "events"
+  },
+  "E80": {
+    "legacyId": "0846f8bf-4dcf-4b8d-b4cb-3b33fa40661f",
+    "name": "Returns to find Nyneave has made discoveries he missed in 200 years of working the archive.",
+    "collection": "events"
+  },
+  "E81": {
+    "legacyId": "9b5e3202-7fe4-4875-9182-b2b117f71558",
+    "name": "Caeldrath opens one trade port. First time in 600+ years. Strictly Caeldrath's terms.",
+    "collection": "events"
+  },
+  "E82": {
+    "legacyId": "5b8aecb6-26c9-4f2d-96f6-c669105d1106",
+    "name": "Nyneave retires. Leaves the archive. Aging accelerates progressively. Dies within months far to the south.",
+    "collection": "events"
+  },
+  "E83": {
+    "legacyId": "4e7eb5d2-f159-4686-a530-0afdf9d91511",
+    "name": "The Child Who Asked Too Much. A ten-year-old girl asks Sero questions that stop him cold. Empire kills her as a heretic before he can act.",
+    "collection": "events"
+  },
+  "E84": {
+    "legacyId": "01b86659-a4f2-4bf7-a2d5-4f8944895b11",
+    "name": "Fourth ruler takes power. Indifference to the people takes time to become apparent.",
+    "collection": "events"
+  },
+  "E85": {
+    "legacyId": "abd3ca36-a182-4aaf-a296-551303cbe3ec",
+    "name": "Finds a new vault guardian for the Renmark archive.",
+    "collection": "events"
+  },
+  "E86": {
+    "legacyId": "6edddffb-a472-4cba-b773-0dcc945cf85f",
+    "name": "Fourth ruler's program intensifies. Tax increases. Labor requirements.",
+    "collection": "events"
+  },
+  "E87": {
+    "legacyId": "f28d4e1f-f542-4e17-92e3-2e948bc15fed",
+    "name": "Slavery formally instituted. Noble class largely collaborates.",
+    "collection": "events"
+  },
+  "E88": {
+    "legacyId": "779353f4-b901-4772-86ec-42bb89feeda0",
+    "name": "Underground resistance networks form. Workers, former officials, clergy who refuse to bless slavery.",
+    "collection": "events"
+  },
+  "E89": {
+    "legacyId": "5f801bd5-9fbb-4f30-9e75-9c2236a907dd",
+    "name": "Caeldrath formally denounces the empire. Closes the trade port. Begins accepting Caldori refugees.",
+    "collection": "events"
+  },
+  "E90": {
+    "legacyId": "1e40cdf6-a06f-4fc0-bda2-29ed6cedbbf3",
+    "name": "Armed resistance crushed in three cities simultaneously. Empire creates ten resistors for every one executed.",
+    "collection": "events"
+  },
+  "E91": {
+    "legacyId": "3f6267f2-5542-49bb-bd0f-f943d12e939f",
+    "name": "Caldor fractures into 5–6 proto-kingdoms fighting each other.",
+    "collection": "events"
+  },
+  "E92": {
+    "legacyId": "dc5ac219-89c2-4b38-9acc-ae3320d0940b",
+    "name": "Disease spreads unchecked without the imperial medical system.",
+    "collection": "events"
+  },
+  "E93": {
+    "legacyId": "57df456b-e862-4479-be12-8ef48739c2d3",
+    "name": "Famine becomes endemic. Armies burn farmland. Starvation widespread.",
+    "collection": "events"
+  },
+  "E94": {
+    "legacyId": "646dc909-4f80-4980-9c5c-ca30203a5f85",
+    "name": "First journey to Mossend. Third archive found. Months alone. Does not write about this in the ledger.",
+    "collection": "events"
+  },
+  "E95": {
+    "legacyId": "651420aa-1b81-418c-ad99-22bbb02b1c77",
+    "name": "Caeldrath accepts Caldori emigrants. Becomes unintentional repository of Caldori culture.",
+    "collection": "events"
+  },
+  "E96": {
+    "legacyId": "e8112c25-7f72-4612-8b3f-ad829aec7392",
+    "name": "First treaties between successor kingdoms. Frequently violated. Frequently renewed.",
+    "collection": "events"
+  },
+  "E97": {
+    "legacyId": "531082ee-c5d1-4ef8-bd7b-15cc0dae2bec",
+    "name": "Caldor's successor kingdoms stabilize. Medieval political landscape. Asharan persists as trade lingua franca.",
+    "collection": "events"
+  },
+  "E98": {
+    "legacyId": "d9de8a9d-f980-427b-85b9-2cd650f810e8",
+    "name": "Great interfaith religious council. Produces three new schisms instead of unity.",
+    "collection": "events"
+  },
+  "E99": {
+    "legacyId": "49a04e8e-f1d1-42e2-a5bf-2b06831a9ad7",
+    "name": "Fifteen-year drought. Collapses two kingdoms. Permanently reshapes Caldor's political map.",
+    "collection": "events"
+  },
+  "E100": {
+    "legacyId": "5098e084-0ac3-438a-b301-1653890a6987",
+    "name": "Navigation breakthrough. Reliable long-distance ocean crossings. Expeditions toward Mossend begin.",
+    "collection": "events"
+  },
+  "E101": {
+    "legacyId": "e35849bd-041a-401f-b2a7-b3ad2fa8697d",
+    "name": "First permanent settlements on Mossend. Hundreds of years after Sero's first visit.",
+    "collection": "events"
+  },
+  "E102": {
+    "legacyId": "57c11116-9459-4658-87a8-0d4b222f381b",
+    "name": "Gunpowder equivalent developed. Transforms warfare within 30 years.",
+    "collection": "events"
+  },
+  "E103": {
+    "legacyId": "83034f08-f125-46b2-9737-dd2925b84a8c",
+    "name": "New Lands. First contact with a previously unknown civilization. Sero serves as intermediary.",
+    "collection": "events"
+  },
+  "E104": {
+    "legacyId": "ae3f163c-00c9-40ea-9662-8ad448ce5044",
+    "name": "Asharan Empire on Keth begins slow decline.",
+    "collection": "events"
+  },
+  "E105": {
+    "legacyId": "68ce508a-92cf-4f49-bfb1-670fab00da68",
+    "name": "Early modern era. The world Sero was born into is unrecognizable.",
+    "collection": "events"
+  },
+  "E106": {
+    "legacyId": "bb212552-548b-4245-a8fa-bd0b858c3fed",
+    "name": "Volcanic event near Mossend. Slows colonization for a generation.",
+    "collection": "events"
+  },
+  "E107": {
+    "legacyId": "40533b90-a60d-4906-9062-8ab2c3d5238a",
+    "name": "Steam power emerges. Sero understands implications completely. Says almost nothing.",
+    "collection": "events"
+  },
+  "E108": {
+    "legacyId": "175e5b2f-9a07-4dc8-a978-5f3e1b8ca116",
+    "name": "All three ritual pieces potentially alignable for first time. Sero knows who holds the third element. Begins searching with specific intent.",
+    "collection": "events"
+  },
+  "E109": {
+    "legacyId": "b4768e86-c4db-4598-a4e7-2609a8264718",
+    "name": "Political movements across Caldor. Literate middle class. Noble structures fracturing.",
+    "collection": "events"
+  },
+  "E110": {
+    "legacyId": "96a8b498-1309-4cec-882b-ee3a20858dae",
+    "name": "Begins traveling with Boy A and Boy B. Testing through stories in taverns.",
+    "collection": "events"
+  },
+  "E111": {
+    "legacyId": "cb1e4f4d-8384-4529-842b-51e6e004432b",
+    "name": "Boy A dies on the road. Between taverns. Only Sero and Boy B continue.",
+    "collection": "events"
+  },
+  "E112": {
+    "legacyId": "93485c59-7063-4209-bf93-447cc1bc3773",
+    "name": "The offer. Boy B hears everything.",
+    "collection": "events"
+  },
+  "E113": {
+    "legacyId": "e9ac339f-6459-4f0c-a507-184f85381d0c",
+    "name": "He keeps moving. The archives and the road. He keeps looking.",
+    "collection": "events"
+  }
+}
