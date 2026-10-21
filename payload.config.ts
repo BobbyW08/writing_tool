@@ -5,6 +5,7 @@ import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 
 import { Users } from './collections/Users'
+import { Media } from './collections/Media'
 import { Counters } from './collections/Counters'
 import { Relationships } from './collections/Relationships'
 import { Tags, ensureUnkTag } from './collections/Tags'
@@ -26,6 +27,7 @@ export default buildConfig({
   },
   collections: [
     Users,
+    Media,
     Counters,
     Tags,
     ...entityCollections,

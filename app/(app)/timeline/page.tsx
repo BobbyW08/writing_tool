@@ -1,22 +1,31 @@
 import Link from "next/link";
-import { listEvents } from "@/lib/data/events";
+import { getEventsList } from "@/lib/world/queries";
 import { TimelineView } from "@/components/timeline-view";
+import type { TimelineEventInput } from "@/components/timeline-view";
 
 export default async function TimelinePage() {
-  const events = await listEvents();
+  const { docs } = await getEventsList();
+  type Ev = { id: number; code?: string | null; name: string; yearLabel?: string | null; startYear?: number | null; parent?: { id: number } | number | null };
 
-  const placed = events
-    .filter((e): e is typeof e & { sortOrder: string } => e.sortOrder !== null)
-    .map((e) => ({ id: e.id, title: e.title, slug: e.slug, yearLabel: e.yearLabel, sortOrder: Number(e.sortOrder), parentEventId: e.parentEventId }));
-  const unplaced = events.filter((e) => e.sortOrder === null);
+  const placed: TimelineEventInput[] = (docs as Ev[])
+    .filter(e => e.startYear != null)
+    .map(e => ({
+      id: String(e.id),
+      title: e.name,
+      slug: e.code ?? null,       // used for double-click navigation -> /events/${code}
+      yearLabel: e.yearLabel ?? null,
+      sortOrder: e.startYear!,    // startYear is the position on the timeline
+      parentEventId: typeof e.parent === 'object' && e.parent ? String(e.parent.id) : null,
+    }));
+
+  const unplaced = (docs as Ev[]).filter(e => e.startYear == null);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Timeline</h1>
         <p className="text-sm text-muted-foreground">
-          Drag to reposition. Scroll to pan, ctrl/pinch-scroll to zoom. Click an event to zoom into it (and its sub-events); double-click to
-          open it.
+          Drag to reposition. Scroll to pan, ctrl/pinch-scroll to zoom. Click an event to zoom in; double-click to open it.
         </p>
       </div>
 
@@ -26,10 +35,10 @@ export default async function TimelinePage() {
         <div className="space-y-2">
           <h2 className="text-sm font-semibold text-muted-foreground">Not yet positioned ({unplaced.length})</h2>
           <ul className="space-y-1">
-            {unplaced.map((e) => (
+            {(unplaced as Ev[]).map(e => (
               <li key={e.id}>
-                <Link href={`/events/${e.slug}`} className="text-sm hover:underline">
-                  {e.title}
+                <Link href={`/events/${e.code ?? e.id}`} className="text-sm hover:underline">
+                  {e.name}
                 </Link>
               </li>
             ))}

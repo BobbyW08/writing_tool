@@ -5,13 +5,19 @@ A personal, single-user writing tool for "The Traveler" story universe. Everythi
 and stored in Payload CMS: characters, locations, events, items, factions and cultures, races,
 languages, lore, story ideas, and the writing itself. Every record has a permanent ID code
 (C10, L4, E27, S12) and those codes are how entries are referenced in text, notes and prompts.
-The frontend adds the views the admin panel cannot: a draggable timeline, a node map, and
-relationship views. It also acts as a lightweight creative assistant (suggestions, placeholder
-and gap tracking, a continuity check on new writing). It never writes narrative prose for the user.
+All creating, editing and writing happens in the frontend, in place, with no separate edit mode. The Payload admin is the fallback back office. The frontend also adds the views the admin cannot: a world tree
+with an infobox on every entry, a timeline with eras and lanes, image maps with pins, chronicles
+(timeline plus maps), node maps, family and causality trees, whiteboards, interactive tables, a
+writing studio, and relationship views. A backend link index records every connection between
+every record, and every view reads from it. The tool also acts as a lightweight creative assistant
+(suggestions, a prompts menu, placeholder and gap tracking, a continuity check on new writing),
+and all AI runs on Claude. It never writes narrative prose for the user.
 
-Full plan, collection specs, migration steps and phases: `traveler-wiki-build-plan.md` (v2).
-Working log and current state: `BUILD_GUIDE.md`. Read both before starting a phase. This file is
-the quick-reference and hard-rules layer on top of them, not a replacement.
+Full plan, collection specs, link index spec, migration steps, phases and the master build order:
+`traveler-wiki-build-plan.md` (v3). Writing Studio, AI layer and canon check:
+`docs/PLAN_WRITING_AND_AI.md`. Working log and current state: `BUILD_GUIDE.md`. Read all three
+before starting a phase or step. This file is the quick-reference and hard-rules layer on top of
+them, not a replacement.
 
 **This is not:** a ghostwriter, a project/task manager, or a multi-user product. One user.
 
@@ -24,23 +30,30 @@ the quick-reference and hard-rules layer on top of them, not a replacement.
 | Framework | Next.js App Router, on a patched 16.x release that the installed Payload version supports |
 | Writing surface and data | Payload CMS 3.x (stable), Lexical rich text editor, Local API for all frontend reads and writes |
 | Database | Postgres on Neon, in a database used only by Payload (`PAYLOAD_DATABASE_URL`) |
-| Starter collections | `payload-starter/` (copy its `src/` folders to the repo root) |
+| Starter collections | `payload-starter/` (its `src/` folders were copied to the repo root in Phase 1) |
 | ID codes | `lib/codes.ts`, assigned by the `assignCode` hook, counters in the hidden `counters` collection |
+| Link index | `links` collection and `lib/graph/` (step G1). Every connection between records. Derived and rebuildable |
+| Node and edge shape | `lib/graph/types.ts`. The one shape every visual feature uses |
+| Media | `media` upload collection, `sharp` for sizes |
 | Timeline (single-line) | `react-calendar-timeline` pinned at `0.30.0-beta.19` |
 | Timeline (multi-lane convergence) | `iStoryline.js` (npm `i-storyline-js`) for layout math, custom SVG render |
-| Node map and relationship views | React Flow (`@xyflow/react`) |
+| Node map, trees and relationship views | React Flow (`@xyflow/react`) |
+| Image maps with pins | One library, chosen by the step W3 spike and recorded in this row |
+| Whiteboards | One library, chosen by the step W5 spike and recorded in this row |
+| Table grid | One library, chosen by the step W6 spike and recorded in this row |
 | Sidebar multi-select | `shadcn-multi-select-component` (copy-paste shadcn) |
 | Compilation reordering | `dnd-kit` (`@dnd-kit/sortable`) |
 | Wiki-link parsing | `remark-wiki-link`, used only by the one-time migration and the Markdown export |
-| AI suggestions and continuity check | `ai` package through Vercel AI Gateway, plain `anthropic/...` model strings |
+| AI | All AI runs on Claude: the `ai` package through Vercel AI Gateway, plain `anthropic/...` model strings, behind one module (`lib/ai/`). Covers suggestions, the prompts menu and the continuity check |
 | Deployment | Vercel |
 
 ## Route layout
-- `app/(payload)/` holds the Payload admin (`/admin`) and API (`/api`). This is where writing happens.
-- `app/(app)/` holds the frontend views: home, timeline, node map, relationships, continuity inbox,
-  read pages for entries.
+- `app/(payload)/` holds the Payload admin (`/admin`) and API (`/api`). This is the fallback back office; routine work happens in the frontend.
+- `app/(app)/` holds the frontend views: home, world tree and read pages for entries, the writing
+  studio (`/write`), timeline, maps, chronicles, node map, trees, boards, tables, continuity inbox,
+  link health.
 - Frontend code reads and writes through the Payload Local API (`getPayload({ config })`), never
-  through a second data layer.
+  through a second data layer. Connections between records come from the link index.
 
 ---
 
@@ -59,13 +72,21 @@ the quick-reference and hard-rules layer on top of them, not a replacement.
 | K | `lore` | Lore entries |
 | S | `stories` | Story ideas, and the finished stories they grow into |
 | W | `writing` | Chapters, scenes, snippets (the prose) |
+| B | `beats` | Planned story beats (step S5) |
+| Y | `eras` | Spans of years on the timeline (step W2) |
+| M | `maps` | Image maps (step W3) |
+| P | `map-pins` | One marker, label, line, circle or polygon on a map (step W3) |
+| H | `chronicles` | A timeline paired with maps (step W4) |
+| D | `boards` | Saved node maps, trees, story maps and whiteboards (step W5) |
+| N | `tables` | Interactive tables (step W6) |
+| A | `compilations` | Reserved for Phase 7 |
 | X | `relationships` | A link between two entries |
 | Q | `continuity-flags` | A continuity question or notice |
-| T | `tags` | A tag (UNK is built in) |
-| A | `compilations` | Reserved for Phase 7 |
+| T | `tags` | A tag (UNK is built in, and so is AI suggested) |
 
 The user types a code (C10) in his writing. Anything that reads his text should resolve codes
-through `extractCodes()` in `lib/codes.ts` and `GET /api/codes/:code`.
+through `extractCodes()` in `lib/codes.ts` and `GET /api/codes/:code`. Step G1 adds the new prefix
+letters to the code pattern. A code with no record renders as plain text, never as a broken link.
 
 ---
 
@@ -112,26 +133,43 @@ through `extractCodes()` in `lib/codes.ts` and `GET /api/codes/:code`.
     era or format, a rewritten link, an auto-created record), it applies its best tags, adds the
     `UNK` tag, and writes what to verify in the record's `reviewNote`. Never leave a guess untagged.
     Only the user removes `UNK`, after he confirms. `GET /api/unk` returns the review queue.
+14. **The link index is derived, and every connection goes through it.** `links` is kept in step
+    with the records by sync hooks and rebuilt by `scripts/rebuild-links.ts`. Never edit it by hand
+    and never treat it as canon. Views, trees and the AI read connections from it, not by
+    hand-querying relationship fields. A new relationship field or a new collection is not finished
+    until its edges are added to `lib/graph/extract.ts`.
+15. **One node shape and one edge shape.** Every visual feature uses `Graph` from
+    `lib/graph/types.ts`. No view defines its own. Layout positions belong to a board, never to the
+    record being drawn.
+16. **Map coordinates are pixels on the map's base image, origin at the top left.** Never store
+    screen positions or zoom-dependent values.
+17. **The look and the wording are our own.** World Anvil is a behavior reference only. Never reuse
+    its code, artwork, icons, names or prompt text.
 
 ---
 
 ## Data model
 Collections are defined in `collections/` (copied from `payload-starter/`). Those files are the
 source of truth and are kept in sync with the collection tables in `traveler-wiki-build-plan.md`.
-Do not duplicate field lists here.
+Collections marked new in that plan have no code yet, and their field lists there are the spec.
+The link index and the node and edge shape are specified in the same plan ("Link index"). Do not
+duplicate field lists here.
 
 ---
 
 ## Session start protocol
 1. Read this file.
-2. Read `traveler-wiki-build-plan.md` for the current phase's detail.
-3. Read `BUILD_GUIDE.md` (working log: current phase, decisions made, what is next).
-4. State the current phase and sub-task before writing code.
+2. Read `traveler-wiki-build-plan.md` for the current phase or step, including "Build order".
+3. Read `BUILD_GUIDE.md` (working log: current state, decisions made, what is next).
+4. If the step is labeled S, read `docs/PLAN_WRITING_AND_AI.md`. If a handoff file is named, read it fully.
+5. State the current phase or step and sub-task before writing code.
 
 ## Session end protocol
 1. Update `BUILD_GUIDE.md` with what was done and what is next.
 2. Run `npm run build`, zero errors.
 3. Re-check the hard rules above against anything touched this session.
+4. If a relationship field or collection changed, confirm its edges are in the link index
+   (`scripts/rebuild-links.ts` dry run, once step G1 exists).
 
 ## When in doubt
 `traveler-wiki-build-plan.md` is the source of truth for collections and phase scope. Do not invent

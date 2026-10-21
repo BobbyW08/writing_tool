@@ -197,8 +197,22 @@ export const Writing = entityCollection({
   plural: 'Writing',
   group: STORY,
   titleField: 'name',
-  omit: ['details', 'body'],
+  omit: ['details', 'body', 'image'],
   fields: [
+    {
+      name: 'canonState',
+      type: 'select',
+      defaultValue: 'draft',
+      options: [
+        { label: 'Draft', value: 'draft' },
+        { label: 'Canon', value: 'canon' },
+        { label: 'Set aside for later', value: 'set_aside' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description: 'Draft and Canon are included in continuity checks. Set aside is excluded.',
+      },
+    },
     {
       name: 'kind',
       type: 'select',

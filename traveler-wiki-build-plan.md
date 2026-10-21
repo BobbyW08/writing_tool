@@ -1,4 +1,4 @@
-# The Traveler: Story Wiki and Timeline, Build Plan (v2.0)
+# The Traveler: Story Wiki and Timeline, Build Plan (v3.0)
 
 ## What this is
 
@@ -6,36 +6,53 @@ A personal writing tool for "The Traveler" story universe. All writing and all w
 done directly in Payload CMS, and everything is stored there: characters, locations, events,
 items, factions and cultures, races, languages, lore, story ideas, and the prose itself. Every
 record carries a permanent ID code (C10, L4, E27, S12) so any entry can be referenced by typing
-its code. The frontend reads the same data and adds the views the admin cannot: a draggable
-timeline, a node map, and relationship views.
+its code.
 
-v2.0 also keeps the creative-assist layer: it can suggest options (never prose), track
-placeholders for undecided worldbuilding, and check new writing against canon.
+The Payload admin is the back office. The frontend is where the work feels good, and it adds the
+views the admin cannot: a world tree with a Wikipedia style infobox, a timeline with eras and
+parallel lanes, image maps with clickable pins, chronicles (a timeline paired with maps), node
+maps, family and causality trees, whiteboards, interactive tables, a blank-page writing studio,
+and relationship views.
+
+A backend **link index** records every connection between every record (relationship records,
+relationship fields, parent links, and codes typed in text), so any view can ask "what is linked
+to what" with one query. All AI runs on Claude. It suggests options (never prose), tracks
+placeholders for undecided worldbuilding, and checks new writing against canon.
 
 **This is not:**
 - A ghostwriter. It never generates narrative prose the user would paste into a draft.
 - A project/task manager.
 - A multi-user product. One user, one real login at most.
 
-## Editing model: Payload is where writing happens
+## Editing model: Payload holds everything, the frontend is where all the work happens
 
-- Add, edit, or delete any record in the Payload admin, which has a full editor for every field.
-- Write chapters, scenes and snippets in the `writing` collection. Type ID codes (C10, L4) in the text.
-- Drag an event on the frontend timeline to change its `startYear`.
+- **All creating, editing and writing happens in the frontend.** Every collection has a create flow
+  and edit in place on its read page: fields, details rows, tags, parent, image, relationships.
+  There is no separate view mode and edit mode. The Writing Studio (`/write`) is the editor for
+  chapters, scenes and snippets. The timeline, maps, boards and tables are edited in place.
+- The Payload admin is the back office, kept as a fallback: bulk repairs and a raw editor for any
+  field. Read pages carry a small "Open in admin" link, but no routine task should need it.
+  Both surfaces read and write the same records.
+- Type ID codes (C10, L4) in any text. Codes render as links and are recorded in the link index.
+- Drag an event on the frontend timeline to change its `startYear`. The timeline is edited in
+  place, with no separate view and edit modes.
 - The Payload database is the only source of truth. The one-time moves into it (the old app's
-  database, and the story catalog) are migrations, never ongoing sync.
+  database, the story catalog and the story bible) are migrations, never ongoing sync.
 
-## Where things stand (end of v1)
+## Where things stand (2026-10-20)
 
-The first version was built as a custom Next.js app with its own database and hand-built forms.
-Phases 0 to 2 (canonicalize, schema, ingestion), Phase 3 (entry and event pages, wiki-link
-rendering, single-line draggable timeline) and Phase 3.6 (snippet intake and continuity check)
-are done. The data is real: 47 entries (36 characters, 11 locations), 113 events, 36 event links,
-4 relationships. The sidebar filter, multi-lane convergence view, gaps view, suggestion pane,
-export and compilations were not started. Full detail is in `BUILD_GUIDE.md`.
+Version 1 was a custom Next.js app with its own database and hand-built forms. Version 2 moved
+the work onto Payload, and that move is nearly done.
 
-v2.0 moves that work onto Payload. The admin replaces every hand-built form. What carries over
-is the data, the pure continuity logic, the timeline component, and the source documents.
+- Phase 1 (Payload running) is done.
+- Phase 2A (old database migrated) is done: 36 characters, 11 locations, 113 events, 4 relationships.
+- Phase 2B (story catalog) is done: 40 stories, S1 to S40.
+- Phase 2C (story bible) is staged and waiting at Gate 2C: 149 proposed records, none applied.
+- The old frontend pages under `app/(app)` still read the old database. Phase 3 rewires them.
+
+This version (v3.0) adds the World features (steps W1 to W6), the link index (step G1), and the
+Writing Studio and AI work from `docs/PLAN_WRITING_AND_AI.md` (steps S1 to S7). The master order
+is in "Build order" below. Full history is in `BUILD_GUIDE.md`.
 
 ---
 
@@ -47,7 +64,13 @@ is the data, the pure continuity logic, the timeline component, and the source d
   `collections/`, shared fields in `fields/`, endpoints in `endpoints/`, shared helpers in `lib/`.
 - **Local API everywhere in the frontend.** Server components and server actions call
   `getPayload({ config })`. There is no second data layer.
-- **Database.** A new Neon database used only by Payload (`PAYLOAD_DATABASE_URL`). The old
+- **Link index.** The `links` collection and `lib/graph/` hold every connection between records.
+  Views and the AI context builder read connections from there, never by hand-querying fields.
+- **Media.** An upload collection (`media`) stores images: portraits, crests, map images, map
+  layers and era backgrounds. It uses `sharp`, which is already installed.
+- **AI.** All AI runs on Claude through the `ai` package and Vercel AI Gateway, with plain
+  `anthropic/...` model strings, behind one module (`lib/ai/`).
+- **Database.** A Neon database used only by Payload (`PAYLOAD_DATABASE_URL`). The old
   database stays untouched and read-only as the migration source until the migration is verified.
 - **Access.** Local development uses `autoLogin` so there is no login screen. A deployed copy
   keeps one real login. The Local API in Payload 3.x bypasses access control by default, so
@@ -55,6 +78,8 @@ is the data, the pure continuity logic, the timeline component, and the source d
 - **Environment.** `PAYLOAD_DATABASE_URL`, `PAYLOAD_SECRET`, `AI_GATEWAY_API_KEY`,
   `CONTINUITY_MODEL` (optional), `DEV_LOGIN_EMAIL` (dev autoLogin, set to your admin email).
   `DATABASE_URL` points at the old database and is used only by the migration script.
+- **Look and feel.** The frontend has its own visual style, built on the existing shadcn
+  components and theme tokens. World Anvil is a behavior reference only (see "Feature reference").
 
 ---
 
@@ -75,31 +100,42 @@ Every record you author or decide on has a code made of one letter and a number.
 | K | lore | Myths, history, belief systems, magic |
 | S | stories | Story ideas and the stories they become |
 | W | writing | Chapters, scenes, snippets |
+| B | beats | A planned story beat, before it becomes an event (step S5) |
+| Y | eras | A span of years on the timeline (step W2) |
+| M | maps | An uploaded map image with layers (step W3) |
+| P | map-pins | One marker, label, line, circle or polygon on a map (step W3) |
+| H | chronicles | A timeline paired with maps (step W4) |
+| D | boards | Saved node maps, trees, story maps and whiteboards (step W5) |
+| N | tables | Interactive tables (step W6) |
+| A | compilations | Reserved for Phase 7 |
 | X | relationships | A typed link between two entries |
 | Q | continuity-flags | A continuity question or notice |
 | T | tags | Tags, with UNK built in |
-| A | compilations | Reserved for Phase 7 |
 
 Behavior:
 - Assigned automatically on create by the `assignCode` hook, from the hidden `counters` collection.
+  A counter row is created the first time a prefix is used, so a new prefix needs no seeding.
 - Permanent. A rename never changes a code. A delete never frees a number. An update that tries
   to change a code is ignored.
 - Import support: a record created with a code already filled in (for example `C10`) keeps it, and
   the counter moves past it.
 - `extractCodes(text)` in `lib/codes.ts` finds codes in any text. A code must stand alone (not
-  inside a longer word), so `C10` matches and `ABC10` and `C3PO` do not.
+  inside a longer word), so `C10` matches and `ABC10`, `H2O` and `C3PO` do not. Step G1 adds the new
+  prefix letters to the pattern. A code that matches the pattern but has no record (a stray "B12")
+  renders as plain text and is listed as unknown, never as a broken link.
 - `GET /api/codes/C10` returns the entry. `POST /api/codes/resolve` with `{ "text": "..." }`
   returns every entry mentioned plus any codes that do not exist. `GET /api/codes/C10/links`
-  returns every relationship touching it, from either side.
-- Log rows (field history, confirmations) have no codes. They are system records, not things you
-  point at.
+  returns every connection touching it, from either side, read from the link index.
+- Log and index rows (field history, confirmations, `links`, `claims`, `ai-proposals`) have no
+  codes. They are system records, not things you point at.
 
 ---
 
 ## Collections
 
-Starter code for everything below is in `payload-starter/src/`. It typechecks against Payload 3.x
-and has not yet been run against a database.
+The Phase 1 collections are in `collections/` (copied from `payload-starter/src/`). Collections
+and fields marked **new** below have no code yet. Their field lists here are the spec, and each
+is built in the step that first needs it (see "Build order").
 
 ### Fields every entry shares
 `code`, `slug` (set once from the name, stable after), `name`, `aliases`, `summary`, `status`,
@@ -107,10 +143,18 @@ and has not yet been run against a database.
 `body` (notes, rich text), `parent` (makes it a sub-item of another entry in the same collection),
 and a collapsed "origin of this record" section with `sourceDocId` and `legacyId`.
 
+New shared fields:
+- `image`: an upload from `media` (portrait, crest or header). It shows in the infobox and on node cards.
+- `details[].inInfobox`: a checkbox on each detail row. Checked rows appear in the infobox at the
+  top of the read page. The fixed fields that always appear in the infobox for each collection
+  (birth year, culture, kind and so on) are listed in `lib/infobox.ts`.
+
 Every record also has `tags` and a `reviewNote`. See "Tags and the UNK tag" below.
 
 `status` keeps the four values the old app used, so nothing is lost: `locked`, `in_development`,
 `needs_name`, `placeholder`. Every field is always visible, blank when empty.
+
+`writing` omits `details`, `body` and `image`.
 
 ### World collections
 | Collection | Extra fields |
@@ -129,6 +173,15 @@ Every record also has `tags` and a `reviewNote`. See "Tags and the UNK tag" belo
 (any world entry, many), `whatHappened`, `whyItHappened`, `whatItCaused`, `whatWasLearned`,
 `draftText` (rich text scene notes), `parent` for sub-events.
 
+New (step W2 and W4):
+- `eventType`: a select (celestial, political, battle, discovery, death, birth, journey, other).
+- `importance`: minor, normal, important. Controls the marker size on the timeline.
+- `lane`: a whole number from 0 to 10. Events in different lanes run in parallel on the timeline.
+- `pins`: the map pins (P codes) that show where this event happened, many. A chronicle uses these.
+
+Causes and consequences are not fields. They are relationships of type `caused` between events
+(see "relationships"), so they appear in the link index and in causality trees.
+
 ### stories (story ideas)
 One record per story idea, from first spark to finished story.
 - `stage`: idea, outlined, drafting, written, shelved
@@ -146,6 +199,9 @@ The actual prose. `kind` (chapter, scene, snippet), `story`, `order`, `startYear
 in-universe), `text` (rich text), `mentions`, a hidden `plainText` copy kept in sync by a hook, and
 a collapsed continuity-check status section. Saving new or changed text starts the continuity check.
 
+New (step S1): `canonState` (draft, canon, set_aside; default draft). Draft and Canon are included
+in continuity checks and AI context. Set aside is excluded from both. It is separate from `status`.
+
 ### relationships
 One record per link, stored once. `from`, `to` (any entry), `type`, `startYear`, `endYear`, `notes`.
 Reverse direction is found by querying both ends and using the inverse label. The types are in
@@ -154,13 +210,182 @@ friend, ally, rival, enemy, mentor, serves, killed), places (born in, lives in, 
 visited), groups (member, leader, culture, race, speaks), items (owns, wields, created), events and stories
 (participated in, took place at, caused, appears in, mentioned in), and a catch-all.
 
+New (step G1):
+- Each type gets a `hierarchy` property: `from_is_parent`, `from_is_child` or none. Tree views use
+  it to point every edge the same way. For example `parent_of` is `from_is_parent`, `located_in`
+  and `member_of` are `from_is_child`, and `caused` is `from_is_parent` (cause above effect).
+- A new type `follows` (inverse "Followed by", group Events and stories), for event order that is
+  relative rather than a year ("two years after the arrival").
+- `offsetYears` on the relationship record: an optional number, used with `follows`.
+
 ### tags
 `name` (unique) and `description`, with a `T` code. **UNK** is created automatically on startup and cannot
-be deleted. Any tag you create yourself works the same way.
+be deleted. Any tag you create yourself works the same way. New (step S4): **AI suggested** is built in
+and protected the same way. It marks text that was accepted from an AI proposal.
 
 ### continuity
 `continuity-flags` (Q codes), `field-history`, `snippet-confirmations`. Same meaning as in v1, now
 pointing at `writing` instead of snippets.
+
+### media (new, step W1, no code)
+An upload collection. Fields: the file, `alt`, `kind` (portrait, crest, header, map_base,
+map_layer, era_background, board_image, other). Image sizes are generated with `sharp`. A map base
+image and its layers keep their original size, because pin coordinates depend on it.
+
+### eras (new, step W2, code Y)
+A span of years on the timeline. An entry (common fields) plus: `startYear`, `endYear`,
+`yearLabel`, `color`, `backgroundImage` (media), `kind` (era, age, period). `parent` lets an age sit
+inside an era. The timeline draws eras as colored bands with the background image behind them.
+
+### maps (new, step W3, code M)
+An uploaded image made interactive. An entry (common fields) plus:
+- `kind`: world, region, city, building, diagram, other (a map does not have to be a map).
+- `baseImage` (media, required), with `imageWidth` and `imageHeight` in pixels, set on upload.
+- `layers`: an array of `name`, `image` (media), `opacity`, `defaultVisible`, `order`. A layer is an
+  overlay at the same size as the base image.
+- `pinGroups`: an array of `name`, `color`, `defaultVisible`. The viewer can toggle groups.
+- `minZoom`, `maxZoom`, `startView` (`x`, `y`, `zoom`).
+- `location`: the location this map depicts, optional.
+- `yearFrom`, `yearTo`: the period the map shows, optional. Chronicles use it to choose a map by year.
+
+Coordinates are **pixel positions on the base image, origin at the top left**. They do not depend on
+screen size or zoom.
+
+### map-pins (new, step W3, code P)
+One marker on one map. A record so it can have a code, tags and links. Fields: `name`, `summary`
+(shown in the popup), `map` (required), `shape` (pin, label, line, circle, polygon), `geometry`
+(JSON: a pin is `{x, y}`, a label is `{x, y, text, size}`, a circle is `{x, y, radius}`, a line or
+polygon is `{points: [[x, y], ...]}`), `icon`, `color`, `group` (a `pinGroups` name), `layer` (a layer
+name, empty means all layers), `behavior` (popup, open_entry, open_map, none), `links` (any entries,
+many, listed in the popup), `opensMap` (a map), `yearFrom`, `yearTo` (when the pin is visible).
+
+### chronicles (new, step W4, code H)
+A timeline paired with maps. An entry plus: `mapPeriods` (an array of `map`, `fromYear`, `toYear`,
+`isDefault`), `eras` (which eras to show, many), `filter` (collections, tags, and `involves` codes
+that limit which events appear), `startYear`, `endYear`. Selecting an event moves the map to that
+event's pin. If the pin is on a different map, that map becomes active. With no pin, the map for
+that year in `mapPeriods` is used.
+
+### boards (new, step W5, code D)
+Saved visual views over the link index, and free-form whiteboards. An entry plus:
+- `kind`: node_map, content_tree, family_tree, causal_tree, story_map, whiteboard.
+- `rootCodes`: the codes the view starts from (a text array).
+- Query: `collections`, `relationshipTypes`, `sources` (relationship, field, parent, text),
+  `direction` (out, in, both), `depth`, `yearFrom`, `yearTo`.
+- `layoutMode`: auto_tree, auto_force, manual.
+- `nodePositions`: JSON, `{ "C1": { "x": 0, "y": 0, "collapsed": false, "pinned": true } }`.
+  Positions belong to the board, never to the record.
+- `notes`: whiteboard items (`id`, `type` sticky, text, shape, image or frame, `x`, `y`, `w`, `h`,
+  `text`, `color`, `media`) and `connectors` (`id`, `fromRef`, `toRef`, `label`, where a ref is a code or
+  a note id). A connector is a drawing, not a link. "Promote to relationship" creates an X record.
+- `scene`: opaque JSON owned by the whiteboard library chosen in step W5.
+- `viewport`: JSON, the saved pan and zoom.
+
+A board never creates edges in the link index. It only draws them.
+
+### tables (new, step W6, code N)
+An interactive table, for things like a magic system's tiers or a ruler list. An entry plus
+`columns` (an array of `key`, `label`, `type` text, number, date, link or tag, `width`) and `rows`
+(JSON, an array of objects keyed by column key). A cell can hold ID codes, which render as links
+and appear in the link index as text mentions. CSV import and export are part of step W6.
+
+### beats (new, step S5, code B)
+Defined in `docs/PLAN_WRITING_AND_AI.md`. A planned story beat that becomes an event only when
+promoted. Beat positions on the story map are stored on a board, not on the beat.
+
+### System collections and globals (new, no codes)
+- `links`: the link index. See the next section.
+- `claims`, `ai-proposals`: defined in `docs/PLAN_WRITING_AND_AI.md` (steps S4 and S7).
+- `prompt-sets`: the prompts menu (step S6). Fields: `collection` (which entry type), `group`
+  (for example Presentation, Origins, Current state), `label`, `question`, `detailLabel` (the detail
+  row an answer is written into), `order`, `active`. Seeded with prompts written for this project.
+- `timeline-settings` (global, step W2): `scaleMode` (to_scale or in_sequence), `gaps` (an array of
+  `fromYear`, `toYear`, `collapsedTo`, `label`) so long empty stretches can be squeezed, and the default zoom.
+- `ai-settings` (global, step S4): which Claude model each task uses.
+
+---
+
+## Link index
+
+`links` is a system collection with one row per connection between two coded records. It is
+**derived data**. It is rebuilt from the records, never edited by hand, and never the source of
+truth for canon. It exists so that every view and the AI can ask "what is linked to what" with one query.
+
+### Where connections come from
+
+| `source` | Comes from | Example |
+|---|---|---|
+| relationship | an X record | C10 parent_of C12 |
+| field | a relationship field on a record | E5 involves C1, C1 birthplace L1, I7 currentOwner C3, S4 dramatizes E9, E5 pins P8 |
+| parent | the `parent` ("Part of") field | L5 is part of L2 |
+| text | an ID code typed in rich text, a textarea, a detail value, a table cell or writing | W3 mentions C10 |
+| pin | a map pin's `links` and `opensMap` | P4 links to L1, P4 opens M2 |
+
+### Fields of a link row
+`key` (unique and deterministic: source, owner code, type or field, from code, to code),
+`fromCode`, `fromCollection`, `toCode`, `toCollection`, `source`, `type` (the relationship type
+value for X rows, the field name for field rows such as `involves`, `parent`, or `mentions`),
+`fieldName` (where it was found inside the owner, such as `details.Origin` or `text`), `ownerCode`
+(the record that holds the relationship, field or text), `directed`, `startYear`, `endYear`,
+`broken` (the target no longer exists), `updatedAt`.
+
+### Upkeep
+- An `afterChange` hook on every coded collection recomputes the rows owned by that record: rows no
+  longer present are removed, the rest are upserted by `key`.
+- An `afterDelete` hook removes the rows the record owned and marks rows that point at it `broken`.
+  A code is never reused, so a broken row stays identifiable and shows in the broken links list.
+- `scripts/rebuild-links.ts` rebuilds the whole index from the records. It is idempotent. A dry run
+  prints counts by source, and `--apply` writes. Running it twice gives identical results.
+- Text mentions come from codes only. A name written without a code is not indexed; the continuity
+  check and the AI handle names.
+
+### Reading it
+Helpers live in `lib/graph/` and the same queries are exposed as endpoints:
+- `GET /api/codes/:code/links`: every connection touching a record, both directions, with the label
+  and the inverse label, grouped by source and type.
+- `GET /api/graph/:code?depth=2&direction=both&sources=&types=&collections=`: nodes and edges
+  outward from one record, breadth first, capped at 300 nodes, with `truncated` set when the cap is hit.
+- `GET /api/graph?collections=&tags=&yearFrom=&yearTo=`: a whole or filtered graph.
+- `GET /api/graph/orphans`: records with no connections.
+- `GET /api/graph/broken`: connections whose target was deleted.
+- `GET /api/graph/path?from=C1&to=C20`: the shortest chain of connections between two records.
+
+Every read page shows "What links here", built from the index. The label read from the far side
+of a connection is the inverse label for relationship types, and a fixed label for fields
+(`involves` reads "Involved in", `parent` reads "Has part", and so on), kept in `lib/graph/labels.ts`.
+
+### Node and edge shape (`lib/graph/types.ts`)
+Every visual feature takes the same two shapes. No view invents its own.
+
+```
+Node = {
+  code, collection, name, summary, status,
+  tags: string[], unk: boolean, aiSuggested: boolean,
+  startYear?, endYear?, yearLabel?,
+  parentCode?, imageUrl?, color, icon
+}
+
+Edge = {
+  id,                         // the link row key
+  from, to,                   // codes
+  source,                     // relationship | field | parent | text | pin
+  type, label, inverseLabel,
+  directed, hierarchy,        // from_is_parent | from_is_child | none
+  ownerCode, relationshipCode?, // the X code for relationship rows
+  startYear?, endYear?, broken?
+}
+
+Graph = { nodes: Node[], edges: Edge[], truncated: boolean }
+```
+
+`toNode(collection, doc)` and `toEdge(linkRow)` are the only adapters. Color and icon per
+collection come from `lib/nodeKinds.ts`, not from fields. Node maps, relationship views, family,
+causality and content trees, the story map, timeline lanes and convergence, chronicles, whiteboard
+cards, compilations and the AI context builder all consume `Graph`.
+
+Tree views use `hierarchy` to orient edges. A family tree is `parent_of`, `spouse_of` and
+`sibling_of`. A causality tree is `caused` and `follows`. A content tree is any chosen set of types
+plus `parent`.
 
 ---
 
@@ -179,6 +404,7 @@ the migration, and every record the continuity check creates on its own.
 - `GET /api/unk` returns the review queue across all collections. The Payload admin can also filter any
   list by the UNK tag.
 - Frontend views show UNK records with a visible marker, and the node map draws them with a dashed outline.
+- Text accepted from an AI proposal carries the built-in **AI suggested** tag as well as UNK until the user clears both.
 - The suggestion pane never writes tags or fields. It only suggests.
 
 ---
@@ -189,7 +415,9 @@ Plain whole numbers. Year 0 is the year SERO is born, and the story moves forwar
 Negative years sit before that, so prequels need no migration. `startYear` is a position and what a
 timeline drag changes. `yearLabel` is display text ("Age ~350-400") and is never rewritten by a
 drag; after a drag the app prompts whether to update it. `sortOrder` only breaks ties inside one
-year. The timeline's abstract-year-to-calendar mapping in `lib/timeline-scale.ts` stays as is.
+year. The timeline's abstract-year-to-calendar mapping in `lib/timeline-scale.ts` stays as is. Eras are
+bands over a range of years. Time gaps (in `timeline-settings`) only squeeze how a long empty
+stretch is drawn. They never change a year or a position.
 
 ---
 
@@ -252,25 +480,46 @@ Rules for the script:
 
 ## Frontend views (read pages and visualizations)
 
-All views read through the Local API and link every entry to its admin edit page.
+All views read and write through the Local API and edit in place. Each page also carries a small "Open in admin" link. Every view takes
+its connections from the link index and its nodes and edges from the shared `Graph` shape.
 
-- **Home.** Counts per collection, open continuity items, placeholders waiting.
-- **Entry read pages.** Details, notes, linked events, relationships (read from both ends), sub-items.
-  ID codes in any text render as links showing the entry's name.
+- **Shell.** A slim icon rail, a side panel (the world tree) and a main canvas.
+- **World tree (left panel).** A searchable tree of everything. Modes: by type (collection, then
+  `parent` hierarchy), by story, by culture, by era. A filter box, a button to add an entry or a
+  group, and drag to re-parent within a collection (changes `parent` only).
+- **Home.** Quick-create tiles per collection, counts, open continuity items, placeholders waiting,
+  recent edits.
+- **Entry read pages.** The **infobox** sits at the top right of the page, above the text, like an
+  encyclopedia: image, the fixed fields for that collection, and any detail rows marked `inInfobox`.
+  Below it: details, notes, linked events, relationships (read from both ends), sub-items, and
+  **What links here** from the link index. ID codes in any text render as links showing the entry's name.
 - **Code lookup.** A search box that takes a code (C10) or a name and jumps to the entry.
-- **Timeline.** Single-line draggable view (`react-calendar-timeline`), all events by `startYear`.
-  Dragging changes `startYear` only and offers to update `yearLabel`.
+- **Timeline.** Eras as colored bands, parallel lanes (0 to 10), event types and importance, a
+  year ruler with optional time gaps, a mini-map, search and filter. Single-line view first
+  (`react-calendar-timeline`), all events by `startYear`. Click empty space to add an event at that
+  year. Edit in place: there is no separate view mode and edit mode. Dragging changes `startYear` only
+  and offers to update `yearLabel`.
 - **Sidebar multi-select filter.** Searchable, grouped by collection, any combination at once.
 - **Multi-lane convergence view.** With two or more selected, one lane each, lanes braid together at
   events whose `involves` contains two or more of them. Layout from `i-storyline-js`; fall back to a
   custom render only if its model does not fit. Dragging a convergence point moves every entry involved.
-- **Node map.** Nodes are entries, edges are relationships (and optionally `involves` and `parent`).
-  Color by collection, filter by relationship type or by a starting entry plus N steps.
-  Built on React Flow.
+- **Maps.** A list of maps and a viewer: pan and zoom, pins, labels, lines, circles and polygons,
+  popups that list linked entries, pins that open another map, layer and group toggles. Right click
+  to add a pin. A map can be shown inside any read page.
+- **Chronicles.** The timeline strip with a map beside it. Selecting an event zooms the map to its
+  pin and switches maps when the pin is on a different one. Eras band the strip.
+- **Node map.** Nodes are entries, edges are connections from the link index. Color by collection,
+  filter by type, source or a starting entry plus N steps. Built on React Flow. Can be saved as a board.
+- **Content trees.** Family trees, causality trees and hierarchy trees, drawn from a root code and a
+  chosen set of relationship types, oriented by `hierarchy`. Can be saved as a board.
 - **Relationship view per entry.** The entry in the middle, grouped by relationship type, family
   shown as a tree. Powered by `/api/codes/:code/links`.
+- **Whiteboards.** Free-form boards with sticky notes, shapes, images and entry cards, saved as a board.
+- **Tables.** An editable grid with typed columns, CSV import and export, and codes that render as links.
+- **Writing Studio and Story Builder.** See `docs/PLAN_WRITING_AND_AI.md`.
 - **Story board.** Stories grouped by era and stage, with floating stories in their own lane.
-- **Review queue.** Everything tagged UNK in one list, with its `reviewNote` and a link to the admin edit page.
+- **Review queue.** Everything tagged UNK in one list, with its `reviewNote`, editable in place, and a link to the record.
+- **Link health.** Orphans (records with no connections) and broken links, from the link index.
 
 ---
 
@@ -307,10 +556,11 @@ status is not `locked`, with its `gapPrompt`, so they can be resolved in a batch
 generates a `gapPrompt` from the context it was mentioned in. Entries that already have prompts
 from the old ingestion carry them over.
 
-**Suggestion pane.** From any entry or event page, "Get suggestions" calls the model with the
-current record and everything linked to it, referenced by code. The system prompt constrains output
-to options, questions, and tensions. Never finished prose. Output is a list of discrete suggestions;
-nothing is inserted until the user accepts it.
+**Suggestions.** The AI is Claude, through one module (`lib/ai/`). From any entry or event page, the
+prompts menu and "Ask AI" call the model with the current record and everything linked to it, found
+through the link index and referenced by code. The system prompt constrains output to options,
+questions, and tensions. Never finished prose. Output is a list of discrete proposals; nothing is
+inserted until the user accepts that one proposal. Details are in `docs/PLAN_WRITING_AND_AI.md`.
 
 ---
 
@@ -328,15 +578,18 @@ nothing is inserted until the user accepts it.
 
 ## Phases
 
+The base build. The World features (W), the link index (G) and the Writing Studio and AI steps (S)
+fit between these phases. The master order is in "Build order" below.
+
 ### Phase 0: Preserve the current state
 - [x] Commit everything now in the working tree (the continuity feature and doc changes are not yet
       committed) and tag it `pre-payload`.
 - [x] Apply migration `0003` to the old database so the old schema matches the code (or confirm no
-      snippets exist yet and skip it). -- skipped, no snippets in old DB; tables exist in new DB.
+      snippets exist yet and skip it). Skipped: no snippets in the old database, and the tables exist in the new one.
 - [x] Export a snapshot of the old database (`pg_dump` or the Neon branch feature) as the safety copy.
-      -- old DB is a live read-only Neon branch; treated as the safety copy.
+      The old database is a live read-only Neon branch and is treated as the safety copy.
 
-### Phase 1: Payload running, writing possible -- DONE 2026-10-19
+### Phase 1: Payload running, writing possible (done 2026-10-19)
 - [x] Create a new Neon database for Payload. Add `PAYLOAD_DATABASE_URL` and `PAYLOAD_SECRET` to `.env`.
 - [x] Update Next.js to the latest patched 16.x, install `payload`, `@payloadcms/next`,
       `@payloadcms/db-postgres`, `@payloadcms/richtext-lexical`, `sharp`, `graphql`, all at one version.
@@ -348,11 +601,13 @@ nothing is inserted until the user accepts it.
 - [x] **Milestone: the admin is usable for writing.**
 
 ### Phase 2: Bring the data across
-- [ ] Write and dry-run `scripts/migrate-legacy.ts`, review the code map, then apply and verify counts.
-- [ ] Write and dry-run `scripts/import-story-catalog.ts`, review, then apply.
-- [ ] **Milestone: existing canon and all 40 story ideas are in Payload.**
+- [x] 2A: `scripts/migrate-legacy.ts` applied and verified (done 2026-10-19).
+- [x] 2B: `scripts/import-story-catalog.ts` applied, 40 stories S1 to S40 (done 2026-10-20).
+- [x] 2C: story bible import applied 2026-10-20. 149 records. `scripts/import-story-bible.ts`. Idempotent.
+- [x] **Milestone: existing canon, all 40 story ideas and the story bible are in Payload.**
 
 ### Phase 3: Rewire the frontend and retire the old app code
+Delivered together with step S2 and step W1.
 - [ ] UNK marker on every list and read page, and a basic review queue page.
 - [ ] Home, entry read pages, event read pages on the Local API with ID-code linkification.
 - [ ] Timeline reading and writing through the Local API (`startYear`).
@@ -365,16 +620,17 @@ nothing is inserted until the user accepts it.
 - [ ] Run `npm run test:continuity`, then a first real writing check, then tune prompts.
 
 ### Phase 5: Views
+Delivered together with step S3 and step W2.
 - [ ] Sidebar multi-select filter.
 - [ ] Multi-lane convergence view.
-- [ ] Node map and per-entry relationship view.
+- [ ] Node map and per-entry relationship view, on the link index.
 - [ ] Story board.
 - [ ] Timeline polish: two-tier header for wide zoom, decide whether sub-events hide until zoom.
 
 ### Phase 6: Creative assist
 - [ ] Gaps view.
 - [ ] Review queue (UNK) view, if not already built in Phase 3.
-- [ ] Suggestion pane.
+- [ ] Suggestions: delivered by steps S4 to S6.
 
 ### Phase 7: Export and compilations
 - [ ] Markdown export, `compilations` collection, ordered compile, combined export.
@@ -385,23 +641,127 @@ nothing is inserted until the user accepts it.
 
 ---
 
+## Build order
+
+One list, in the order to build. Each item says where its detail lives. Steps marked S are in
+`docs/PLAN_WRITING_AND_AI.md`. Steps marked G and W are below.
+
+| # | Step | What it delivers |
+|---|---|---|
+| 1 | Gate 2C (Phase 2C) | Story bible applied. Done 2026-10-20. |
+| 2 | S1 | Writing Studio: `/write`, `canonState`, autosave, `@` mentions. Done 2026-10-20. |
+| 3 | Phase 3, S2, W1 | Frontend shell on the Local API, world tree, infobox, home hub, images. Old code retired |
+| 4 | G1 | Link index, sync hooks, graph endpoints, What links here |
+| 5 | Phase 4 | Continuity check port |
+| 6 | Phase 5, S3, W2 | Filter, convergence, live node map, relationship view, story board, eras, lanes, time gaps |
+| 7 | S4 | AI foundation on Claude. The context builder reads the link index |
+| 8 | S5 | Story Builder and beats |
+| 9 | S6 | Ask AI and the prompts menu |
+| 10 | S7 | Claims ledger, backward check, revert by source |
+| 11 | W3 | Maps and pins |
+| 12 | W4 | Chronicles |
+| 13 | W5 | Boards: saved node maps, content trees, whiteboards, story map |
+| 14 | W6 | Interactive tables |
+| 15 | Phases 6 to 8 | Gaps view, export, compilations, search, deploy |
+
+The user may reorder items 6 to 14. Items 1 to 5 stay first: item 4 is needed by every later view
+and by the AI, and item 3 retires the old code those views would otherwise build on.
+
+---
+
+## Step G1: link index
+
+Needs Phase 3 done. Delivers the `links` collection and everything in "Link index" above.
+- [ ] Add the new prefixes (B, Y, M, P, H, D, N, A) to `lib/codes.ts`: the code pattern letters,
+      `PREFIX_TO_SLUG` and the constants. Nothing else about those collections is built yet.
+- [ ] Add `hierarchy` to every type in `lib/relationshipTypes.ts`, the `follows` type, and `offsetYears` on `relationships`.
+- [ ] Create `links` and `lib/graph/` (`types.ts`, `extract.ts` for edges per collection,
+      `labels.ts`, `toNode`, `toEdge`, `sync.ts`). Extraction covers every relationship field, `parent`,
+      X records and codes found in rich text, textareas and detail values.
+- [ ] Add the `afterChange` and `afterDelete` sync hooks to every coded collection.
+- [ ] `scripts/rebuild-links.ts` with a dry run and `--apply`. Verify: two runs identical, the number
+      of `relationship` rows equals the X count, an `involves` edit changes its rows, a delete marks rows broken.
+- [ ] Endpoints: re-point `/api/codes/:code/links`, add `/api/graph`, `/api/graph/:code`, orphans, broken, path.
+- [ ] A "What links here" component on every read page, and a link health page.
+- [ ] **Gate G1:** a report with row counts by source, the orphan and broken lists, and the build passing.
+
+## Step W1: world tree, infobox, home hub, images
+
+Delivered with Phase 3 and step S2.
+- [ ] `media` upload collection, `image` on every entry, `inInfobox` on detail rows, `lib/infobox.ts`.
+- [ ] The shell: icon rail, side panel, canvas.
+- [ ] World tree with its four modes, filter, add entry, drag to re-parent.
+- [ ] Infobox at the top right of every read page.
+- [ ] Home hub with quick-create tiles.
+
+## Step W2: eras and the timeline canvas
+
+Delivered with Phase 5 and step S3.
+- [ ] Spike first: confirm `react-calendar-timeline` can draw era bands and 11 lanes. If it cannot,
+      render the single-line view by hand using the math in `lib/timeline-scale.ts`.
+- [ ] `eras` collection (Y), `timeline-settings` global, and the event fields `eventType`, `importance`, `lane`.
+- [ ] Era bands with background images, lanes, mini-map, search and filter.
+- [ ] Click empty space to add an event at that year, edit in place, time gaps.
+
+## Step W3: maps
+
+- [ ] Spike first: pick one maintained library for image maps (pan, zoom, markers, shapes, layers). Record
+      the choice in the stack table in `CLAUDE.md`.
+- [ ] `maps` (M) and `map-pins` (P), layers, pin groups, popups, open-another-map pins.
+- [ ] Map viewer, then the editor (right click to add, drag, draw lines, circles and polygons).
+- [ ] Show a map inside a read page.
+
+## Step W4: chronicles
+
+Needs W2 and W3.
+- [ ] `chronicles` (H) and the event `pins` field.
+- [ ] The paired timeline and map view, with map switching by pin and by period.
+
+## Step W5: boards
+
+Needs G1.
+- [ ] `boards` (D). Saved node maps, content trees (family, causality, hierarchy), the story map for beats.
+- [ ] Spike first for whiteboards: pick one maintained whiteboard library and record the choice in the stack table.
+- [ ] Whiteboards with sticky notes, shapes, images and entry cards. Promote a connector to a relationship.
+
+## Step W6: interactive tables
+
+- [ ] Spike first: pick one maintained grid library and record the choice in the stack table.
+- [ ] `tables` (N), the grid editor, typed columns, CSV import and export, code cells that link and index.
+
+---
+
+## Feature reference
+
+The features in W1 to W6 follow how World Anvil behaves (its timelines, maps, chronicles, trees,
+whiteboards, tables, and prompts menu). The notes are in `C:\dev\REA_WorldAnvil` (`STATUS.md` and
+`evidence/learn/`). It is a behavior reference only. The look, wording, icons, prompt text and
+layout here are our own. Do not reuse its code, artwork, icons, names or prompts.
+
+---
+
 ## Available vs. custom
 
 | Piece | Source | Notes |
 |---|---|---|
-| Writing UI, forms, versions, drafts | **Available**, Payload admin | Replaces every hand-built form |
+| Writing UI, forms, versions, drafts | **Custom frontend forms over the Local API** | Payload admin stays as the fallback |
 | Rich text editing | **Available**, Lexical | Built into Payload |
 | Postgres hosting | **Available**, Neon | Dedicated database for Payload |
-| Single-line draggable timeline | **Available**, `react-calendar-timeline` | Already working in v1 |
+| Single-line draggable timeline | **Available**, `react-calendar-timeline` | Already working in v1. Era bands and lanes confirmed by the W2 spike |
 | Multi-lane convergence layout | **Available, needs integration**, `iStoryline.js` | Not started |
-| Node map | **Available**, React Flow | Data mapping plus styling |
+| Node map and trees | **Available**, React Flow | Data mapping from the link index plus styling |
 | Sidebar multi-select | **Available**, `shadcn-multi-select-component` | Copy-paste component |
 | List reordering | **Available**, `@dnd-kit/sortable` | For compilations |
+| Image maps | **Available**, library chosen by the W3 spike | Pins, shapes, layers |
+| Whiteboards | **Available**, library chosen by the W5 spike | Scene stored on the board |
+| Table grid | **Available**, library chosen by the W6 spike | Typed columns, CSV |
 | ID codes, code lookup endpoints | **Custom, small** | Written, in the starter |
 | Entity and relationship collections | **Custom** | Written, in the starter |
-| One-time migration and catalog import | **Custom** | Phase 2 |
+| Link index and graph helpers | **Custom** | Step G1 |
+| World tree and infobox | **Custom**, shadcn components | Step W1 |
+| One-time migration and imports | **Custom** | Phase 2 |
 | Continuity check logic | **Custom, ported** | Pure logic kept, data layer rewritten |
-| Suggestion pane | **Custom** | A prompt, not an algorithm |
+| AI suggestions and prompts menu | **Custom** | Prompts and context building, no algorithm |
 | Markdown export | **Custom, simple** | Mirrors the source format |
 
 ## Explicitly out of scope

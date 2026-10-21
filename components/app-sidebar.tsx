@@ -16,6 +16,9 @@ export function AppSidebar() {
         <Link href="/events" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
           Events
         </Link>
+        <Link href="/write" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+          Writing
+        </Link>
         <Link href="/snippets" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
           Snippets
         </Link>

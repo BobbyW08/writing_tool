@@ -1,24 +1,85 @@
 # BUILD_GUIDE.md: working log for building The Traveler
 
-Session-to-session memory for this build. Read this before `traveler-wiki-build-plan.md` on every
-new session. This file says where things actually stand; the plan says what the finished product
+Session-to-session memory for this build. Read this before `traveler-wiki-build-plan.md` and
+`docs/PLAN_WRITING_AND_AI.md` on every new session. This file says where things actually stand; the plan says what the finished product
 looks like. Update "Current state" and "Next up" at the end of every session.
 
 ---
 
-## Current state (as of 2026-10-19)
+## Current state (as of 2026-10-21)
 
-**Phase 2A complete.** All old-DB data is in Payload. The migration is idempotent (second run
-produced all U, no new records, same counts). Counters: C=37, E=114, L=12, X=5, T=2.
+**Phase 2A complete. Phase 2B complete. Phase 2C applied. S1 Writing Studio complete. Phase 3 (S2 + W1) complete, awaiting Gate P3a browser checks.**
 
-New DB now holds: 36 characters (C1=SERO, C2=Giana ... C36=Boy B), 11 locations (L1=CALDOR ...
-L11=THE NEW LANDS), 113 events (E1=The Ritual ... E113), 4 relationships (X1-X4, all UNK).
-UNK queue has 10 records: E2, E16 (wiki-link rewrites), E36-E39 (year unknown), X1-X4 (type review).
+Phase 2A: all old-DB data is in Payload. Migration is fully idempotent. Counters: C=37, E=114,
+L=12, X=5, T=2. C1=SERO, L1=CALDOR. UNK queue: E2, E16, E36 to E39, X1 to X4.
 
-`scripts/migrate-legacy.ts` is the apply script. It stages to `staging/` first, then applies
-with `-- --apply`. The counter check is now a warn (not fatal) to allow idempotent re-runs.
+Phase 2B: 40 stories imported (S1 to S40). S counter = 41. Two idempotent runs confirmed (run 2
+skipped all 40). 16 UNK stories.
 
-Phase 1 complete as of 2026-10-19. Phase 2A complete as of 2026-10-19.
+Phase 2C: applied 2026-10-20. 149 records created across 7 collections. `scripts/import-story-bible.ts`
+wrote and ran idempotently (0 created on second run). Aldric alias already present on C4 (skipped).
+Counters after: C=40, L=13, U=5, F=2, K=102, S=74, W=3. UNK tag on all 149.
+
+S1 Writing Studio: complete 2026-10-20. Files added:
+- `lib/studio/queries.ts` - getWritingList, getWritingByCode, getStoryList (Payload Local API)
+- `lib/studio/actions.ts` - createWriting, saveWriting, deleteWriting, searchEntities (server actions)
+- `lib/studio/lexical.ts` - server-side Lexical <-> Markdown conversion (headless, for tests)
+- `app/(app)/write/page.tsx` - writing list grouped by story, state filter, New button
+- `app/(app)/write/_new-button.tsx` - client component for creating new writing records
+- `app/(app)/write/[code]/page.tsx` - server component loading one record
+- `app/(app)/write/[code]/editor.tsx` - Lexical editor client component
+- `scripts/verify-s1.ts` - round-trip and counter verification
+- `canonState` field added to Writing collection in both entities.ts files; types regenerated.
+Round-trip test: W1 OK (909w, # symbol stripped), W2 OK (302w), W3 OK (108w). Counter test: W4
+created and deleted, plainText populated by hook, counter increments correctly (no rollback on delete).
+
+`scripts/migrate-legacy.ts`: legacy migration, idempotent.
+`scripts/import-story-catalog.ts`: story catalog, stage then apply, skip existing.
+`scripts/import-story-bible.ts`: applied 2026-10-20, idempotent.
+
+Phase 1 complete 2026-10-19. Phase 2A complete 2026-10-19. Phase 2B complete 2026-10-20.
+Phase 2C applied 2026-10-20. S1 complete 2026-10-20, awaiting browser checks.
+
+**Phase 3 / S2 + W1 (2026-10-21):** Full unattended run per PHASE_3_HANDOFF.md.
+Parts 1-6 all complete, build passes zero errors.
+
+New files:
+- `lib/world/queries.ts` - all data fetchers (Local API only)
+- `lib/world/actions.ts` - CRUD server actions: create, updateField, updateDetails, delete (with conflict check), createRelationship, deleteRelationship, updateTags, updateEventInvolves, attachImage, updateEventYear
+- `lib/world/fields.ts` - field definitions per collection driving create forms and edit UI
+- `components/editable-field.tsx` - click-to-edit inline field
+- `components/details-editor.tsx` - details array editor with dnd-kit drag-to-reorder
+- `components/relationship-editor.tsx` - add/remove relationships via Local API
+- `components/delete-record-button.tsx` - delete with conflict check and refusal list
+- `components/new-entity-form.tsx` - reusable create form driven by field defs
+- `components/infobox.tsx` - infobox with image upload/remove (client component)
+- `components/world-tree.tsx` - searchable four-mode tree with drag-to-reparent
+- `scripts/verify-world-edit.ts` - create/edit/relate/delete/counter verification (all passed)
+- `scripts/verify-w1.ts` - infobox and image field verification (all passed)
+- `GATE_P3_REPORT.md` - gate report with browser checklists for both Gate P3a and P3b
+
+Updated pages:
+- `app/(app)/layout.tsx` - three-pane shell with nav, world tree panel, main canvas
+- `app/(app)/page.tsx` - home hub: tiles, counts, UNK status bar, recent edits
+- `app/(app)/[entityType]/[slug]/page.tsx` - full in-place edit + infobox + relationships + delete
+- `app/(app)/events/[slug]/page.tsx` - full in-place edit for all event scalar fields
+- `app/(app)/stories/[code]/page.tsx` - in-place edit of stage/format/era/years + relationships + delete
+- `app/(app)/[entityType]/new/page.tsx` - new entity (rewritten, no old imports)
+- `app/(app)/events/new/page.tsx` - new event (rewritten, no old imports)
+- `app/(app)/stories/new/page.tsx` - new story route
+- `app/(app)/[entityType]/page.tsx` - list with image thumbnails
+
+Counters unchanged after both verify scripts. No old-code imports in any new file.
+
+Note for browser check: dev server restart needed once before Gate P3a checks so Payload picks up schema changes.
+
+**v3.0 planning (2026-10-20).** The four guiding docs (`CLAUDE.md`, this file,
+`traveler-wiki-build-plan.md`, `docs/PLAN_WRITING_AND_AI.md`) were updated together. What changed:
+- New steps W1 to W6 (world tree and infobox, eras and the timeline canvas, maps, chronicles,
+  boards with trees and whiteboards, interactive tables) and G1 (the link index). Specs are in the build plan.
+- New code prefixes B, Y, M, P, H, D, N (A stays reserved). None is in `lib/codes.ts` yet.
+- All AI runs on Claude through Vercel AI Gateway. The web research step was removed.
+- One master build order, in the build plan ("Build order").
 
 ---
 
@@ -118,19 +179,37 @@ Phase 1 complete as of 2026-10-19. Phase 2A complete as of 2026-10-19.
 - Continuity check: the database is the only record of canon, so a decision updates the entry
   directly. Automatic writes are verbatim quotes of Bobby's own words only, each with an Undo;
   conflicts need his explicit decision.
+- All AI runs on Claude, through the `ai` package and Vercel AI Gateway, behind `lib/ai/`. The model
+  is chosen per task from Claude models in the `ai-settings` global.
+- Every connection between records lives in the derived `links` index (step G1). Views, trees and
+  the AI read connections from it. It is rebuilt from the records and never edited by hand.
+- All visual features share one node shape and one edge shape (`lib/graph/types.ts`). Layout
+  positions live on boards, not on records. Map coordinates are pixels on the base image.
+- New code prefixes: B beats, Y eras, M maps, P map pins, H chronicles, D boards, N tables.
+- Causes and consequences of events are relationships (`caused`, and `follows` with `offsetYears`
+  for relative timing), not event fields. Events gain `eventType`, `importance`, `lane` and `pins`.
+- The timeline is edited in place. There is no separate view mode and edit mode.
+- The frontend has its own look. World Anvil is a behavior reference only, with notes in
+  `C:\dev\REA_WorldAnvil`. Nothing of its code, art, icons, names or prompts is reused.
+- Libraries for image maps, whiteboards and the table grid are chosen by a short spike at the start
+  of steps W3, W5 and W6, and recorded in the stack table in `CLAUDE.md`.
 
 ---
 
 ## Next up (in order)
 
-1. **Phase 2B (NEXT).** Import the story catalog (`scripts/import-story-catalog.ts`).
-   40 stories from `source-docs/ideas/Sero_Story_Catalog.md` -> `stories` collection.
-   Gate 2B before applying.
-2. **Phase 2C.** Mine Consolidated Story Bible and gap analysis for coverage check.
-2. **Phase 3.** Rewire home, read pages and timeline to the Local API, retire the old CRUD code.
-3. **Phase 4.** Port the continuity check, then run the first real writing check.
-4. **Phase 5.** Sidebar filter, convergence view, node map, relationship view, story board.
-5. **Phases 6 to 8.** Gaps view and suggestion pane, export and compilations, search and deploy.
+The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
+
+0. **S1 browser checks (Bobby).** See checklist below. After "studio checks done", delete any test
+   pieces Bobby created and confirm the W counter stays at 4.
+1. **Phase 3, S2 and W1.** Rewire the frontend on the Local API, retire the old code, build the
+   shell, world tree, infobox and home hub.
+2. **G1, the link index.** Needed by every later view and by the AI.
+5. **Phase 4.** Port the continuity check, then run the first real writing check.
+6. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board, eras, lanes.
+7. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions.
+8. **W3 to W6.** Maps, chronicles, boards, interactive tables.
+9. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
 
 Still-open data items from the earlier ingestion, to decide during Phase 2:
 - The dangling "Assassination Attempt" event (Age ~540) that has no full `Events.md` entry. It
@@ -201,6 +280,10 @@ The model comes from `CONTINUITY_MODEL`, default `anthropic/claude-sonnet-4.5`.
 ---
 
 ## Gotchas still relevant
+
+- Adding a code prefix means updating three places in `lib/codes.ts`: `ENTITY_PREFIXES`, the letters
+  in `CODE_REGEX`, and `PREFIX_TO_SLUG`. `relationships` takes any entry through `ENTITY_SLUGS`, so a
+  new entry collection becomes linkable automatically. Counters are created on first use.
 
 - **`react-calendar-timeline`**: only the `0.30.0-beta.19` prerelease works with React 19. Pin it
   exactly. Its `visibleTimeStart` and `visibleTimeEnd` props are read once at mount; changing the

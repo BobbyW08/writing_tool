@@ -1,6 +1,6 @@
 # Legacy migration staging review
 
-Generated: 2026-10-19T15:25:21.153Z
+Generated: 2026-10-19T15:45:32.414Z
 
 ## Summary
 

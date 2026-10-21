@@ -1,24 +1,113 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AppSidebar } from "@/components/app-sidebar";
+import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
+import { CodeLookup } from "@/components/code-lookup";
+import { WorldTree } from "@/components/world-tree";
+import { getWorldTreeNodes } from "@/lib/world/queries";
 
-// Every page reads live data from the database (and the sidebar shows the count of
-// conflicts waiting on a decision), so nothing here is prerendered at build time.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "The Traveler — Story Wiki",
-  description: "Story wiki and braided timeline for The Traveler",
+  title: "The Traveler",
+  description: "Story wiki and timeline for The Traveler",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+const WORLD_NAV = [
+  { href: "/characters", label: "Characters" },
+  { href: "/locations", label: "Locations" },
+  { href: "/items", label: "Items" },
+  { href: "/cultures", label: "Cultures" },
+  { href: "/factions", label: "Factions" },
+  { href: "/races", label: "Races" },
+  { href: "/languages", label: "Languages" },
+  { href: "/lore", label: "Lore" },
+];
+
+const STORY_NAV = [
+  { href: "/events", label: "Events" },
+  { href: "/stories", label: "Stories" },
+  { href: "/timeline", label: "Timeline" },
+];
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const treeNodes = await getWorldTreeNodes();
+
   return (
     <html lang="en">
       <body>
         <div className="flex min-h-screen">
-          <AppSidebar />
-          <main className="min-w-0 flex-1 p-8">{children}</main>
+          {/* Nav panel */}
+          <nav className="flex w-44 shrink-0 flex-col gap-3 overflow-y-auto border-r bg-background px-2 py-3">
+            <Link href="/" className="px-1 text-sm font-semibold tracking-wide">
+              The Traveler
+            </Link>
+
+            <div>
+              <CodeLookup />
+            </div>
+
+            <section>
+              <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">World</p>
+              <ul className="space-y-0.5">
+                {WORLD_NAV.map(({ href, label }) => (
+                  <li key={href}>
+                    <Link href={href} className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Story</p>
+              <ul className="space-y-0.5">
+                {STORY_NAV.map(({ href, label }) => (
+                  <li key={href}>
+                    <Link href={href} className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tools</p>
+              <ul className="space-y-0.5">
+                <li>
+                  <Link href="/write" className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                    Writing
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/continuity" className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                    Continuity
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/review" className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                    Review (UNK)
+                  </Link>
+                </li>
+              </ul>
+            </section>
+
+            <div className="mt-auto">
+              <Link href="/admin" className="block rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent">
+                Admin
+              </Link>
+            </div>
+          </nav>
+
+          {/* World tree panel */}
+          <aside className="flex w-56 shrink-0 flex-col border-r bg-background px-2 py-3">
+            <WorldTree nodes={treeNodes} />
+          </aside>
+
+          {/* Main canvas */}
+          <main className="min-w-0 flex-1 overflow-y-auto p-6">{children}</main>
         </div>
         <Toaster />
       </body>

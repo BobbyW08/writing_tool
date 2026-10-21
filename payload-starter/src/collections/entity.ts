@@ -2,6 +2,7 @@ import type { CollectionConfig, Field } from 'payload'
 import { assignCode, codeField } from '../fields/code'
 import { ensureSlug, slugField } from '../fields/slug'
 import { reviewNoteField, tagsField } from '../fields/tags'
+import { imageField } from '../fields/image'
 import { ENTITY_PREFIXES, type EntitySlug } from '../lib/codes'
 
 // The same four status values the existing app uses, so nothing is lost in the migration.
@@ -36,6 +37,7 @@ const buildCommonFields = (slug: EntitySlug): Field[] => [
     label: 'Gap prompt',
     admin: { description: 'What still needs deciding. Always shown, blank when there is nothing outstanding.' },
   },
+  imageField,
   // Free-form labeled fields, exactly like the old app: "Origin", "Personality", "Appearance"...
   {
     name: 'details',
@@ -46,6 +48,13 @@ const buildCommonFields = (slug: EntitySlug): Field[] => [
     fields: [
       { name: 'label', type: 'text', required: true },
       { name: 'value', type: 'textarea' },
+      {
+        name: 'inInfobox',
+        type: 'checkbox',
+        defaultValue: false,
+        label: 'Show in infobox',
+        admin: { description: 'Checked rows appear in the infobox at the top of the entry page.' },
+      },
     ],
   },
   { name: 'body', type: 'richText', label: 'Notes' },

@@ -749,8 +749,8 @@ async function applyRecords(
 
     let doc: { id: number | string; code: string }
     if (existing.docs.length > 0) {
-      doc = await pl.update({ collection: ent.collection, id: existing.docs[0].id, data })
-      process.stdout.write(`  U ${ent.proposed_code} ${ent.name}\n`)
+      doc = existing.docs[0]
+      process.stdout.write(`  S ${ent.proposed_code} ${ent.name}\n`)
     } else {
       doc = await pl.create({ collection: ent.collection, data })
       process.stdout.write(`  + ${ent.proposed_code} ${ent.name}\n`)
@@ -765,6 +765,7 @@ async function applyRecords(
 
   // ── Create events ────────────────────────────────────────────────────────
   console.log('\nCreating events...')
+  let evCreated = 0, evSkipped = 0
   for (const ev of stagedEvents) {
     const existing = await pl.find({
       collection: 'events',
@@ -806,9 +807,11 @@ async function applyRecords(
 
     let doc: { id: number | string; code: string }
     if (existing.docs.length > 0) {
-      doc = await pl.update({ collection: 'events', id: existing.docs[0].id, data })
+      doc = existing.docs[0]
+      evSkipped++
     } else {
       doc = await pl.create({ collection: 'events', data })
+      evCreated++
     }
 
     if (doc.code !== ev.proposed_code) {
@@ -817,7 +820,7 @@ async function applyRecords(
     payloadIdByCode.set(ev.proposed_code, doc.id)
     payloadIdByLegacy.set(ev.legacyId, doc.id)
   }
-  console.log(`  Created/updated ${stagedEvents.length} events`)
+  console.log(`  Created ${evCreated}, skipped ${evSkipped} events`)
 
   // ── Create relationships ──────────────────────────────────────────────────
   console.log('\nCreating relationships...')
@@ -847,8 +850,7 @@ async function applyRecords(
     }
 
     if (existing.docs.length > 0) {
-      await pl.update({ collection: 'relationships', id: existing.docs[0].id, data })
-      console.log(`  U ${rel.proposed_code}: ${rel.from_proposed_code} ${rel.type} ${rel.to_proposed_code}`)
+      console.log(`  S ${rel.proposed_code}: ${rel.from_proposed_code} ${rel.type} ${rel.to_proposed_code}`)
     } else {
       await pl.create({ collection: 'relationships', data })
       console.log(`  + ${rel.proposed_code}: ${rel.from_proposed_code} ${rel.type} ${rel.to_proposed_code}`)

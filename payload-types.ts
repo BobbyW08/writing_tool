@@ -68,6 +68,7 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
+    media: Media;
     counters: Counter;
     tags: Tag;
     characters: Character;
@@ -93,6 +94,7 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
     counters: CountersSelect<false> | CountersSelect<true>;
     tags: TagsSelect<false> | TagsSelect<true>;
     characters: CharactersSelect<false> | CharactersSelect<true>;
@@ -177,6 +179,45 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  alt?: string | null;
+  kind?:
+    ('portrait' | 'crest' | 'header' | 'map_base' | 'map_layer' | 'era_background' | 'board_image' | 'other') | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "counters".
  */
 export interface Counter {
@@ -232,12 +273,20 @@ export interface Character {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -319,12 +368,20 @@ export interface Location {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -399,12 +456,20 @@ export interface Culture {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -478,12 +543,20 @@ export interface Language {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -553,12 +626,20 @@ export interface Race {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -628,12 +709,20 @@ export interface Item {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -710,12 +799,20 @@ export interface Faction {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -792,12 +889,20 @@ export interface Lore {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -871,12 +976,20 @@ export interface Event {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -1021,12 +1134,20 @@ export interface Story {
    */
   gapPrompt?: string | null;
   /**
+   * Portrait, crest or header. Shows in the infobox and on node cards.
+   */
+  image?: (number | null) | Media;
+  /**
    * Any labeled fact about this entry. The continuity check reads these.
    */
   details?:
     | {
         label: string;
         value?: string | null;
+        /**
+         * Checked rows appear in the infobox at the top of the entry page.
+         */
+        inInfobox?: boolean | null;
         id?: string | null;
       }[]
     | null;
@@ -1181,6 +1302,10 @@ export interface Writing {
    * Row id in the old app, kept so a migration re-run updates instead of duplicating.
    */
   legacyId?: string | null;
+  /**
+   * Draft and Canon are included in continuity checks. Set aside is excluded.
+   */
+  canonState?: ('draft' | 'canon' | 'set_aside') | null;
   kind?: ('chapter' | 'scene' | 'snippet') | null;
   story?: (number | null) | Story;
   order?: number | null;
@@ -1607,6 +1732,10 @@ export interface PayloadLockedDocument {
         value: number | User;
       } | null)
     | ({
+        relationTo: 'media';
+        value: number | Media;
+      } | null)
+    | ({
         relationTo: 'counters';
         value: number | Counter;
       } | null)
@@ -1741,6 +1870,49 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+  alt?: T;
+  kind?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "counters_select".
  */
 export interface CountersSelect<T extends boolean = true> {
@@ -1777,11 +1949,13 @@ export interface CharactersSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -1816,11 +1990,13 @@ export interface LocationsSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -1851,11 +2027,13 @@ export interface ItemsSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -1888,11 +2066,13 @@ export interface CulturesSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -1925,11 +2105,13 @@ export interface FactionsSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -1962,11 +2144,13 @@ export interface RacesSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -1995,11 +2179,13 @@ export interface LanguagesSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -2028,11 +2214,13 @@ export interface LoreSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -2062,11 +2250,13 @@ export interface EventsSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -2106,11 +2296,13 @@ export interface StoriesSelect<T extends boolean = true> {
   summary?: T;
   status?: T;
   gapPrompt?: T;
+  image?: T;
   details?:
     | T
     | {
         label?: T;
         value?: T;
+        inInfobox?: T;
         id?: T;
       };
   body?: T;
@@ -2160,6 +2352,7 @@ export interface WritingSelect<T extends boolean = true> {
   parent?: T;
   sourceDocId?: T;
   legacyId?: T;
+  canonState?: T;
   kind?: T;
   story?: T;
   order?: T;

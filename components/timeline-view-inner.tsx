@@ -13,7 +13,7 @@ import "./timeline-view.css";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ZoomOut } from "lucide-react";
-import { updateEventSortOrderAction } from "@/lib/actions/events";
+import { updateEventYearAction } from "@/lib/world/actions";
 import { ITEM_WIDTH_YEARS, msToSortOrder, sortOrderToMs } from "@/lib/timeline-scale";
 
 export interface TimelineEventInput {
@@ -116,7 +116,7 @@ export default function TimelineView({ events }: { events: TimelineEventInput[] 
     );
 
     const ev = eventById.get(id);
-    updateEventSortOrderAction(id, newSortOrder).catch(() => {
+    updateEventYearAction(id, newSortOrder).catch(() => {
       toast.error(`Couldn't save the new position for "${ev?.title ?? id}".`);
     });
 
