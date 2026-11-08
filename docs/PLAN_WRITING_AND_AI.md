@@ -132,8 +132,7 @@ Confirmations).
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). These are the steps this
 file owns, with where each sits in that list.
 
-- [ ] **S0.** Finish Gate 2C and apply the data (build order item 1). Staged: 149 records, none
-      applied, waiting for approval. See `PHASE_2_DATA.md` and `staging/story-bible-review.md`.
+- [x] **S0.** Gate 2C data applied (build order item 1). Done 2026-10-20.
 - [x] **S1. Writing Studio** (item 2). Complete 2026-10-20. Editor: Lexical via `@lexical/react`. Routes: `/write` list + `/write/[code]` editor. Round-trip OK on W1-W3. `canonState` field live.
 - [ ] **S2. Front end shell and rewire** (item 3). Icon rail, side panel, canvas layout, dashboard.
       Delivered with Phase 3 of the build plan (read pages on the data layer, retire the old data
