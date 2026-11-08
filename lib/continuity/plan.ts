@@ -1,4 +1,4 @@
-import { slugify } from "../ingest/slug";
+import { slugify } from "@/db/codes";
 import { containsText, findQuote, normalizeForCompare, resolveLabel, verbatim } from "./text";
 import type { EntityDbType } from "./constants";
 import type { CompareResult, DetectResult, EntityForCheck, SnippetForCheck } from "./types";

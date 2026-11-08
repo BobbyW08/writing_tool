@@ -1,5 +1,5 @@
 import { entityTypeByDbType } from "@/lib/data/entity-types";
-import { slugify } from "@/lib/ingest/slug";
+import { slugify } from "@/db/codes";
 
 // Maps the raw "Type" text inside [[Type#Name|Label]] (as written in the source docs
 // and preserved verbatim in stored fields/draft_text) to this app's entities.type value.

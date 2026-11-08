@@ -3,52 +3,44 @@
 ## What this is
 
 A personal writing tool for "The Traveler" story universe. All writing and all worldbuilding is
-done directly in Payload CMS, and everything is stored there: characters, locations, events,
-items, factions and cultures, races, languages, lore, story ideas, and the prose itself. Every
-record carries a permanent ID code (C10, L4, E27, S12) so any entry can be referenced by typing
-its code.
+done here: characters, locations, events, items, factions and cultures, races, languages, lore,
+story ideas, and the prose itself. Every record carries a permanent ID code (C10, L4, E27, S12)
+so any entry can be referenced by typing its code.
 
-The Payload admin is the back office. The frontend is where the work feels good, and it adds the
-views the admin cannot: a world tree with a Wikipedia style infobox, a timeline with eras and
-parallel lanes, image maps with clickable pins, chronicles (a timeline paired with maps), node
-maps, family and causality trees, whiteboards, interactive tables, a blank-page writing studio,
-and relationship views.
+The frontend is where the work feels good. It adds the views you cannot do in a plain table: a
+world tree with a Wikipedia-style infobox, a timeline with eras and parallel lanes, image maps
+with clickable pins, chronicles (a timeline paired with maps), node maps, family and causality
+trees, whiteboards, interactive tables, a blank-page writing studio, and relationship views.
 
 A backend **link index** records every connection between every record (relationship records,
-relationship fields, parent links, and codes typed in text), so any view can ask "what is linked
+relationship columns, parent links, and codes typed in text), so any view can ask "what is linked
 to what" with one query. All AI runs on Claude. It suggests options (never prose), tracks
 placeholders for undecided worldbuilding, and checks new writing against canon.
 
 **This is not:**
 - A ghostwriter. It never generates narrative prose the user would paste into a draft.
 - A project/task manager.
-- A multi-user product. One user, one real login at most.
+- A multi-user product. One user. No login.
 
-## Editing model: Payload holds everything, the frontend is where all the work happens
+## Editing model: the data layer holds everything, the frontend is where all the work happens
 
-- **All creating, editing and writing happens in the frontend.** Every collection has a create flow
-  and edit in place on its read page: fields, details rows, tags, parent, image, relationships.
+- **All creating, editing and writing happens in the frontend.** Every entity type has a create
+  flow and edit in place on its read page: fields, details rows, tags, parent, image, relationships.
   There is no separate view mode and edit mode. The Writing Studio (`/write`) is the editor for
   chapters, scenes and snippets. The timeline, maps, boards and tables are edited in place.
-- The Payload admin is the back office, kept as a fallback: bulk repairs and a raw editor for any
-  field. Read pages carry a small "Open in admin" link, but no routine task should need it.
-  Both surfaces read and write the same records.
 - Type ID codes (C10, L4) in any text. Codes render as links and are recorded in the link index.
-- Drag an event on the frontend timeline to change its `startYear`. The timeline is edited in
-  place, with no separate view and edit modes.
-- The Payload database is the only source of truth. The one-time moves into it (the old app's
-  database, the story catalog and the story bible) are migrations, never ongoing sync.
+- Drag an event on the frontend timeline to change its `startYear`. The timeline is edited in place.
+- `appDb` (Drizzle + Neon, `APP_DATABASE_URL`) is the only source of truth. The one-time moves
+  into it (the old app database, the story catalog and the story bible) are migrations, never ongoing sync.
 
-## Where things stand (2026-10-20)
+## Where things stand (2026-11-08)
 
-Version 1 was a custom Next.js app with its own database and hand-built forms. Version 2 moved
-the work onto Payload, and that move is nearly done.
+Version 1 was a custom Next.js app with its own database and hand-built forms. The data was moved
+to a direct Drizzle + Neon stack in November 2026, completing Phase 3.
 
-- Phase 1 (Payload running) is done.
-- Phase 2A (old database migrated) is done: 36 characters, 11 locations, 113 events, 4 relationships.
-- Phase 2B (story catalog) is done: 40 stories, S1 to S40.
-- Phase 2C (story bible) is staged and waiting at Gate 2C: 149 proposed records, none applied.
-- The old frontend pages under `app/(app)` still read the old database. Phase 3 rewires them.
+- Phase 2A through 2C: all done. Data counters: C=40, L=13, U=5, F=2, K=102, S=74, W=3.
+- Phase 3 frontend complete. `npm run build` passes zero errors. G1 is next.
+- Writing Studio (S1) complete.
 
 This version (v3.0) adds the World features (steps W1 to W6), the link index (step G1), and the
 Writing Studio and AI work from `docs/PLAN_WRITING_AND_AI.md` (steps S1 to S7). The master order
@@ -58,28 +50,29 @@ is in "Build order" below. Full history is in `BUILD_GUIDE.md`.
 
 ## Architecture
 
-- **One Next.js app, two route groups.** `app/(payload)/` serves `/admin` and `/api`.
-  `app/(app)/` serves the frontend views.
-- **Payload 3.x stable** with the Postgres adapter and the Lexical editor. Collections live in
-  `collections/`, shared fields in `fields/`, endpoints in `endpoints/`, shared helpers in `lib/`.
-- **Local API everywhere in the frontend.** Server components and server actions call
-  `getPayload({ config })`. There is no second data layer.
-- **Link index.** The `links` collection and `lib/graph/` hold every connection between records.
-  Views and the AI context builder read connections from there, never by hand-querying fields.
-- **Media.** An upload collection (`media`) stores images: portraits, crests, map images, map
-  layers and era backgrounds. It uses `sharp`, which is already installed.
+- **One Next.js app, one route group.** `app/(app)/` serves all frontend views.
+- **Drizzle ORM** (`drizzle-orm`), schema in `db/schema.ts`, client in `db/index.ts` as `appDb`.
+  All reads and writes use `appDb` with `APP_DATABASE_URL`.
+- **Neon Postgres** as the database, using `@neondatabase/serverless` with the `neon-http` driver.
+- **Data layer.** Server components and server actions call `lib/world/queries.ts` (fetchers) and
+  `lib/world/actions.ts` (mutations). There is no second data layer. Writing Studio uses
+  `lib/studio/queries.ts` and `lib/studio/actions.ts`.
+- **Lexical editor.** `lexical@0.50.0` and its `@lexical/*` packages. Writing bodies are stored as
+  Markdown. `lib/studio/lexical.ts` converts between Lexical JSON and Markdown using `@lexical/headless`.
+- **Link index.** The `links` table and `lib/graph/` hold every connection between records. Views
+  and the AI context builder read connections from there, never by hand-querying columns. Sync runs
+  inside the data layer's write functions.
+- **Media.** A `media` table stores images: portraits, crests, map images, map layers and era
+  backgrounds. It uses `sharp`, which is already installed.
 - **AI.** All AI runs on Claude through the `ai` package and Vercel AI Gateway, with plain
   `anthropic/...` model strings, behind one module (`lib/ai/`).
-- **Database.** A Neon database used only by Payload (`PAYLOAD_DATABASE_URL`). The old
-  database stays untouched and read-only as the migration source until the migration is verified.
-- **Access.** Local development uses `autoLogin` so there is no login screen. A deployed copy
-  keeps one real login. The Local API in Payload 3.x bypasses access control by default, so
-  frontend server code is trusted code; do not expose write actions to the public.
-- **Environment.** `PAYLOAD_DATABASE_URL`, `PAYLOAD_SECRET`, `AI_GATEWAY_API_KEY`,
-  `CONTINUITY_MODEL` (optional), `DEV_LOGIN_EMAIL` (dev autoLogin, set to your admin email).
-  `DATABASE_URL` points at the old database and is used only by the migration script.
-- **Look and feel.** The frontend has its own visual style, built on the existing shadcn
-  components and theme tokens. World Anvil is a behavior reference only (see "Feature reference").
+- **No login and no auth code.** This is a personal single-user tool. No middleware, no session.
+- **Environment.** `APP_DATABASE_URL`, `AI_GATEWAY_API_KEY`, `CONTINUITY_MODEL` (optional).
+  `DATABASE_URL` points at the old v1 database (read-only, used only by `scripts/copy-from-payload.ts`).
+- **Look and feel.** The frontend has its own visual style, built on the existing shadcn components
+  and theme tokens. World Anvil is a behavior reference only (see "Feature reference").
+
+---
 
 ---
 
@@ -113,7 +106,7 @@ Every record you author or decide on has a code made of one letter and a number.
 | T | tags | Tags, with UNK built in |
 
 Behavior:
-- Assigned automatically on create by the `assignCode` hook, from the hidden `counters` collection.
+- Assigned automatically on create by the `assignCode` hook, from the `counters` table.
   A counter row is created the first time a prefix is used, so a new prefix needs no seeding.
 - Permanent. A rename never changes a code. A delete never frees a number. An update that tries
   to change a code is ignored.
@@ -133,7 +126,7 @@ Behavior:
 
 ## Collections
 
-The Phase 1 collections are in `collections/` (copied from `payload-starter/src/`). Collections
+The world entity types are defined as tables in `db/schema.ts`. The spec below lists the fields for each type; Collections
 and fields marked **new** below have no code yet. Their field lists here are the spec, and each
 is built in the step that first needs it (see "Build order").
 
@@ -332,7 +325,7 @@ value for X rows, the field name for field rows such as `involves`, `parent`, or
 ### Upkeep
 - An `afterChange` hook on every coded collection recomputes the rows owned by that record: rows no
   longer present are removed, the rest are upserted by `key`.
-- An `afterDelete` hook removes the rows the record owned and marks rows that point at it `broken`.
+- A delete function in the data layer removes the rows the record owned and marks rows that point at it `broken`.
   A code is never reused, so a broken row stays identifiable and shows in the broken links list.
 - `scripts/rebuild-links.ts` rebuilds the whole index from the records. It is idempotent. A dry run
   prints counts by source, and `--apply` writes. Running it twice gives identical results.
@@ -401,7 +394,7 @@ guessed era or format on a story, a wiki-link rewritten to a code, an entry's ca
 the migration, and every record the continuity check creates on its own.
 
 - Only the user removes `UNK`, after he has confirmed the record.
-- `GET /api/unk` returns the review queue across all collections. The Payload admin can also filter any
+- `GET /api/unk` returns the review queue across all collections. The data layer can also filter any
   list by the UNK tag.
 - Frontend views show UNK records with a visible marker, and the node map draws them with a dashed outline.
 - Text accepted from an AI proposal carries the built-in **AI suggested** tag as well as UNK until the user clears both.
@@ -423,8 +416,8 @@ stretch is drawn. They never change a year or a position.
 
 ## Migration from the old database (one time)
 
-A script `scripts/migrate-legacy.ts` reads the old database (read-only) and writes to Payload
-through the Local API.
+A script `scripts/migrate-legacy.ts` reads the old database (read-only) and writes to appDb via the data layer
+through the data layer.
 
 | Old | New |
 |---|---|
@@ -480,7 +473,7 @@ Rules for the script:
 
 ## Frontend views (read pages and visualizations)
 
-All views read and write through the Local API and edit in place. Each page also carries a small "Open in admin" link. Every view takes
+All views read and write through the data layer and edit in place. Each page also carries a small "Open in admin" link. Every view takes
 its connections from the link index and its nodes and edges from the shared `Graph` shape.
 
 - **Shell.** A slim icon rail, a side panel (the world tree) and a main canvas.
@@ -532,11 +525,11 @@ word for word, automatic additions have an Undo, and conflicts wait for a decisi
 What carries over unchanged (no data access, already tested by `npm run test:continuity`):
 `lib/continuity/analyze.ts`, `constants.ts`, `links.ts`, `plan.ts`, `text.ts`, `types.ts`.
 
-What is rewritten on the Local API: `run-check.ts`, the actions, and the data queries. A snippet
+What is rewritten on the data layer: `run-check.ts`, the actions, and the data queries. A snippet
 becomes a `writing` record, an entity becomes an entry in the matching collection, `fields`
 becomes `details`. The check reads `writing.plainText`.
 
-Trigger: saving a `writing` record whose text or `startYear` changed starts the check (a Payload
+Trigger: saving a `writing` record whose text or `startYear` changed starts the check (a data layer
 `afterChange` hook that sets `checkStatus` and runs the check after the response, with a manual
 "Check now" action as the fallback). The decision screens (inbox, side-by-side review, entry
 history) stay on the frontend, because the admin cannot show a highlighted side-by-side.
@@ -583,39 +576,36 @@ fit between these phases. The master order is in "Build order" below.
 
 ### Phase 0: Preserve the current state
 - [x] Commit everything now in the working tree (the continuity feature and doc changes are not yet
-      committed) and tag it `pre-payload`.
+      committed) and tag it `pre-drizzle`.
 - [x] Apply migration `0003` to the old database so the old schema matches the code (or confirm no
       snippets exist yet and skip it). Skipped: no snippets in the old database, and the tables exist in the new one.
 - [x] Export a snapshot of the old database (`pg_dump` or the Neon branch feature) as the safety copy.
       The old database is a live read-only Neon branch and is treated as the safety copy.
 
-### Phase 1: Payload running, writing possible (done 2026-10-19)
-- [x] Create a new Neon database for Payload. Add `PAYLOAD_DATABASE_URL` and `PAYLOAD_SECRET` to `.env`.
-- [x] Update Next.js to the latest patched 16.x, install `payload`, `@payloadcms/next`,
-      `@payloadcms/db-postgres`, `@payloadcms/richtext-lexical`, `sharp`, `graphql`, all at one version.
-- [x] Restructure routes: add `app/(payload)/`, move the existing frontend into `app/(app)/`.
-      Wrap `next.config.mjs` with `withPayload`. Add the `@payload-config` alias in `tsconfig.json`.
-- [x] Copy `payload-starter/src/*` to the repo root (collections, fields, endpoints, lib).
-- [x] Generate types and the import map, start `npm run dev`, open `/admin`, create one entry of each
-      kind, confirm codes are assigned and `/api/codes/C1` resolves.
-- [x] **Milestone: the admin is usable for writing.**
+### Phase 1: Data setup and migration (done)
+- [x] Create Neon database, set `APP_DATABASE_URL` in .env, run Drizzle migrations.
+- [x] Update Next.js to the latest patched 16.x. Install Lexical packages at 0.50.0: `@lexical/react`, `@lexical/markdown`, `@lexical/rich-text`, `@lexical/list`, `@lexical/headless`.
+- [x] Restructure routes: add `app/(app)/`, move the existing frontend into `app/(app)/`.
+- [x] Set up `db/schema.ts`, generate Drizzle migrations, run them against `APP_DATABASE_URL`.
+- [x] Wire the data layer: `lib/world/queries.ts`, `lib/world/actions.ts`. Codes assigned inside write functions.
+- [x] **Milestone: the data layer is usable for writing.**
 
 ### Phase 2: Bring the data across
 - [x] 2A: `scripts/migrate-legacy.ts` applied and verified (done 2026-10-19).
 - [x] 2B: `scripts/import-story-catalog.ts` applied, 40 stories S1 to S40 (done 2026-10-20).
 - [x] 2C: story bible import applied 2026-10-20. 149 records. `scripts/import-story-bible.ts`. Idempotent.
-- [x] **Milestone: existing canon, all 40 story ideas and the story bible are in Payload.**
+- [x] **Milestone: all data is in appDb.**
 
 ### Phase 3: Rewire the frontend and retire the old app code
 Delivered together with step S2 and step W1.
 - [ ] UNK marker on every list and read page, and a basic review queue page.
-- [ ] Home, entry read pages, event read pages on the Local API with ID-code linkification.
-- [ ] Timeline reading and writing through the Local API (`startYear`).
+- [ ] Home, entry read pages, event read pages on the data layer with ID-code linkification.
+- [ ] Timeline reading and writing through the data layer (`startYear`).
 - [ ] Remove the old forms, actions, data layer, database code and legacy dependencies (list in
       `BUILD_GUIDE.md`) once the migration is verified.
 
 ### Phase 4: Continuity check port
-- [ ] Rewrite `run-check.ts`, actions and data queries on the Local API; keep the pure files.
+- [ ] Rewrite `run-check.ts`, actions and data queries on the data layer; keep the pure files.
 - [ ] Rewire the inbox, review screen, entry history and sidebar badge.
 - [ ] Run `npm run test:continuity`, then a first real writing check, then tune prompts.
 
@@ -650,7 +640,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 |---|---|---|
 | 1 | Gate 2C (Phase 2C) | Story bible applied. Done 2026-10-20. |
 | 2 | S1 | Writing Studio: `/write`, `canonState`, autosave, `@` mentions. Done 2026-10-20. |
-| 3 | Phase 3, S2, W1 | Frontend shell on the Local API, world tree, infobox, home hub, images. Old code retired |
+| 3 | Phase 3, S2, W1 | Frontend shell on the data layer, world tree, infobox, home hub, images. Old code retired |
 | 4 | G1 | Link index, sync hooks, graph endpoints, What links here |
 | 5 | Phase 4 | Continuity check port |
 | 6 | Phase 5, S3, W2 | Filter, convergence, live node map, relationship view, story board, eras, lanes, time gaps |
@@ -744,9 +734,9 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 | Piece | Source | Notes |
 |---|---|---|
-| Writing UI, forms, versions, drafts | **Custom frontend forms over the Local API** | Payload admin stays as the fallback |
-| Rich text editing | **Available**, Lexical | Built into Payload |
-| Postgres hosting | **Available**, Neon | Dedicated database for Payload |
+| Writing UI, forms, versions, drafts | **Custom frontend forms over the data layer** | data layer stays as the fallback |
+| Rich text editing | **Available**, Lexical | Lexical packages installed explicitly |
+| Postgres hosting | **Available**, Neon | APP_DATABASE_URL on Neon |
 | Single-line draggable timeline | **Available**, `react-calendar-timeline` | Already working in v1. Era bands and lanes confirmed by the W2 spike |
 | Multi-lane convergence layout | **Available, needs integration**, `iStoryline.js` | Not started |
 | Node map and trees | **Available**, React Flow | Data mapping from the link index plus styling |
