@@ -5,15 +5,10 @@ import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
 import { DeleteRecordButton } from "@/components/delete-record-button";
-import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
-
-type Tag = { id: number; code?: string | null };
-type Ref = { relationTo: string; value: { id: number; code?: string | null; name?: string; title?: string } | number };
-type InvolvesItem = { relationTo: string; value: { id: number; code?: string | null; name?: string } | number };
 
 type StoryDoc = {
   id: number;
-  code?: string | null;
+  code: string;
   name: string;
   summary?: string | null;
   stage?: string | null;
@@ -24,10 +19,8 @@ type StoryDoc = {
   yearLabel?: string | null;
   floating?: boolean | null;
   beats?: { beat: string; id?: string | null }[] | null;
-  involves?: InvolvesItem[] | null;
-  dramatizes?: (number | { id: number; code?: string | null; name: string })[] | null;
   gapPrompt?: string | null;
-  tags?: (number | Tag)[] | null;
+  tagIds?: number[] | null;
   reviewNote?: string | null;
 };
 
@@ -69,11 +62,11 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
   const story = await getStoryByCode(code);
   if (!story) notFound();
 
-  const doc = story as StoryDoc;
+  const doc = story as unknown as StoryDoc;
   const storyCode = doc.code ?? '';
   const rels = storyCode ? await getRelationshipsByCode(storyCode) : { from: [], to: [] };
   const codeMap = await buildCodeMap([doc.summary, doc.gapPrompt, ...(doc.beats?.map(b => b.beat) ?? [])]);
-  const unkTagged = isUnk(doc.tags);
+  const unkTagged = isUnk(doc.tagIds ?? null);
 
   function yearText() {
     if (doc.floating) return "Floating (no fixed position)";
@@ -83,37 +76,14 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
     return null;
   }
 
-  const involves = (doc.involves ?? []).filter(Boolean);
-  const dramatizes = (doc.dramatizes ?? []).filter(Boolean);
-
-  // Build relationship entries
+  type RelRow = { id: number; code: string; fromCollection: string; fromCode: string; toCollection: string; toCode: string; type?: string | null };
   type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: 'from' | 'to' };
   const relEntries: RelEditorEntry[] = [];
-  for (const r of rels.from) {
-    const rr = r as unknown as Record<string, unknown>;
-    const toRef = rr.to as Ref | null;
-    const toVal = typeof toRef?.value === 'object' ? toRef?.value : null;
-    relEntries.push({
-      id: r.id,
-      code: (r as { toCode?: string }).toCode ?? '',
-      collection: toRef?.relationTo ?? '',
-      name: toVal?.name ?? toVal?.title ?? toVal?.code ?? '',
-      type: (r as { type?: string }).type ?? '',
-      direction: 'from',
-    });
+  for (const r of rels.from as RelRow[]) {
+    relEntries.push({ id: r.id, code: r.toCode, collection: r.toCollection, name: r.toCode, type: r.type ?? '', direction: 'from' });
   }
-  for (const r of rels.to) {
-    const rr = r as unknown as Record<string, unknown>;
-    const fromRef = rr.from as Ref | null;
-    const fromVal = typeof fromRef?.value === 'object' ? fromRef?.value : null;
-    relEntries.push({
-      id: r.id,
-      code: (r as { fromCode?: string }).fromCode ?? '',
-      collection: fromRef?.relationTo ?? '',
-      name: fromVal?.name ?? fromVal?.title ?? fromVal?.code ?? '',
-      type: (r as { type?: string }).type ?? '',
-      direction: 'to',
-    });
+  for (const r of rels.to as RelRow[]) {
+    relEntries.push({ id: r.id, code: r.fromCode, collection: r.fromCollection, name: r.fromCode, type: r.type ?? '', direction: 'to' });
   }
 
   return (
@@ -206,48 +176,6 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
             ))}
           </ol>
           <p className="mt-2 text-xs text-muted-foreground">Edit beats in admin.</p>
-        </section>
-      )}
-
-      {/* Involves */}
-      {involves.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Characters and places</h2>
-          <ul className="flex flex-wrap gap-2">
-            {involves.map((item, i) => {
-              const val = typeof item.value === 'object' ? item.value : null;
-              if (!val) return null;
-              const itemCode = (val as { code?: string | null }).code;
-              return (
-                <li key={i}>
-                  <Link href={`/${item.relationTo}/${itemCode ?? val.id}`} className="rounded-md border px-2.5 py-1 text-sm hover:bg-accent">
-                    {(val as { name?: string }).name ?? itemCode}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
-      {/* Dramatizes events */}
-      {dramatizes.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Events dramatized</h2>
-          <ul className="divide-y rounded-md border">
-            {dramatizes.map((e, i) => {
-              if (typeof e !== 'object') return null;
-              const ev = e as { id: number; code?: string | null; name: string };
-              return (
-                <li key={i}>
-                  <Link href={`/events/${ev.code ?? ev.id}`} className="flex items-center gap-2 p-2.5 hover:bg-accent">
-                    <span className="font-mono text-xs text-muted-foreground">{ev.code}</span>
-                    <span className="text-sm">{ev.name}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
         </section>
       )}
 

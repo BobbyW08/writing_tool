@@ -1,23 +1,42 @@
 'use server'
 
-import { getPayload } from 'payload'
-import config from '@/payload.config'
 import { revalidatePath } from 'next/cache'
-import type { EntitySlug } from '@/lib/codes'
+import { eq, or } from 'drizzle-orm'
+import { appDb } from '@/db/index'
+import * as schema from '@/db/schema'
+import { assignNextCode, slugify } from '@/db/codes'
+import { PREFIX_TO_SLUG } from '@/lib/codes'
 
-// Updates an event's startYear after a timeline drag.
+// ─── Table map ───────────────────────────────────────────────────────────────
+type AnyTable = typeof schema.characters
+
+const WORLD_TABLE_MAP: Record<string, AnyTable> = {
+  characters: schema.characters as unknown as AnyTable,
+  locations: schema.locations as unknown as AnyTable,
+  items: schema.items as unknown as AnyTable,
+  cultures: schema.cultures as unknown as AnyTable,
+  factions: schema.factions as unknown as AnyTable,
+  races: schema.races as unknown as AnyTable,
+  languages: schema.languages as unknown as AnyTable,
+  lore: schema.lore as unknown as AnyTable,
+}
+
+function getTable(collection: string) {
+  if (collection === 'events') return schema.events as unknown as AnyTable
+  if (collection === 'stories') return schema.stories as unknown as AnyTable
+  if (collection === 'writing') return schema.writing as unknown as AnyTable
+  return WORLD_TABLE_MAP[collection] ?? null
+}
+
+// ─── updateEventYearAction ────────────────────────────────────────────────────
 export async function updateEventYearAction(id: string, year: number) {
-  const payload = await getPayload({ config })
-  await payload.update({
-    collection: 'events',
-    id: Number(id),
-    data: { startYear: Math.round(year) },
-    depth: 0,
-  })
+  await appDb.update(schema.events)
+    .set({ startYear: Math.round(year), updatedAt: new Date() })
+    .where(eq(schema.events.id, Number(id)))
   revalidatePath('/timeline')
 }
 
-// Quick search for the code lookup box.
+// ─── searchForEntry ───────────────────────────────────────────────────────────
 export async function searchForEntry(query: string): Promise<{ code: string; collection: string } | null> {
   const { resolveCodeLookup } = await import('@/lib/world/queries')
   const result = await resolveCodeLookup(query)
@@ -25,27 +44,45 @@ export async function searchForEntry(query: string): Promise<{ code: string; col
   return { code: result.code, collection: result.collection }
 }
 
-// Create a new record in any world collection.
+// ─── createEntityAction ───────────────────────────────────────────────────────
 export async function createEntityAction(
   collection: string,
   data: Record<string, unknown>
 ): Promise<{ id: number; code?: string; slug?: string; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    const doc = await payload.create({
-      collection: collection as EntitySlug,
-      data: data as never,
-      depth: 0,
-    })
-    const d = doc as { id: number; code?: string; slug?: string }
+    const prefix = getPrefixForCollection(collection)
+    if (!prefix) return { id: 0, error: `Unknown collection: ${collection}` }
+
+    const code = await assignNextCode(prefix)
+    const name = String(data.name ?? 'Untitled')
+    const baseSlug = slugify(name)
+    const slug = baseSlug ? `${baseSlug}-${code.toLowerCase()}` : code.toLowerCase()
+
+    const table = getTable(collection)
+    if (!table) return { id: 0, error: `No table for collection: ${collection}` }
+
+    const insertData: Record<string, unknown> = { ...data, code, slug, name }
+    // Remove relationship fields that need ID resolution; they are set after create.
+    // Any value that is not a primitive is dropped here (components handle them via updateFieldAction).
+    for (const [k, v] of Object.entries(insertData)) {
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        delete insertData[k]
+      }
+    }
+
+    const [row] = await (appDb.insert(table as never) as ReturnType<typeof appDb.insert>)
+      .values(insertData as never)
+      .returning({ id: (table as typeof schema.characters).id })
+
     revalidatePath(`/${collection}`)
-    return { id: d.id, code: d.code, slug: d.slug }
+    revalidatePath('/')
+    return { id: (row as { id: number }).id, code, slug }
   } catch (err) {
     return { id: 0, error: String(err) }
   }
 }
 
-// Update a single scalar field on any record.
+// ─── updateFieldAction ────────────────────────────────────────────────────────
 export async function updateFieldAction(
   collection: string,
   id: number,
@@ -53,13 +90,13 @@ export async function updateFieldAction(
   value: unknown
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    await payload.update({
-      collection: collection as EntitySlug,
-      id,
-      data: { [field]: value } as never,
-      depth: 0,
-    })
+    const table = getTable(collection)
+    if (!table) return { ok: false, error: `No table for: ${collection}` }
+
+    await (appDb.update(table as never) as ReturnType<typeof appDb.update>)
+      .set({ [field]: value, updatedAt: new Date() } as never)
+      .where(eq((table as typeof schema.characters).id, id))
+
     revalidatePath(`/${collection}`)
     return { ok: true }
   } catch (err) {
@@ -67,115 +104,103 @@ export async function updateFieldAction(
   }
 }
 
-// Replace the details array on a record.
+// ─── updateDetailsAction ──────────────────────────────────────────────────────
 export async function updateDetailsAction(
   collection: string,
   id: number,
   details: { label: string; value: string; inInfobox: boolean; id?: string }[]
 ): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const payload = await getPayload({ config })
-    await payload.update({
-      collection: collection as EntitySlug,
-      id,
-      data: { details } as never,
-      depth: 0,
-    })
-    revalidatePath(`/${collection}`)
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, error: String(err) }
-  }
+  return updateFieldAction(collection, id, 'details', details)
 }
 
-// Check what still points at a record before deleting it.
+// ─── checkDeleteConflictsAction ───────────────────────────────────────────────
 export async function checkDeleteConflictsAction(
   collection: string,
   id: number,
   code: string
 ): Promise<{ conflicts: { collection: string; code: string; name: string }[] }> {
-  const payload = await getPayload({ config })
   const conflicts: { collection: string; code: string; name: string }[] = []
 
   // Relationships with fromCode or toCode matching
-  const [fromRels, toRels] = await Promise.all([
-    payload.find({ collection: 'relationships', where: { fromCode: { equals: code } }, limit: 20, depth: 0 }),
-    payload.find({ collection: 'relationships', where: { toCode: { equals: code } }, limit: 20, depth: 0 }),
-  ])
-  for (const r of [...fromRels.docs, ...toRels.docs]) {
-    const rel = r as { code?: string; toCode?: string; fromCode?: string }
+  const rels = await appDb.select({
+    id: schema.relationships.id,
+    code: schema.relationships.code,
+    fromCode: schema.relationships.fromCode,
+    toCode: schema.relationships.toCode,
+    title: schema.relationships.title,
+  }).from(schema.relationships).where(
+    or(
+      eq(schema.relationships.fromCode, code),
+      eq(schema.relationships.toCode, code)
+    )
+  )
+  for (const r of rels) {
     conflicts.push({
       collection: 'relationships',
-      code: (r as { code?: string }).code ?? String(r.id),
-      name: `Relationship ${rel.fromCode} -> ${rel.toCode}`,
+      code: r.code,
+      name: r.title ?? `Relationship ${r.fromCode} -> ${r.toCode}`,
     })
   }
 
-  // Children in same collection with parent = this record
-  const { docs: children } = await payload.find({
-    collection: collection as EntitySlug,
-    where: { parent: { equals: id } },
-    limit: 20,
-    depth: 0,
-  })
-  for (const c of children) {
-    const child = c as { id: number; code?: string; name?: string; title?: string }
-    conflicts.push({
-      collection,
-      code: child.code ?? String(child.id),
-      name: child.name ?? child.title ?? child.code ?? String(child.id),
-    })
+  // Children in same collection
+  const table = getTable(collection)
+  if (table && collection !== 'events' && collection !== 'stories' && collection !== 'writing') {
+    const children = await appDb.select({
+      id: (table as typeof schema.characters).id,
+      code: (table as typeof schema.characters).code,
+      name: (table as typeof schema.characters).name,
+    }).from(table as never).where(eq((table as typeof schema.characters).parentId, id))
+    for (const c of children as { id: number; code: string; name: string }[]) {
+      conflicts.push({ collection, code: c.code, name: c.name })
+    }
+  }
+  if (collection === 'events') {
+    const children = await appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name })
+      .from(schema.events).where(eq(schema.events.parentId, id))
+    for (const c of children) conflicts.push({ collection: 'events', code: c.code, name: c.name })
   }
 
-  // Events that involve this record
-  const { docs: events } = await payload.find({
-    collection: 'events',
-    limit: 500,
-    depth: 1,
-    sort: 'startYear',
-  })
-  for (const ev of events) {
-    const involves = ev.involves as { value?: { id?: number } | number; relationTo?: string }[] | null | undefined
-    if (!involves) continue
-    const found = involves.some(item => {
-      const val = item?.value
-      return typeof val === 'object' ? val?.id === id : val === id
-    })
-    if (found) {
-      const e = ev as { code?: string; name?: string }
-      conflicts.push({ collection: 'events', code: e.code ?? String(ev.id), name: e.name ?? String(ev.id) })
+  // Events that involve this entry
+  if (collection !== 'events' && collection !== 'stories' && collection !== 'writing' && collection !== 'relationships') {
+    const involveRows = await appDb.select({ eventId: schema.eventInvolves.eventId })
+      .from(schema.eventInvolves)
+      .where(eq(schema.eventInvolves.entryId, id))
+    if (involveRows.length > 0) {
+      const eventIds = involveRows.map(r => r.eventId)
+      const evts = await appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name })
+        .from(schema.events)
+        .where(eq(schema.events.id, eventIds[0]))
+      for (const e of evts) conflicts.push({ collection: 'events', code: e.code, name: e.name })
     }
   }
 
   // Stories that dramatize this event
   if (collection === 'events') {
-    const { docs: stories } = await payload.find({
-      collection: 'stories',
-      where: { dramatizes: { equals: id } },
-      limit: 20,
-      depth: 0,
-    })
-    for (const s of stories) {
-      const story = s as { code?: string; name?: string }
-      conflicts.push({
-        collection: 'stories',
-        code: story.code ?? String(s.id),
-        name: story.name ?? String(s.id),
-      })
+    const dramatizeRows = await appDb.select({ storyId: schema.storyDramatizes.storyId })
+      .from(schema.storyDramatizes)
+      .where(eq(schema.storyDramatizes.eventId, id))
+    if (dramatizeRows.length > 0) {
+      const storyIds = dramatizeRows.map(r => r.storyId)
+      const storyRows = await appDb.select({ id: schema.stories.id, code: schema.stories.code, name: schema.stories.name })
+        .from(schema.stories)
+        .where(eq(schema.stories.id, storyIds[0]))
+      for (const s of storyRows) conflicts.push({ collection: 'stories', code: s.code, name: s.name })
     }
   }
 
   return { conflicts }
 }
 
-// Delete a record. Caller must have verified no conflicts first.
+// ─── deleteEntityAction ───────────────────────────────────────────────────────
 export async function deleteEntityAction(
   collection: string,
   id: number
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    await payload.delete({ collection: collection as EntitySlug, id })
+    const table = getTable(collection)
+    if (!table) return { ok: false, error: `No table for: ${collection}` }
+    await (appDb.delete(table as never) as ReturnType<typeof appDb.delete>)
+      .where(eq((table as typeof schema.characters).id, id))
     revalidatePath(`/${collection}`)
     revalidatePath('/')
     return { ok: true }
@@ -184,7 +209,7 @@ export async function deleteEntityAction(
   }
 }
 
-// Add a relationship between two records.
+// ─── createRelationshipAction ─────────────────────────────────────────────────
 export async function createRelationshipAction(
   fromCode: string,
   toCode: string,
@@ -192,51 +217,64 @@ export async function createRelationshipAction(
   notes?: string
 ): Promise<{ ok: boolean; id?: number; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    const { PREFIX_TO_SLUG } = await import('@/lib/codes')
     const fromCollection = PREFIX_TO_SLUG[fromCode[0]]
     const toCollection = PREFIX_TO_SLUG[toCode[0]]
     if (!fromCollection || !toCollection) return { ok: false, error: 'Unknown code prefix' }
 
-    // Resolve IDs
-    const [fromResult, toResult] = await Promise.all([
-      payload.find({ collection: fromCollection as EntitySlug, where: { code: { equals: fromCode } }, limit: 1, depth: 0 }),
-      payload.find({ collection: toCollection as EntitySlug, where: { code: { equals: toCode } }, limit: 1, depth: 0 }),
-    ])
-    const fromDoc = fromResult.docs[0]
-    const toDoc = toResult.docs[0]
-    if (!fromDoc || !toDoc) return { ok: false, error: 'One or both records not found' }
+    const fromTable = getTable(fromCollection)
+    const toTable = getTable(toCollection)
+    if (!fromTable || !toTable) return { ok: false, error: 'Unknown collection table' }
 
-    const rel = await payload.create({
-      collection: 'relationships',
-      data: {
-        from: { relationTo: fromCollection, value: fromDoc.id },
-        to: { relationTo: toCollection, value: toDoc.id },
-        fromCode,
-        toCode,
-        type,
-        notes: notes ?? null,
-      } as never,
-      depth: 0,
-    })
-    return { ok: true, id: rel.id }
+    const [fromRows, toRows] = await Promise.all([
+      appDb.select({ id: (fromTable as typeof schema.characters).id })
+        .from(fromTable as never)
+        .where(eq((fromTable as typeof schema.characters).code, fromCode))
+        .limit(1),
+      appDb.select({ id: (toTable as typeof schema.characters).id })
+        .from(toTable as never)
+        .where(eq((toTable as typeof schema.characters).code, toCode))
+        .limit(1),
+    ])
+    const fromId = (fromRows[0] as { id: number } | undefined)?.id
+    const toId = (toRows[0] as { id: number } | undefined)?.id
+    if (!fromId || !toId) return { ok: false, error: 'One or both records not found' }
+
+    const { RELATIONSHIP_TYPES } = await import('@/lib/relationshipTypes')
+    const relType = RELATIONSHIP_TYPES.find(t => t.value === type)
+    const typeLabel = relType?.label ?? type
+    const code = await assignNextCode('X')
+    const title = `${fromCode} ${typeLabel} ${toCode}`
+
+    const [rel] = await appDb.insert(schema.relationships).values({
+      code,
+      fromCollection,
+      fromId,
+      fromCode,
+      toCollection,
+      toId,
+      toCode,
+      type,
+      notes: notes ?? null,
+      title,
+    }).returning({ id: schema.relationships.id })
+
+    return { ok: true, id: (rel as { id: number }).id }
   } catch (err) {
     return { ok: false, error: String(err) }
   }
 }
 
-// Remove a relationship by its database id.
+// ─── deleteRelationshipAction ─────────────────────────────────────────────────
 export async function deleteRelationshipAction(id: number): Promise<{ ok: boolean; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    await payload.delete({ collection: 'relationships', id })
+    await appDb.delete(schema.relationships).where(eq(schema.relationships.id, id))
     return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }
   }
 }
 
-// Toggle the UNK tag on a record and optionally update the reviewNote.
+// ─── updateTagsAction ─────────────────────────────────────────────────────────
 export async function updateTagsAction(
   collection: string,
   id: number,
@@ -244,15 +282,13 @@ export async function updateTagsAction(
   reviewNote?: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    const updateData: Record<string, unknown> = { tags: tagIds }
+    const table = getTable(collection)
+    if (!table) return { ok: false, error: `No table for: ${collection}` }
+    const updateData: Record<string, unknown> = { tagIds, updatedAt: new Date() }
     if (reviewNote !== undefined) updateData.reviewNote = reviewNote
-    await payload.update({
-      collection: collection as EntitySlug,
-      id,
-      data: updateData as never,
-      depth: 0,
-    })
+    await (appDb.update(table as never) as ReturnType<typeof appDb.update>)
+      .set(updateData as never)
+      .where(eq((table as typeof schema.characters).id, id))
     revalidatePath(`/${collection}`)
     revalidatePath('/review')
     return { ok: true }
@@ -261,37 +297,43 @@ export async function updateTagsAction(
   }
 }
 
-// Upload a media file and return the new media record id and URL.
-// This is called from a client component via a fetch to /api/media/upload (handled by Payload's upload collection API).
-// The infobox uses the standard Payload REST API endpoint for uploads, not a custom server action,
-// because server actions cannot receive File/Blob objects from FormData in Next.js App Router.
-// See: app/(app)/[entityType]/[slug]/page.tsx -- the Infobox component handles this via fetch.
-
-// Attach an existing media record id to a record (or null to detach).
+// ─── attachImageAction ────────────────────────────────────────────────────────
 export async function attachImageAction(
   collection: string,
   id: number,
   mediaId: number | null
 ): Promise<{ ok: boolean; error?: string }> {
-  return updateFieldAction(collection, id, 'image', mediaId)
+  return updateFieldAction(collection, id, 'imageId', mediaId)
 }
 
-// Update involves array on an event.
+// ─── updateEventInvolvesAction ────────────────────────────────────────────────
 export async function updateEventInvolvesAction(
   eventId: number,
   involves: { relationTo: string; value: number }[]
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    await payload.update({
-      collection: 'events',
-      id: eventId,
-      data: { involves } as never,
-      depth: 0,
-    })
+    // Delete all existing involves for this event
+    await appDb.delete(schema.eventInvolves).where(eq(schema.eventInvolves.eventId, eventId))
+    // Insert new ones
+    if (involves.length > 0) {
+      await appDb.insert(schema.eventInvolves).values(
+        involves.map(i => ({
+          eventId,
+          entryCollection: i.relationTo,
+          entryId: i.value,
+        }))
+      )
+    }
+    await appDb.update(schema.events).set({ updatedAt: new Date() }).where(eq(schema.events.id, eventId))
     revalidatePath('/events')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }
   }
+}
+
+// ─── Helper: get code prefix for a collection ─────────────────────────────────
+function getPrefixForCollection(collection: string): string | null {
+  const { ENTITY_PREFIXES } = require('@/lib/codes') as typeof import('@/lib/codes')
+  return (ENTITY_PREFIXES as Record<string, string>)[collection] ?? null
 }

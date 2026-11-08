@@ -3,7 +3,7 @@ import { getEventsList, isUnk } from "@/lib/world/queries";
 
 export default async function EventsPage() {
   const { docs } = await getEventsList();
-  type Ev = { id: number; code?: string | null; name: string; yearLabel?: string | null; startYear?: number | null; tags?: (number | { id: number })[] | null };
+  type Ev = { id: number; code?: string | null; name: string; yearLabel?: string | null; startYear?: number | null; tagIds?: number[] | null };
 
   const placed = (docs as Ev[]).filter(e => e.startYear != null).sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0));
   const unplaced = (docs as Ev[]).filter(e => e.startYear == null);
@@ -24,7 +24,7 @@ export default async function EventsPage() {
               {e.yearLabel ?? (e.startYear != null ? `Year ${e.startYear}` : "")}
             </span>
             <span className="flex-1 text-sm font-medium">{e.name}</span>
-            {isUnk(e.tags) && (
+            {isUnk(e.tagIds ?? null) && (
               <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-400">
                 UNK
               </span>

@@ -29,7 +29,7 @@ export default async function StoriesPage() {
     era?: string | null;
     startYear?: number | null;
     yearLabel?: string | null;
-    tags?: (number | { id: number })[] | null;
+    tagIds?: number[] | null;
   };
 
   return (
@@ -46,7 +46,7 @@ export default async function StoriesPage() {
           <Link key={s.id} href={`/stories/${s.code ?? s.id}`} className="flex items-center gap-3 p-3 hover:bg-accent">
             <span className="shrink-0 font-mono text-xs text-muted-foreground">{s.code}</span>
             <span className="flex-1 text-sm font-medium">{s.name}</span>
-            {isUnk(s.tags) && (
+            {isUnk(s.tagIds ?? null) && (
               <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-400">
                 UNK
               </span>

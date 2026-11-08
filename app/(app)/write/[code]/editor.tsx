@@ -32,7 +32,7 @@ import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPl
 import { ListPlugin } from '@lexical/react/LexicalListPlugin'
 import { LexicalTypeaheadMenuPlugin, MenuOption, useBasicTypeaheadTriggerMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { TRANSFORMERS } from '@lexical/markdown'
+import { $convertFromMarkdownString, $convertToMarkdownString, TRANSFORMERS } from '@lexical/markdown'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { saveWriting, searchEntities, deleteWriting, type SearchResult } from '@/lib/studio/actions'
@@ -112,7 +112,7 @@ class EntityOption extends MenuOption {
 
 // ─── Mention plugin ───────────────────────────────────────────────────────────
 
-function MentionPlugin({ onMentionsChange }: { onMentionsChange: (ids: string[]) => void }) {
+function MentionPlugin({ onMentionsChange }: { onMentionsChange: (ids: number[]) => void }) {
   const [editor] = useLexicalComposerContext()
   const [query, setQuery] = useState<string | null>(null)
   const [options, setOptions] = useState<EntityOption[]>([])
@@ -132,13 +132,14 @@ function MentionPlugin({ onMentionsChange }: { onMentionsChange: (ids: string[])
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
-        const ids: string[] = []
+        const ids: number[] = []
         const root = $getRoot()
         const stack = [...root.getChildren()]
         while (stack.length > 0) {
           const node = stack.pop()!
           if (node instanceof MentionNode) {
-            ids.push(node.__mentionId)
+            const numId = parseInt(node.__mentionId, 10)
+            if (!isNaN(numId)) ids.push(numId)
           } else if ('getChildren' in node) {
             // @ts-expect-error — ElementNode has getChildren
             stack.push(...node.getChildren())
@@ -153,7 +154,7 @@ function MentionPlugin({ onMentionsChange }: { onMentionsChange: (ids: string[])
     (option: EntityOption, nodeWithQuery: TextNode | null, closeMenu: () => void) => {
       editor.update(() => {
         if (nodeWithQuery !== null) {
-          const mention = $createMentionNode(`@${option.result.name}`, option.result.id, option.result.code)
+          const mention = $createMentionNode(`@${option.result.name}`, option.result.id.toString(), option.result.code)
           nodeWithQuery.replace(mention)
           // Move cursor after the mention
           mention.selectNext(0, 0)
@@ -235,7 +236,7 @@ export function WritingEditor({
   stories,
 }: {
   record: WritingRecord
-  stories: { id: string; code: string; name: string }[]
+  stories: { id: number; code: string; name: string }[]
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -245,7 +246,7 @@ export function WritingEditor({
   const [kind, setKind] = useState(record.kind)
   const [canonState, setCanonState] = useState(record.canonState)
   const [startYear, setStartYear] = useState(record.startYear?.toString() ?? '')
-  const [storyId, setStoryId] = useState(record.story?.id ?? '')
+  const [storyId, setStoryId] = useState(record.storyId?.toString() ?? '')
   const [focusMode, setFocusMode] = useState(false)
 
   // Save state
@@ -253,9 +254,9 @@ export function WritingEditor({
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [wordCount, setWordCount] = useState(0)
 
-  // Refs for autosave
-  const textJsonRef = useRef<Record<string, unknown>>(record.textJson)
-  const mentionIdsRef = useRef<string[]>([])
+  // Refs for autosave — text is stored as Markdown
+  const textRef = useRef<string>(record.text)
+  const mentionIdsRef = useRef<number[]>([])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const scheduleAutoSave = useCallback(() => {
@@ -267,8 +268,8 @@ export function WritingEditor({
         kind,
         canonState,
         startYear: startYear ? parseInt(startYear, 10) : null,
-        storyId: storyId || null,
-        textJson: textJsonRef.current,
+        storyId: storyId ? parseInt(storyId, 10) : null,
+        text: textRef.current,
         mentionIds: mentionIdsRef.current,
       })
       setSaveStatus(result.ok ? 'saved' : 'error')
@@ -286,8 +287,8 @@ export function WritingEditor({
         kind,
         canonState,
         startYear: startYear ? parseInt(startYear, 10) : null,
-        storyId: storyId || null,
-        textJson: textJsonRef.current,
+        storyId: storyId ? parseInt(storyId, 10) : null,
+        text: textRef.current,
         mentionIds: mentionIdsRef.current,
         ...overrides,
       })
@@ -296,7 +297,7 @@ export function WritingEditor({
     })
   }
 
-  const handleMentionsChange = useCallback((ids: string[]) => {
+  const handleMentionsChange = useCallback((ids: number[]) => {
     mentionIdsRef.current = ids
   }, [])
 
@@ -319,21 +320,7 @@ export function WritingEditor({
     nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, MentionNode],
     onError: (err: Error) => console.error('[Writing Editor]', err),
     editorState: () => {
-      // Lexical will parse the JSON we pass as the editor state
-      // We convert the stored Payload richText JSON to a Lexical state
-      try {
-        // Payload stores richText as Lexical JSON already
-        const stored = record.textJson
-        if (stored && typeof stored === 'object' && 'root' in stored) {
-          // Valid Lexical JSON — return it as a string for Lexical to parse
-          return JSON.stringify(stored)
-        }
-      } catch {
-        // fall through to empty state
-      }
-      // Empty initial state
-      const root = $createParagraphNode()
-      $getRoot().append(root)
+      $convertFromMarkdownString(record.text ?? '', TRANSFORMERS)
     },
   }
 
@@ -389,11 +376,11 @@ export function WritingEditor({
             {/* Story */}
             <select
               value={storyId}
-              onChange={(e) => { setStoryId(e.target.value); saveImmediate({ storyId: e.target.value || null }) }}
+              onChange={(e) => { setStoryId(e.target.value); saveImmediate({ storyId: e.target.value ? parseInt(e.target.value, 10) : null }) }}
               className="rounded-md border px-2 py-1 text-sm"
             >
               <option value="">No story</option>
-              {stories.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+              {stories.map((s) => <option key={s.id} value={s.id.toString()}>{s.code} — {s.name}</option>)}
             </select>
 
             {/* Story year */}
@@ -406,15 +393,8 @@ export function WritingEditor({
             />
 
             <div className="ml-auto flex items-center gap-2">
+              <span className="font-mono text-xs text-muted-foreground">{record.code}</span>
               <Button variant="ghost" size="sm" onClick={() => setFocusMode(true)}>Focus</Button>
-              <a
-                href={`/admin/collections/writing/${record.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                {record.code} ↗
-              </a>
             </div>
           </div>
         </div>
@@ -456,7 +436,9 @@ export function WritingEditor({
             <OnChangePlugin
               ignoreSelectionChange
               onChange={(editorState) => {
-                textJsonRef.current = editorState.toJSON() as unknown as Record<string, unknown>
+                editorState.read(() => {
+                  textRef.current = $convertToMarkdownString(TRANSFORMERS)
+                })
                 scheduleAutoSave()
               }}
             />

@@ -53,7 +53,7 @@ export function Infobox({ collection, docId, image, fixedFields, infoboxDetails 
       const media = await res.json() as { id: number; url?: string; filename?: string; alt?: string }
 
       // Attach to record
-      const result = await updateFieldAction(collection, docId, 'image', media.id)
+      const result = await updateFieldAction(collection, docId, 'imageId', media.id)
       if (!result.ok) throw new Error(result.error ?? 'Failed to attach image')
       setCurrentImage({ id: media.id, url: media.url, alt: media.alt, filename: media.filename })
       router.refresh()
@@ -66,7 +66,7 @@ export function Infobox({ collection, docId, image, fixedFields, infoboxDetails 
   }
 
   async function handleRemove() {
-    const result = await updateFieldAction(collection, docId, 'image', null)
+    const result = await updateFieldAction(collection, docId, 'imageId', null)
     if (result.ok) {
       setCurrentImage(null)
       router.refresh()

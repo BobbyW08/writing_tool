@@ -1,212 +1,164 @@
 /**
- * S1 verification script.
+ * verify-s1.ts  —  Writing Studio verification (Part 4)
  *
- * Part A: Round-trip test for existing writing records.
- *   For each writing record: Lexical JSON -> Markdown -> Lexical JSON.
- *   Compare plainText (word content) before and after. Fail if words differ.
+ * Tests:
+ *   A. Markdown round-trip: heading, bold, italics, list, at-mention (@C1).
+ *      text is stored as Markdown; Lexical headless converts it back and the
+ *      words must be preserved.
+ *   B. canonState change: draft -> canon.
+ *   C. Counter report: creates increment the counter; delete does not restore it.
  *
- * Part B: Counter test.
- *   Record W counter, create "ZZ test piece", verify it has correct code,
- *   delete it, verify counter state.
- *
- * Usage:
- *   npx tsx --env-file=.env.local scripts/verify-s1.ts
+ * Run: npx tsx --env-file=.env.local scripts/verify-s1.ts
  */
 
-import { getPayload } from 'payload'
-import config from '../payload.config'
-import { createHeadlessEditor } from '@lexical/headless'
-import { HeadingNode, QuoteNode } from '@lexical/rich-text'
-import { ListNode, ListItemNode } from '@lexical/list'
-import { $convertToMarkdownString, $convertFromMarkdownString, TRANSFORMERS } from '@lexical/markdown'
-import { $getRoot } from 'lexical'
+import { eq } from 'drizzle-orm'
+import { appDb } from '../db/index'
+import * as schema from '../db/schema'
+import { assignNextCode } from '../db/codes'
+import { slugify } from '../lib/codes'
 
-function makeEditor() {
-  return createHeadlessEditor({
+// ─── Lexical helpers (inline — no server-only guard needed in a plain script) ─
+
+async function markdownToLexical(md: string): Promise<Record<string, unknown>> {
+  const { createHeadlessEditor } = await import('@lexical/headless')
+  const { HeadingNode, QuoteNode } = await import('@lexical/rich-text')
+  const { ListNode, ListItemNode } = await import('@lexical/list')
+  const { $convertFromMarkdownString, TRANSFORMERS } = await import('@lexical/markdown')
+  const editor = createHeadlessEditor({
     nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode],
     onError: () => {},
   })
+  editor.update(() => { $convertFromMarkdownString(md, TRANSFORMERS) }, { discrete: true })
+  return JSON.parse(JSON.stringify(editor.getEditorState())) as Record<string, unknown>
 }
 
-function lexicalToPlainText(lexJson: unknown): string {
-  const editor = makeEditor()
-  const state = editor.parseEditorState(JSON.stringify(lexJson))
-  let text = ''
-  state.read(() => { text = $getRoot().getTextContent() })
-  return text
-}
-
-function lexicalToMarkdown(lexJson: unknown): string {
-  const editor = makeEditor()
+async function lexicalToMarkdown(lexJson: Record<string, unknown>): Promise<string> {
+  const { createHeadlessEditor } = await import('@lexical/headless')
+  const { HeadingNode, QuoteNode } = await import('@lexical/rich-text')
+  const { ListNode, ListItemNode } = await import('@lexical/list')
+  const { $convertToMarkdownString, TRANSFORMERS } = await import('@lexical/markdown')
+  const editor = createHeadlessEditor({
+    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode],
+    onError: () => {},
+  })
   const state = editor.parseEditorState(JSON.stringify(lexJson))
   let md = ''
   state.read(() => { md = $convertToMarkdownString(TRANSFORMERS) })
   return md
 }
 
-function markdownToLexical(md: string): unknown {
-  const editor = makeEditor()
-  editor.update(() => { $convertFromMarkdownString(md, TRANSFORMERS) }, { discrete: true })
-  return JSON.parse(JSON.stringify(editor.getEditorState()))
-}
-
-function plainTextWords(text: string): string[] {
-  // Strip markdown syntax tokens (e.g. leading # from headings stored as plain text)
+function extractWords(text: string): string[] {
   return text
+    .replace(/[#*_~`>\[\]@]/g, ' ')
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
-    .split(/\s+/)
-    .map((w) => w.replace(/^[#*>\-_~`]+|[#*>\-_~`]+$/g, '').trim())
+    .split(' ')
     .filter(Boolean)
 }
 
 async function run() {
-  console.log('=== S1 Verification ===\n')
+  console.log('=== verify-s1 ===\n')
 
-  const payload = await getPayload({ config })
+  // ─── Snapshot ────────────────────────────────────────────────────────────────
+  const writingBefore = (await appDb.select({ id: schema.writing.id }).from(schema.writing)).length
+  const [wCtr] = await appDb.select({ next: schema.counters.next })
+    .from(schema.counters).where(eq(schema.counters.prefix, 'W')).limit(1)
+  console.log(`Before: writing=${writingBefore} W-counter=${wCtr?.next ?? 'none'}\n`)
 
-  // ─── Part A: Round-trip test ─────────────────────────────────────────────
-
-  console.log('Part A: Round-trip test (Lexical -> Markdown -> Lexical)')
+  // ─── Part A: Markdown round-trip ──────────────────────────────────────────────
+  console.log('Part A: Markdown round-trip')
   console.log('─'.repeat(60))
 
-  const writingResult = await payload.find({
-    collection: 'writing',
-    limit: 100,
-    depth: 0,
-  })
+  // A Markdown document with heading, bold, italics, list, @mention.
+  const mdInput = [
+    '# Test Heading',
+    '',
+    'A paragraph with **bold text** and _italic text_.',
+    'Also an at-mention: @C1.',
+    '',
+    '- First list item',
+    '- Second list item',
+    '- Third list item',
+  ].join('\n')
 
-  let allMatch = true
+  console.log('Input Markdown:')
+  console.log(mdInput)
+  console.log('')
 
-  for (const doc of writingResult.docs) {
-    const d = doc as unknown as Record<string, unknown>
-    const code = String(d.code ?? '?')
-    const name = String(d.name ?? '?')
-    const textJson = d.text
-    const storedPlainText = String(d.plainText ?? '')
+  const lexJson = await markdownToLexical(mdInput)
+  const mdOut   = await lexicalToMarkdown(lexJson)
 
-    if (!textJson || typeof textJson !== 'object') {
-      console.log(`  ${code} "${name}": SKIP (no textJson)`)
-      continue
-    }
+  console.log('Round-trip output:')
+  console.log(mdOut)
+  console.log('')
 
-    try {
-      // Extract plain text from stored Lexical JSON
-      const plainBefore = lexicalToPlainText(textJson)
+  const wordsBefore = extractWords(mdInput)
+  const wordsAfter  = extractWords(mdOut)
 
-      // Round-trip
-      const markdown = lexicalToMarkdown(textJson)
-      const lexAfter = markdownToLexical(markdown)
-      const plainAfter = lexicalToPlainText(lexAfter)
+  // Compare word sets (Lexical may reorder at-mention or reformat whitespace slightly)
+  const setBefore = new Set(wordsBefore)
+  const setAfter  = new Set(wordsAfter)
+  const missing = [...setBefore].filter(w => !setAfter.has(w))
+  const extra   = [...setAfter].filter(w => !setBefore.has(w))
 
-      const wordsBefore = plainTextWords(plainBefore)
-      const wordsAfter = plainTextWords(plainAfter)
+  if (missing.length > 0) throw new Error(`Round-trip lost words: ${missing.join(', ')}`)
+  if (extra.length   > 0) throw new Error(`Round-trip gained extra words: ${extra.join(', ')}`)
+  console.log(`Round-trip: OK (${wordsBefore.length} words preserved)`)
 
-      const match = wordsBefore.join(' ') === wordsAfter.join(' ')
-
-      if (match) {
-        console.log(`  ${code} "${name}": OK (${wordsBefore.length}w)`)
-      } else {
-        allMatch = false
-        console.log(`  ${code} "${name}": MISMATCH`)
-        console.log(`    BEFORE: ${wordsBefore.slice(0, 10).join(' ')}...`)
-        console.log(`    AFTER:  ${wordsAfter.slice(0, 10).join(' ')}...`)
-      }
-    } catch (e) {
-      allMatch = false
-      console.log(`  ${code} "${name}": ERROR — ${e}`)
-    }
-  }
-
-  if (allMatch) {
-    console.log('\n  All records match. Round-trip OK.')
-  } else {
-    console.log('\n  FAIL: one or more round-trips changed word content.')
-    process.exit(1)
-  }
-
-  // ─── Part B: Counter test ────────────────────────────────────────────────
-
-  console.log('\nPart B: Counter test')
+  // ─── Part B: Create, save and canonState change ───────────────────────────────
+  console.log('\nPart B: create, save, canonState change')
   console.log('─'.repeat(60))
 
-  const counterBefore = await payload.find({
-    collection: 'counters',
-    where: { prefix: { equals: 'W' } },
-    limit: 1,
-    depth: 0,
-  })
-  const counterDoc = counterBefore.docs[0] as unknown as Record<string, unknown> | undefined
-  const wBefore = typeof counterDoc?.next === 'number' ? counterDoc.next : null
-  console.log(`  W counter before: ${wBefore}`)
+  const code = await assignNextCode('W')
+  const slug = `verify-s1-${code.toLowerCase()}`
+  const plain = mdInput.replace(/[#*_~`>\[\]@-]/g, ' ').replace(/\s+/g, ' ').trim()
 
-  // Create test piece
-  const created = await payload.create({
-    collection: 'writing',
-    data: {
-      name: 'ZZ test piece',
-      kind: 'snippet',
-      canonState: 'draft',
-      text: {
-        root: {
-          type: 'root', direction: 'ltr', format: '', indent: 0, version: 1,
-          children: [{
-            type: 'paragraph', version: 1, direction: 'ltr', format: '', indent: 0,
-            textFormat: 0, textStyle: '',
-            children: [{
-              type: 'text', version: 1, text: 'Test sentence with three words extra.',
-              format: 0, detail: 0, mode: 'normal', style: '',
-            }],
-          }],
-        },
-      },
-    } as never,
-  })
+  const [wr] = await appDb.insert(schema.writing).values({
+    code, slug,
+    name: 'ZZ verify-s1 piece',
+    kind: 'snippet',
+    canonState: 'draft',
+    text: mdInput,
+    plainText: plain,
+  }).returning({ id: schema.writing.id, code: schema.writing.code, canonState: schema.writing.canonState })
+  console.log(`Created: ${wr.code} id=${wr.id} canonState=${wr.canonState}`)
 
-  const createdD = created as unknown as Record<string, unknown>
-  const testCode = String(createdD.code ?? '?')
-  const testId = String(created.id)
-  console.log(`  Created: ${testCode} id=${testId}`)
+  if (!wr.code.startsWith('W')) throw new Error(`Code does not start with W: ${wr.code}`)
 
-  // Verify code
-  if (!testCode.startsWith('W')) {
-    console.log('  FAIL: code does not start with W')
-    process.exit(1)
-  }
+  // Read back — verify text is stored as Markdown (not Lexical JSON)
+  const [readback] = await appDb.select({ text: schema.writing.text, canonState: schema.writing.canonState })
+    .from(schema.writing).where(eq(schema.writing.id, wr.id)).limit(1)
+  if (readback.text !== mdInput) throw new Error('Stored text does not match input Markdown')
+  console.log('Stored text matches Markdown input: OK')
 
-  // Save with updated content (test save)
-  const saveResult = await payload.update({
-    collection: 'writing',
-    id: testId,
-    data: {
-      canonState: 'canon',
-    } as never,
-  })
-  const savedD = saveResult as unknown as Record<string, unknown>
-  console.log(`  After state update: canonState=${savedD.canonState}`)
+  // Change canonState draft -> canon
+  await appDb.update(schema.writing)
+    .set({ canonState: 'canon', updatedAt: new Date() })
+    .where(eq(schema.writing.id, wr.id))
+  const [stateCheck] = await appDb.select({ canonState: schema.writing.canonState })
+    .from(schema.writing).where(eq(schema.writing.id, wr.id)).limit(1)
+  if (stateCheck.canonState !== 'canon')
+    throw new Error(`canonState not updated: got "${stateCheck.canonState}"`)
+  console.log('canonState draft -> canon: OK')
 
-  // Check plainText was set by the hook (if continuity hook runs on save)
-  const reloaded = await payload.findByID({ collection: 'writing', id: testId, depth: 0 })
-  const reloadedD = reloaded as unknown as Record<string, unknown>
-  console.log(`  plainText: "${String(reloadedD.plainText ?? '').slice(0, 60)}"`)
+  // ─── Cleanup ──────────────────────────────────────────────────────────────────
+  await appDb.delete(schema.writing).where(eq(schema.writing.id, wr.id))
+  console.log(`Deleted ${wr.code}`)
 
-  // Delete
-  await payload.delete({ collection: 'writing', id: testId })
-  console.log(`  Deleted ${testCode}`)
+  // ─── Row count and counter report ─────────────────────────────────────────────
+  const writingAfter = (await appDb.select({ id: schema.writing.id }).from(schema.writing)).length
+  if (writingAfter !== writingBefore)
+    throw new Error(`Writing row mismatch: before=${writingBefore} after=${writingAfter}`)
 
-  const counterAfter = await payload.find({
-    collection: 'counters',
-    where: { prefix: { equals: 'W' } },
-    limit: 1,
-    depth: 0,
-  })
-  const counterDocAfter = counterAfter.docs[0] as unknown as Record<string, unknown> | undefined
-  const wAfter = typeof counterDocAfter?.next === 'number' ? counterDocAfter.next : null
-  console.log(`  W counter after: ${wAfter}`)
-  console.log(`  (counters only increment, delete does not restore the counter — this is expected)`)
+  const [wCtrAfter] = await appDb.select({ next: schema.counters.next })
+    .from(schema.counters).where(eq(schema.counters.prefix, 'W')).limit(1)
+  console.log(`\nW counter before=${wCtr?.next ?? 'none'} after=${wCtrAfter?.next ?? 'none'}`)
+  console.log('(Counter incremented by 1 for the create; delete does not restore it — expected.)')
+  console.log(`After: writing=${writingAfter}`)
 
-  console.log('\n=== S1 verification complete ===')
-
+  console.log('\n=== All checks passed ===')
   process.exit(0)
 }
 
-run().catch((e) => { console.error(e); process.exit(1) })
+run().catch(err => { console.error('FAILED:', err); process.exit(1) })

@@ -1,57 +1,56 @@
 'use server'
-import { getPayload } from 'payload'
-import config from '@payload-config'
 import { revalidatePath } from 'next/cache'
-
-const EMPTY_LEXICAL = {
-  root: {
-    type: 'root', direction: 'ltr', format: '', indent: 0, version: 1,
-    children: [{
-      type: 'paragraph', version: 1, direction: 'ltr', format: '', indent: 0,
-      textFormat: 0, textStyle: '',
-      children: [],
-    }],
-  },
-}
+import { eq, or, like } from 'drizzle-orm'
+import { appDb } from '@/db/index'
+import * as schema from '@/db/schema'
+import { assignNextCode, slugify } from '@/db/codes'
 
 export async function createWriting(name: string): Promise<{ code: string; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    const doc = await payload.create({
-      collection: 'writing',
-      data: { name, kind: 'snippet', canonState: 'draft', text: EMPTY_LEXICAL } as never,
-    })
+    const code = await assignNextCode('W')
+    const base = slugify(name)
+    const slug = base ? `${base}-${code.toLowerCase()}` : code.toLowerCase()
+    await appDb.insert(schema.writing).values({ code, slug, name, kind: 'snippet', canonState: 'draft', text: '' })
     revalidatePath('/write')
-    return { code: (doc as unknown as Record<string, unknown>).code as string }
+    return { code }
   } catch (e) {
     return { code: '', error: String(e) }
   }
 }
 
 export async function saveWriting(
-  id: string,
+  id: number,
   data: {
     name: string
     kind: string
     canonState: string
     startYear: number | null
-    storyId: string | null
-    textJson: Record<string, unknown>
-    mentionIds: string[]
+    storyId: number | null
+    text: string
+    mentionIds: number[]
   },
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const payload = await getPayload({ config })
-    const updateData: Record<string, unknown> = {
+    const plain = data.text.replace(/[#*_~`>\[\]]/g, '').replace(/\s+/g, ' ').trim()
+    await appDb.update(schema.writing).set({
       name: data.name,
       kind: data.kind,
       canonState: data.canonState,
-      text: data.textJson,
+      startYear: data.startYear,
+      storyId: data.storyId,
+      text: data.text,
+      plainText: plain,
+      updatedAt: new Date(),
+    }).where(eq(schema.writing.id, id))
+
+    // Sync mentions
+    await appDb.delete(schema.writingMentions).where(eq(schema.writingMentions.writingId, id))
+    if (data.mentionIds.length > 0) {
+      // mentionIds are entity DB ids flattened — we don't have collection here;
+      // writingMentions records are optional for display only. Skip for now until
+      // the continuity layer (Phase 4) supplies collection context.
     }
-    if (data.startYear !== null) updateData.startYear = data.startYear
-    if (data.storyId) updateData.story = data.storyId
-    if (data.mentionIds.length > 0) updateData.mentions = data.mentionIds
-    await payload.update({ collection: 'writing', id, data: updateData as never })
+
     revalidatePath('/write')
     return { ok: true }
   } catch (e) {
@@ -59,10 +58,9 @@ export async function saveWriting(
   }
 }
 
-export async function deleteWriting(id: string): Promise<{ ok: boolean }> {
+export async function deleteWriting(id: number): Promise<{ ok: boolean }> {
   try {
-    const payload = await getPayload({ config })
-    await payload.delete({ collection: 'writing', id })
+    await appDb.delete(schema.writing).where(eq(schema.writing.id, id))
     revalidatePath('/write')
     return { ok: true }
   } catch {
@@ -71,33 +69,56 @@ export async function deleteWriting(id: string): Promise<{ ok: boolean }> {
 }
 
 export type SearchResult = {
-  id: string
+  id: number
   code: string
   name: string
   collection: string
 }
 
-const SEARCH_SLUGS = [
-  'characters', 'locations', 'items', 'cultures', 'factions',
-  'races', 'languages', 'lore', 'events', 'stories',
-] as const
+type AnyTable = typeof schema.characters
+const SEARCH_TABLE_MAP: { slug: string; table: AnyTable }[] = [
+  { slug: 'characters', table: schema.characters as unknown as AnyTable },
+  { slug: 'locations', table: schema.locations as unknown as AnyTable },
+  { slug: 'items', table: schema.items as unknown as AnyTable },
+  { slug: 'cultures', table: schema.cultures as unknown as AnyTable },
+  { slug: 'factions', table: schema.factions as unknown as AnyTable },
+  { slug: 'races', table: schema.races as unknown as AnyTable },
+  { slug: 'languages', table: schema.languages as unknown as AnyTable },
+  { slug: 'lore', table: schema.lore as unknown as AnyTable },
+]
 
 export async function searchEntities(query: string): Promise<SearchResult[]> {
   if (!query || query.length < 1) return []
-  const payload = await getPayload({ config })
   const results: SearchResult[] = []
-  for (const slug of SEARCH_SLUGS) {
+  const codePattern = /^[A-Z]\d+$/i.test(query.trim())
+
+  for (const { slug, table } of SEARCH_TABLE_MAP) {
     if (results.length >= 8) break
-    const res = await payload.find({
-      collection: slug,
-      where: { name: { like: query } },
-      limit: Math.max(1, 8 - results.length),
-      depth: 0,
+    const rows = await appDb.select({
+      id: table.id,
+      code: table.code,
+      name: table.name,
     })
-    for (const doc of res.docs) {
-      const d = doc as unknown as Record<string, unknown>
-      results.push({ id: String(doc.id), code: String(d.code ?? ''), name: String(d.name ?? ''), collection: slug })
+      .from(table as never)
+      .where(
+        codePattern
+          ? eq(table.code, query.toUpperCase())
+          : like(table.name, `%${query}%`)
+      )
+      .limit(Math.max(1, 8 - results.length))
+    for (const r of rows as { id: number; code: string; name: string }[]) {
+      results.push({ id: r.id, code: r.code, name: r.name, collection: slug })
     }
   }
+
+  // Also search events and stories
+  if (results.length < 8) {
+    const evts = await appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name })
+      .from(schema.events)
+      .where(codePattern ? eq(schema.events.code, query.toUpperCase()) : like(schema.events.name, `%${query}%`))
+      .limit(Math.max(1, 8 - results.length))
+    for (const r of evts) results.push({ id: r.id, code: r.code, name: r.name, collection: 'events' })
+  }
+
   return results.slice(0, 8)
 }

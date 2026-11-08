@@ -20,7 +20,7 @@ export default async function CollectionListPage({ params }: { params: Promise<{
   if (!label) notFound();
 
   const { docs } = await getCollectionList(entityType);
-  type Doc = { id: number; code?: string | null; name: string; status?: string | null; tags?: (number | { id: number })[] | null; image?: { url?: string; sizes?: { thumbnail?: { url?: string } } } | number | null };
+  type Doc = { id: number; code?: string | null; name: string; status?: string | null; tagIds?: number[] | null; image?: { url?: string; sizes?: { thumbnail?: { url?: string } } } | null };
 
   return (
     <div className="space-y-6">
@@ -35,7 +35,7 @@ export default async function CollectionListPage({ params }: { params: Promise<{
         <p className="text-sm text-muted-foreground">No {label.toLowerCase()} yet.</p>
       ) : (
         <div className="divide-y rounded-md border">
-          {(docs as Doc[]).map((doc) => (
+          {(docs as unknown as Doc[]).map((doc) => (
             <Link
               key={doc.id}
               href={`/${entityType}/${doc.code ?? doc.id}`}
@@ -47,7 +47,7 @@ export default async function CollectionListPage({ params }: { params: Promise<{
                 )}
                 <span className="shrink-0 font-mono text-xs text-muted-foreground">{doc.code}</span>
                 <span className="truncate font-medium">{doc.name}</span>
-                {isUnk(doc.tags) && (
+                {isUnk(doc.tagIds ?? null) && (
                   <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-400">
                     UNK
                   </span>

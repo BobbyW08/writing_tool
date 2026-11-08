@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { getEntryByCode, getEntryBySlug, getSubItems, getRelationshipsByCode, getEventsInvolving, buildCodeMap, isUnk } from "@/lib/world/queries";
 import { StatusBadge } from "@/components/status-badge";
 import { CodeText } from "@/components/code-text";
-import { RichText } from "@payloadcms/richtext-lexical/react";
 import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
 import { EditableField } from "@/components/editable-field";
 import { DetailsEditor } from "@/components/details-editor";
@@ -26,30 +25,47 @@ const WORLD_COLLECTIONS: Record<string, string> = {
 
 const CODE_RE = /^[CLEIFURGK]\d{1,6}$/i;
 
-type Tag = { id: number; code?: string | null; name: string };
+type ResolvedTag = { id: number; code: string; name: string };
 type EntryDoc = {
   id: number;
-  code?: string | null;
+  code: string;
   name: string;
   slug?: string | null;
-  aliases?: { alias: string }[] | null;
+  aliases?: unknown[] | null;
   summary?: string | null;
   status?: string | null;
   gapPrompt?: string | null;
   details?: { label: string; value?: string | null; inInfobox?: boolean | null; id?: string | null }[] | null;
-  body?: Record<string, unknown> | null;
-  tags?: (number | Tag)[] | null;
+  body?: string | null;
+  tagIds?: number[] | null;
+  tags?: ResolvedTag[] | null;
   reviewNote?: string | null;
-  parent?: (number | EntryDoc) | null;
-  image?: { id: number; url?: string; alt?: string; filename?: string } | number | null;
-  updatedAt: string;
+  parentId?: number | null;
+  parent?: { id: number; code: string; name: string } | null;
+  imageId?: number | null;
+  image?: { id: number; url?: string | null; alt?: string | null; filename?: string | null } | null;
+  updatedAt: Date | string;
 };
 
-function relLabel(type: string, inverse: boolean): string {
-  const rt = RELATIONSHIP_TYPES.find(t => t.value === type);
-  if (!rt) return type;
-  return inverse ? rt.inverse : rt.label;
-}
+type RelRow = {
+  id: number;
+  code: string;
+  fromCollection: string;
+  fromId: number;
+  fromCode: string;
+  toCollection: string;
+  toId: number;
+  toCode: string;
+  type?: string | null;
+  title?: string | null;
+};
+
+const STATUS_OPTIONS = [
+  { label: "Locked (canon)", value: "locked" },
+  { label: "In development", value: "in_development" },
+  { label: "Needs a name", value: "needs_name" },
+  { label: "Placeholder (still to decide)", value: "placeholder" },
+];
 
 export default async function EntityReadPage({ params }: { params: Promise<{ entityType: string; slug: string }> }) {
   const { entityType, slug } = await params;
@@ -61,64 +77,54 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
     : await getEntryBySlug(entityType, slug);
   if (!entry) notFound();
 
-  const doc = entry as EntryDoc;
-  const code = doc.code ?? '';
+  const doc = entry as unknown as EntryDoc;
+  const code = doc.code ?? "";
 
   const [subItems, rels, linkedEvents] = await Promise.all([
     getSubItems(entityType, doc.id),
     code ? getRelationshipsByCode(code) : Promise.resolve({ from: [], to: [] }),
-    getEventsInvolving(doc.id),
+    getEventsInvolving(entityType, doc.id),
   ]);
 
   const allTexts = [doc.summary, doc.gapPrompt, ...(doc.details?.map(d => d.value) ?? [])];
   const codeMap = await buildCodeMap(allTexts);
-  const unkTagged = isUnk(doc.tags);
-  const parentEntry = typeof doc.parent === 'object' && doc.parent ? doc.parent as EntryDoc : null;
+  const unkTagged = isUnk(doc.tagIds ?? null);
+  const parentEntry = doc.parent ?? null;
 
-  const STATUS_OPTIONS = [
-    { label: 'Locked (canon)', value: 'locked' },
-    { label: 'In development', value: 'in_development' },
-    { label: 'Needs a name', value: 'needs_name' },
-    { label: 'Placeholder (still to decide)', value: 'placeholder' },
-  ];
-
-  // Collection-specific extra fields (non-common ones)
   const collFields = (COLLECTION_FIELDS[entityType] ?? []).filter(
-    f => !['name', 'summary', 'status', 'gapPrompt', 'parent'].includes(f.name)
+    f => !["name", "summary", "status", "gapPrompt", "parent"].includes(f.name)
   );
 
-  // Build relationship entries for the editor
-  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: 'from' | 'to' };
+  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: "from" | "to" };
   const relEntries: RelEditorEntry[] = [];
-  for (const r of rels.from) {
-    const rr = r as unknown as Record<string, unknown>;
-    const toRef = rr.to as { relationTo?: string; value?: { code?: string; name?: string; id?: number } | number } | null;
-    const toVal = typeof toRef?.value === 'object' ? toRef?.value : null;
+  for (const r of rels.from as RelRow[]) {
     relEntries.push({
       id: r.id,
-      code: (r as { toCode?: string }).toCode ?? '',
-      collection: toRef?.relationTo ?? '',
-      name: toVal?.name ?? toVal?.code ?? '',
-      type: (r as { type?: string }).type ?? '',
-      direction: 'from',
+      code: r.toCode,
+      collection: r.toCollection,
+      name: r.toCode,
+      type: r.type ?? "",
+      direction: "from",
     });
   }
-  for (const r of rels.to) {
-    const rr = r as unknown as Record<string, unknown>;
-    const fromRef = rr.from as { relationTo?: string; value?: { code?: string; name?: string; id?: number } | number } | null;
-    const fromVal = typeof fromRef?.value === 'object' ? fromRef?.value : null;
+  for (const r of rels.to as RelRow[]) {
     relEntries.push({
       id: r.id,
-      code: (r as { fromCode?: string }).fromCode ?? '',
-      collection: fromRef?.relationTo ?? '',
-      name: fromVal?.name ?? fromVal?.code ?? '',
-      type: (r as { type?: string }).type ?? '',
-      direction: 'to',
+      code: r.fromCode,
+      collection: r.fromCollection,
+      name: r.fromCode,
+      type: r.type ?? "",
+      direction: "to",
     });
   }
 
-  // Infobox data
-  const imageInfo = typeof doc.image === 'object' && doc.image ? doc.image as { id: number; url?: string; alt?: string } : null;
+  const rawImage = doc.image
+  const imageInfo = rawImage ? {
+    id: rawImage.id,
+    url: rawImage.url ?? undefined,
+    alt: rawImage.alt ?? undefined,
+    filename: rawImage.filename ?? undefined,
+  } : null
   const infoboxFieldDefs = INFOBOX_FIELDS[entityType] ?? [];
   const fixedFields = infoboxFieldDefs.map(def => ({
     def,
@@ -126,11 +132,10 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
   }));
   const infoboxDetails = (doc.details ?? [])
     .filter(d => d.inInfobox)
-    .map(d => ({ label: d.label, value: d.value ?? '' }));
+    .map(d => ({ label: d.label, value: d.value ?? "" }));
 
   return (
     <div className="max-w-3xl space-y-8">
-      {/* Infobox */}
       <Infobox
         collection={entityType}
         docId={doc.id}
@@ -139,14 +144,13 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         infoboxDetails={infoboxDetails}
       />
 
-      {/* Header */}
       <div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link href={`/${entityType}`} className="hover:underline">{label}</Link>
           {parentEntry && (
             <>
               <span>/</span>
-              <Link href={`/${entityType}/${parentEntry.code ?? parentEntry.id}`} className="hover:underline">
+              <Link href={`/${entityType}/${parentEntry.code}`} className="hover:underline">
                 {parentEntry.name}
               </Link>
             </>
@@ -166,17 +170,14 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
               )}
             </div>
             {code && <p className="font-mono text-xs text-muted-foreground">{code}</p>}
-            {doc.aliases && doc.aliases.length > 0 && (
+            {Array.isArray(doc.aliases) && doc.aliases.length > 0 && (
               <p className="text-sm text-muted-foreground">
-                Also known as: {doc.aliases.map(a => a.alias).join(", ")}
+                Also known as: {(doc.aliases as { alias: string }[]).map(a => a.alias).join(", ")}
               </p>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <EditableField collection={entityType} docId={doc.id} fieldName="status" value={doc.status} kind="select" options={STATUS_OPTIONS} />
-            <Link href={`/admin/collections/${entityType}/${doc.id}`} className="text-xs text-muted-foreground hover:underline">
-              Admin
-            </Link>
           </div>
         </div>
 
@@ -185,7 +186,6 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </div>
       </div>
 
-      {/* UNK review note */}
       {unkTagged && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
           <span className="font-semibold">Check this: </span>
@@ -193,19 +193,17 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </div>
       )}
 
-      {/* Gap prompt */}
       <div className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Still to decide</p>
         <EditableField collection={entityType} docId={doc.id} fieldName="gapPrompt" value={doc.gapPrompt} kind="textarea" placeholder="What still needs deciding?" className="text-sm" />
       </div>
 
-      {/* Collection-specific fields */}
       {collFields.length > 0 && (
         <div className="space-y-3">
           {collFields.map(f => (
             <div key={f.name} className="flex items-baseline gap-2">
               <span className="w-32 shrink-0 text-xs font-semibold text-muted-foreground">{f.label}</span>
-              {f.kind !== 'relationship' ? (
+              {f.kind !== "relationship" ? (
                 <EditableField
                   collection={entityType}
                   docId={doc.id}
@@ -226,30 +224,26 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </div>
       )}
 
-      {/* Details */}
       <DetailsEditor
         collection={entityType}
         docId={doc.id}
         initial={(doc.details ?? []).map(d => ({
           id: d.id ?? undefined,
           label: d.label,
-          value: d.value ?? '',
+          value: d.value ?? "",
           inInfobox: d.inInfobox ?? false,
         }))}
       />
 
-      {/* Notes (rich text body) */}
       {doc.body && (
         <div className="space-y-2">
           <h2 className="text-sm font-semibold text-muted-foreground">Notes</h2>
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <RichText data={doc.body as never} />
-          </div>
-          <p className="text-xs text-muted-foreground">Rich text — edit in admin or Writing Studio.</p>
+          <pre className="whitespace-pre-wrap rounded-md border p-3 text-sm font-sans leading-relaxed">
+            {doc.body}
+          </pre>
         </div>
       )}
 
-      {/* Sub-items */}
       {subItems.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-muted-foreground">Sub-items</h2>
@@ -266,15 +260,13 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </section>
       )}
 
-      {/* Relationships (editable) */}
       <RelationshipEditor myCode={code} initial={relEntries} />
 
-      {/* Events involving this entry */}
-      {linkedEvents.length > 0 && (
+      {(linkedEvents as EventRow[]).length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-muted-foreground">Events</h2>
           <ul className="divide-y rounded-md border">
-            {(linkedEvents as { id: number; code?: string | null; name: string; yearLabel?: string | null }[]).map(ev => (
+            {(linkedEvents as EventRow[]).map(ev => (
               <li key={ev.id}>
                 <Link href={`/events/${ev.code ?? ev.id}`} className="flex items-center gap-2 p-2.5 hover:bg-accent">
                   {ev.yearLabel && <span className="font-mono text-xs text-muted-foreground">{ev.yearLabel}</span>}
@@ -286,15 +278,15 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </section>
       )}
 
-      {/* What links here — filled by G1 */}
       <section className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
         What links here — available after G1 (link index)
       </section>
 
-      {/* Delete */}
       <div className="border-t pt-4">
         <DeleteRecordButton collection={entityType} id={doc.id} code={code} name={doc.name} />
       </div>
     </div>
   );
 }
+
+type EventRow = { id: number; code: string; name: string; yearLabel?: string | null };

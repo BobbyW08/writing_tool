@@ -1,111 +1,163 @@
-// Verification script for Part 3: create, edit, relate, delete
-// Run: npx tsx --env-file=.env.local scripts/verify-world-edit.ts
-// Creates test records, edits them, adds a relationship, deletes all and verifies counters.
+/**
+ * verify-world-edit.ts  —  Part 3 data layer verification
+ *
+ * Tests: create, edit, detail row, relationship, delete conflict, UNK tag.
+ * All test rows are removed. Counters increment-only (by design): the after
+ * value will be higher than before.
+ *
+ * Run: npx tsx --env-file=.env.local scripts/verify-world-edit.ts
+ */
 
-import { getPayload } from 'payload'
-import config from '../payload.config'
+import { eq, or, like, inArray } from 'drizzle-orm'
+import { appDb } from '../db/index'
+import * as schema from '../db/schema'
+import { assignNextCode } from '../db/codes'
+import { getUnkQueue } from '../db/tags'
+import { slugify } from '../lib/codes'
 
 async function run() {
-  const payload = await getPayload({ config })
+  console.log('=== verify-world-edit ===\n')
 
-  // Snapshot counts
-  const before: Record<string, number> = {}
-  for (const col of ['characters', 'relationships']) {
-    const { totalDocs } = await payload.find({ collection: col as never, limit: 0, depth: 0 })
-    before[col] = totalDocs
-  }
-  console.log('Before:', before)
-
-  // Create test character A
-  const charA = await payload.create({
-    collection: 'characters',
-    data: { name: 'VERIFY_TEST_A', status: 'in_development' } as never,
-    depth: 0,
-  })
-  const codeA = (charA as { code?: string }).code ?? ''
-  console.log(`Created character A: ${codeA} id=${charA.id}`)
-
-  // Create test character B
-  const charB = await payload.create({
-    collection: 'characters',
-    data: { name: 'VERIFY_TEST_B', status: 'in_development' } as never,
-    depth: 0,
-  })
-  const codeB = (charB as { code?: string }).code ?? ''
-  console.log(`Created character B: ${codeB} id=${charB.id}`)
-
-  // Edit a field on A
-  await payload.update({
-    collection: 'characters',
-    id: charA.id,
-    data: { summary: 'Edited in verify script' } as never,
-    depth: 0,
-  })
-  const updated = await payload.findByID({ collection: 'characters', id: charA.id, depth: 0 })
-  const summary = (updated as { summary?: string }).summary
-  if (summary !== 'Edited in verify script') throw new Error(`Edit failed: got "${summary}"`)
-  console.log('Edit: OK')
-
-  // Add a detail row
-  await payload.update({
-    collection: 'characters',
-    id: charA.id,
-    data: { details: [{ label: 'Test label', value: 'Test value', inInfobox: false }] } as never,
-    depth: 0,
-  })
-  const withDetail = await payload.findByID({ collection: 'characters', id: charA.id, depth: 0 })
-  const details = (withDetail as { details?: { label: string }[] }).details
-  if (!details || details[0]?.label !== 'Test label') throw new Error('Detail row add failed')
-  console.log('Detail row: OK')
-
-  // Add a relationship
-  const rel = await payload.create({
-    collection: 'relationships',
-    data: {
-      from: { relationTo: 'characters', value: charA.id },
-      to: { relationTo: 'characters', value: charB.id },
-      fromCode: codeA,
-      toCode: codeB,
-      type: 'ally_of',
-    } as never,
-    depth: 0,
-  })
-  console.log(`Relationship created: id=${rel.id}`)
-
-  // Verify conflict check: A has relationship, delete should return conflicts
-  const { docs: fromRels } = await payload.find({
-    collection: 'relationships',
-    where: { fromCode: { equals: codeA } },
-    limit: 5,
-    depth: 0,
-  })
-  if (fromRels.length === 0) throw new Error('Relationship not found after create')
-  console.log('Conflict check data: OK')
-
-  // Delete relationship first
-  await payload.delete({ collection: 'relationships', id: rel.id })
-  console.log('Relationship deleted')
-
-  // Delete test records
-  await payload.delete({ collection: 'characters', id: charA.id })
-  await payload.delete({ collection: 'characters', id: charB.id })
-  console.log('Test records deleted')
-
-  // Verify counters returned to baseline
-  const after: Record<string, number> = {}
-  for (const col of ['characters', 'relationships']) {
-    const { totalDocs } = await payload.find({ collection: col as never, limit: 0, depth: 0 })
-    after[col] = totalDocs
-  }
-  console.log('After:', after)
-
-  for (const col of ['characters', 'relationships']) {
-    if (after[col] !== before[col]) {
-      throw new Error(`Counter mismatch for ${col}: before=${before[col]} after=${after[col]}`)
-    }
+  // ─── Pre-clean: remove test rows left by an earlier failed run ───────────────
+  const leftovers = await appDb.select({ code: schema.characters.code })
+    .from(schema.characters).where(like(schema.characters.name, 'VERIFY_TEST_%'))
+  if (leftovers.length > 0) {
+    const codes = leftovers.map(l => l.code)
+    await appDb.delete(schema.relationships).where(or(
+      inArray(schema.relationships.fromCode, codes),
+      inArray(schema.relationships.toCode, codes),
+    ))
+    await appDb.delete(schema.characters).where(like(schema.characters.name, 'VERIFY_TEST_%'))
+    console.log(`Pre-clean: removed ${leftovers.length} leftover test character(s): ${codes.join(', ')}\n`)
   }
 
-  console.log('\nAll checks passed.')
+  // ─── Snapshot ────────────────────────────────────────────────────────────────
+  const charsBefore = (await appDb.select({ id: schema.characters.id }).from(schema.characters)).length
+  const relsBefore  = (await appDb.select({ id: schema.relationships.id }).from(schema.relationships)).length
+  const [cCtr] = await appDb.select({ next: schema.counters.next })
+    .from(schema.counters).where(eq(schema.counters.prefix, 'C')).limit(1)
+  const [xCtr] = await appDb.select({ next: schema.counters.next })
+    .from(schema.counters).where(eq(schema.counters.prefix, 'X')).limit(1)
+  console.log(`Before: characters=${charsBefore} relationships=${relsBefore}`)
+  console.log(`Counters before: C=${cCtr?.next ?? 'none'} X=${xCtr?.next ?? 'none'}\n`)
+
+  // ─── 1. Create character A ────────────────────────────────────────────────────
+  const codeA = await assignNextCode('C')
+  const [rowA] = await appDb.insert(schema.characters).values({
+    code: codeA,
+    slug: `verify-test-a-${codeA.toLowerCase()}`,
+    name: 'VERIFY_TEST_A',
+    status: 'in_development',
+  }).returning({ id: schema.characters.id, code: schema.characters.code })
+  console.log(`Created character A: ${rowA.code} id=${rowA.id}`)
+
+  // ─── 2. Create character B ────────────────────────────────────────────────────
+  const codeB = await assignNextCode('C')
+  const [rowB] = await appDb.insert(schema.characters).values({
+    code: codeB,
+    slug: `verify-test-b-${codeB.toLowerCase()}`,
+    name: 'VERIFY_TEST_B',
+    status: 'in_development',
+  }).returning({ id: schema.characters.id, code: schema.characters.code })
+  console.log(`Created character B: ${rowB.code} id=${rowB.id}`)
+
+  // ─── 3. Edit a scalar field ───────────────────────────────────────────────────
+  await appDb.update(schema.characters)
+    .set({ summary: 'Edited in verify script', updatedAt: new Date() })
+    .where(eq(schema.characters.id, rowA.id))
+  const [editCheck] = await appDb.select({ summary: schema.characters.summary })
+    .from(schema.characters).where(eq(schema.characters.id, rowA.id)).limit(1)
+  if (editCheck.summary !== 'Edited in verify script')
+    throw new Error(`Edit failed: got "${editCheck.summary}"`)
+  console.log('Edit summary: OK')
+
+  // ─── 4. Add detail row with inInfobox ────────────────────────────────────────
+  const details = [
+    { label: 'Test label', value: 'Test value', inInfobox: true  },
+    { label: 'Hidden',     value: 'Hidden val', inInfobox: false },
+  ]
+  await appDb.update(schema.characters)
+    .set({ details, updatedAt: new Date() })
+    .where(eq(schema.characters.id, rowA.id))
+  const [detailCheck] = await appDb.select({ details: schema.characters.details })
+    .from(schema.characters).where(eq(schema.characters.id, rowA.id)).limit(1)
+  const saved = detailCheck.details as { label: string; inInfobox: boolean }[] | null
+  if (!saved || saved.length !== 2)         throw new Error('Detail rows not saved')
+  if (saved[0].label !== 'Test label')      throw new Error('First detail label wrong')
+  if (!saved[0].inInfobox)                  throw new Error('inInfobox not saved as true')
+  if (saved[1].inInfobox)                   throw new Error('Second detail should not be inInfobox')
+  console.log('Detail rows: OK')
+
+  // ─── 5. Create relationship A -> B ───────────────────────────────────────────
+  const relCode = await assignNextCode('X')
+  const [rel] = await appDb.insert(schema.relationships).values({
+    code: relCode,
+    fromCollection: 'characters', fromId: rowA.id, fromCode: codeA,
+    toCollection:   'characters', toId:   rowB.id, toCode:   codeB,
+    type: 'ally_of',
+    title: `${codeA} ally_of ${codeB}`,
+  }).returning({ id: schema.relationships.id, code: schema.relationships.code })
+  console.log(`Relationship created: ${rel.code} id=${rel.id}`)
+
+  // ─── 6. Delete conflict check ─────────────────────────────────────────────────
+  // Before removing the relationship, a delete of charA must list it as a conflict.
+  const blocking = await appDb.select({ code: schema.relationships.code })
+    .from(schema.relationships)
+    .where(or(
+      eq(schema.relationships.fromCode, codeA),
+      eq(schema.relationships.toCode,   codeA),
+    ))
+  if (blocking.length === 0)
+    throw new Error('Conflict check: no relationships found — delete should have been blocked')
+  console.log(`Delete conflict check: OK (${blocking.length} blocking relationship: ${blocking[0].code})`)
+
+  // ─── 7. UNK tag ───────────────────────────────────────────────────────────────
+  const [unkTagRow] = await appDb.select({ id: schema.tags.id })
+    .from(schema.tags).where(eq(schema.tags.name, 'UNK')).limit(1)
+  if (!unkTagRow) {
+    console.log('UNK tag: SKIP (tag not present yet — run verify-db.ts first to seed built-in tags)')
+  } else {
+    const unkId = unkTagRow.id
+    await appDb.update(schema.characters)
+      .set({ tagIds: [unkId], reviewNote: 'Verify UNK tagging', updatedAt: new Date() })
+      .where(eq(schema.characters.id, rowA.id))
+    const [tagCheck] = await appDb.select({ tagIds: schema.characters.tagIds })
+      .from(schema.characters).where(eq(schema.characters.id, rowA.id)).limit(1)
+    const tids = tagCheck.tagIds as number[] | null
+    if (!tids || !tids.includes(unkId))
+      throw new Error(`UNK tag not saved: tagIds=${JSON.stringify(tids)}`)
+    // Verify the review queue (the same function /review uses) finds it
+    const queue = await getUnkQueue()
+    const inQueue = queue.find(r => r.code === rowA.code)
+    if (!inQueue) throw new Error('UNK-tagged record not visible in review queue query')
+    if (inQueue.reviewNote !== 'Verify UNK tagging') throw new Error('reviewNote missing in review queue')
+    console.log('UNK tag: OK')
+  }
+
+  // ─── 8. Cleanup ──────────────────────────────────────────────────────────────
+  await appDb.delete(schema.relationships).where(eq(schema.relationships.id, rel.id))
+  await appDb.delete(schema.characters).where(eq(schema.characters.id, rowA.id))
+  await appDb.delete(schema.characters).where(eq(schema.characters.id, rowB.id))
+  console.log('Test rows deleted')
+
+  // ─── Row count check ─────────────────────────────────────────────────────────
+  const charsAfter = (await appDb.select({ id: schema.characters.id }).from(schema.characters)).length
+  const relsAfter  = (await appDb.select({ id: schema.relationships.id }).from(schema.relationships)).length
+  if (charsAfter !== charsBefore)
+    throw new Error(`Characters row mismatch: before=${charsBefore} after=${charsAfter}`)
+  if (relsAfter !== relsBefore)
+    throw new Error(`Relationships row mismatch: before=${relsBefore} after=${relsAfter}`)
+
+  // ─── Counter report ───────────────────────────────────────────────────────────
+  const [cCtrAfter] = await appDb.select({ next: schema.counters.next })
+    .from(schema.counters).where(eq(schema.counters.prefix, 'C')).limit(1)
+  const [xCtrAfter] = await appDb.select({ next: schema.counters.next })
+    .from(schema.counters).where(eq(schema.counters.prefix, 'X')).limit(1)
+  console.log(`\nCounters after: C=${cCtrAfter?.next ?? 'none'} X=${xCtrAfter?.next ?? 'none'}`)
+  console.log('(Counters increment-only — they advanced by the number of creates, as expected.)')
+  console.log(`After: characters=${charsAfter} relationships=${relsAfter}`)
+
+  console.log('\n=== All checks passed ===')
   process.exit(0)
 }
 

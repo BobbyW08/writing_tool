@@ -15,9 +15,9 @@ const KIND_LABELS: Record<string, string> = {
   snippet: 'Sn',
 }
 
-function shortDate(iso: string) {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+function shortDate(d: Date | string) {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
 }
 
 function StateFilter({ current }: { current: string }) {
@@ -53,7 +53,7 @@ function WritingRow({ item }: { item: WritingListItem }) {
         <span className="block text-xs text-muted-foreground">
           {[
             item.code,
-            item.story ? item.story.code : null,
+            item.storyCode ?? null,
             shortDate(item.updatedAt),
           ].filter(Boolean).join(' · ')}
         </span>
@@ -78,9 +78,9 @@ export default async function WritePage({ searchParams }: { searchParams: Promis
   // Group active records by story
   const storiesMap = new Map<string, { label: string; items: WritingListItem[] }>()
   for (const w of active) {
-    const key = w.story ? w.story.id : '__none__'
+    const key = w.storyId ? w.storyId.toString() : '__none__'
     if (!storiesMap.has(key)) {
-      storiesMap.set(key, { label: w.story ? `${w.story.code} — ${w.story.name}` : 'No story', items: [] })
+      storiesMap.set(key, { label: w.storyCode ? `${w.storyCode} — ${w.storyName}` : 'No story', items: [] })
     }
     storiesMap.get(key)!.items.push(w)
   }
