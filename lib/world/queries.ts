@@ -56,6 +56,9 @@ async function getAllTags(): Promise<ResolvedTag[]> {
   ALL_TAGS_CACHE = await appDb.select({
     id: schema.tags.id, code: schema.tags.code, name: schema.tags.name,
   }).from(schema.tags)
+  if (!UNK_TAG_ID_CACHE.id) {
+    UNK_TAG_ID_CACHE.id = ALL_TAGS_CACHE.find(t => t.name === 'UNK')?.id ?? null
+  }
   return ALL_TAGS_CACHE
 }
 
@@ -250,6 +253,14 @@ export async function getEventBySlug(slug: string) {
   const rows = await appDb.select().from(schema.events).where(eq(schema.events.slug, slug)).limit(1)
   if (!rows[0]) return null
   return enrichWorldRow(rows[0] as unknown as Record<string, unknown>, 'events')
+}
+
+// ─── getLocationRef ───────────────────────────────────────────────────────────
+export async function getLocationRef(id: number | null | undefined) {
+  if (!id) return null
+  const rows = await appDb.select({ code: schema.locations.code, name: schema.locations.name })
+    .from(schema.locations).where(eq(schema.locations.id, id)).limit(1)
+  return rows[0] ?? null
 }
 
 // ─── getStoriesList ───────────────────────────────────────────────────────────

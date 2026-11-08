@@ -2,34 +2,36 @@
 
 Paste this into a new session alongside CLAUDE.md to get a model up to speed.
 
-## Last session (2026-11-08)
+## Last session (2026-11-08b): Phase 3 closure
 
-Completed REBUILD_HANDOFF.md Parts 7 and 8:
+Ran the Phase 3 closure browser checklist against a production build (`npm run build` +
+`npm run start -p 3001`; nothing was listening on port 3000, so no dev server was touched).
+All checklist items verified and checked off in `traveler-wiki-build-plan.md`.
 
-- **Part 7:** Stripped Payload CMS entirely. Deleted `app/(payload)/`, all `collections/`,
-  `payload.config.ts`, `payload-types.ts`, `payload-starter/`, the old `drizzle/` migrations,
-  `lib/db/`, `lib/data/`, `lib/actions/`, `lib/ingest/`, and all migration/import scripts.
-  Fixed `lib/continuity/plan.ts` import, installed `@lexical/headless@0.50.0`.
-  `npm run build` passes zero errors, 21 routes.
+Found and fixed three real bugs along the way (details in `BUILD_GUIDE.md`):
+1. UNK badge visibility was non-deterministic (uninitialized cache, order-dependent on which
+   page loaded first in a server process). Fixed in `lib/world/queries.ts`.
+2. Event read page duplicated its own long-text fields (`CodeText` + `EditableField` both
+   rendering the same value). Fixed by adding a `renderValue` prop to `EditableField`.
+3. Event `Location` field showed literal `Location #<id>` instead of a resolved link. Added
+   `getLocationRef()` and wired it in.
 
-- **Part 8:** Rewrote all four ruling docs (`CLAUDE.md`, `BUILD_GUIDE.md`,
-  `traveler-wiki-build-plan.md`, `docs/PLAN_WRITING_AND_AI.md`) to describe only the current
-  stack: Next.js, Drizzle, Neon, `lib/world/` data layer, no admin, no login.
+Also fixed stale "(edit in admin for relationships)" copy on the generic entity page — referenced
+the already-removed Payload admin.
 
-- **Cleaned up docs:** Deleted all old handoff and gate report files. Replaced them with
-  `SESSION.md` (this file) and `next.md` (task instructions).
+Note: the duplicate-looking text on E2 (one copy reading "Keth (KETH)", the other "Keth (L7)")
+was fully explained by bug #2 above, not a data problem — `CodeText` resolved the `L7` code to
+the location's display name ("KETH") while the adjacent raw `EditableField` showed the
+unprocessed `L7` from the same single stored string. No duplicate data exists in the DB.
 
-Committed: `5bef6fc` on `master`.
+Committed: not yet — pending user review of this session's changes.
 
 ## What is next
 
 See `next.md` for the full instructions. In short:
 
-1. **Phase 3 closure.** Browser smoke-check: load every route, confirm nav links work, confirm
-   data loads from `appDb`. Mark Phase 3 items in `traveler-wiki-build-plan.md` as done.
-   Update `BUILD_GUIDE.md` and this file when done.
-
-2. **G1, the link index.** After Phase 3 closure. Do not start G1 until closure is confirmed.
+1. **G1, the link index.** Phase 3 closure is done. Per `next.md`, ask before starting G1 since
+   it's a new build step, not a verification pass.
 
 ## Stack reference (quick)
 

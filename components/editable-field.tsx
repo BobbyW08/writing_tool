@@ -15,6 +15,8 @@ interface EditableFieldProps {
   placeholder?: string
   className?: string
   onSaved?: (newValue: unknown) => void
+  /** Custom read-mode display (e.g. ID-code linkification). Falls back to the raw value. */
+  renderValue?: React.ReactNode
 }
 
 export function EditableField({
@@ -27,6 +29,7 @@ export function EditableField({
   placeholder,
   className = '',
   onSaved,
+  renderValue,
 }: EditableFieldProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<string>(value == null ? '' : String(value))
@@ -42,6 +45,8 @@ export function EditableField({
 
   const displayValue = value == null || value === '' ? (
     <span className="text-muted-foreground italic">{placeholder ?? 'Click to add'}</span>
+  ) : renderValue ? (
+    renderValue
   ) : kind === 'select' ? (
     options?.find(o => o.value === value)?.label ?? String(value)
   ) : kind === 'checkbox' ? (

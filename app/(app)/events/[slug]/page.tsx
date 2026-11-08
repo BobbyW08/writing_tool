@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEventByCode, getEventBySlug, getRelationshipsByCode, buildCodeMap, isUnk } from "@/lib/world/queries";
+import { getEventByCode, getEventBySlug, getRelationshipsByCode, buildCodeMap, isUnk, getLocationRef } from "@/lib/world/queries";
 import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
@@ -63,6 +63,7 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
 
   const allTexts = [doc.whatHappened, doc.whyItHappened, doc.whatItCaused, doc.whatWasLearned];
   const codeMap = await buildCodeMap(allTexts);
+  const locationRef = await getLocationRef(doc.locationId);
 
   const unkTagged = isUnk(doc.tagIds ?? null);
   const parent = doc.parent ?? null;
@@ -135,7 +136,13 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
         </div>
         <div>
           <p className="text-xs font-semibold text-muted-foreground">Location</p>
-          <span className="text-muted-foreground italic">{doc.locationId ? `Location #${doc.locationId}` : "None"}</span>
+          {locationRef ? (
+            <Link href={`/locations/${locationRef.code}`} className="font-medium underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground">
+              {locationRef.name}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground italic">None</span>
+          )}
         </div>
       </div>
 
@@ -158,8 +165,16 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
         <div key={field}>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
           <div className="mt-1 text-sm">
-            {value ? <CodeText text={value} codeMap={codeMap} /> : null}
-            <EditableField collection="events" docId={doc.id} fieldName={field} value={value} kind="textarea" placeholder="Click to add" className="w-full" />
+            <EditableField
+              collection="events"
+              docId={doc.id}
+              fieldName={field}
+              value={value}
+              kind="textarea"
+              placeholder="Click to add"
+              className="w-full"
+              renderValue={value ? <CodeText text={value} codeMap={codeMap} /> : undefined}
+            />
           </div>
         </div>
       ))}

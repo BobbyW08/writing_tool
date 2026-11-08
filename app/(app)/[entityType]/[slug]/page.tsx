@@ -215,8 +215,8 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
                   className="flex-1 text-sm"
                 />
               ) : (
-                <span className="flex-1 text-sm text-muted-foreground">
-                  (edit in admin for relationships)
+                <span className="flex-1 text-sm text-muted-foreground italic">
+                  set via Relationships below
                 </span>
               )}
             </div>

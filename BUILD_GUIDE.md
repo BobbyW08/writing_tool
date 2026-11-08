@@ -9,7 +9,43 @@ end of every session.
 
 ## Current state (as of 2026-11-08)
 
-**Phase 3 frontend complete. Payload stripped. Build passes zero errors. Awaiting Phase 3 closure and G1.**
+**Phase 3 closed, verified in browser against a production build. Payload stripped. Build passes zero errors. G1 is next.**
+
+Phase 3 closure browser check (production build on port 3001, since nothing was listening on 3000):
+- All 16 top-level/list routes return 200 and loaded cleanly.
+- Nav links in the sidebar all resolve to real routes; entry read pages, event read pages, and
+  the review queue all link IDs correctly (ID-code linkification confirmed in both structured
+  fields and inline prose).
+- `/timeline` reads `startYear` correctly; the drag handler (`handleItemMove` in
+  `components/timeline-view-inner.tsx`) is correctly wired to `updateEventYearAction` in
+  `lib/world/actions.ts`, which writes `startYear` through `appDb` and never touches `yearLabel`.
+  A synthetic browser drag didn't register with `react-calendar-timeline`'s drag threshold (the
+  already-documented gotcha below), so the write path was instead verified directly: the `Year`
+  field's inline editor was used to change `startYear` and change it back, confirmed against the
+  database both times.
+
+Three bugs found and fixed during closure:
+1. **UNK badge was non-deterministic.** `isUnk()` checks a module-level `UNK_TAG_ID_CACHE`, which
+   was only populated by `getUnkTagId()` — called only from `getUnkRecords()` and
+   `getCollectionUnkCount()` (home page, `/review`). Any other page, visited first in a server
+   process's lifetime, showed no UNK badges even on tagged records. Fixed by having `getAllTags()`
+   (called by every read page) populate `UNK_TAG_ID_CACHE` too, since it already fetches the same
+   `tags` table. `lib/world/queries.ts`.
+2. **Event read page duplicated its own body text.** `app/(app)/events/[slug]/page.tsx` rendered
+   `<CodeText>` (linkified display) immediately followed by `<EditableField>` for the same value —
+   `EditableField` always renders the raw value itself when not editing, so both showed at once.
+   Fixed by adding an optional `renderValue` prop (a plain `ReactNode`, not a function — React
+   Server Components can't pass functions to Client Components) to `EditableField`
+   (`components/editable-field.tsx`) and passing the `CodeText` element through it instead of
+   rendering both.
+3. **Event `Location` field showed literal `Location #<id>`.** Never resolved to the actual
+   location. Added `getLocationRef()` to `lib/world/queries.ts` and wired the event page to render
+   a real link.
+
+Also fixed: the generic entity page's relationship-kind fields (birthplace, race, culture)
+showed `(edit in admin for relationships)` — stale copy from the removed Payload admin. Changed to
+accurately point at the Relationships section below, which already supports `born_in`,
+`belongs_to_culture`, and `belongs_to_race` as general relationship types.
 
 The app now runs entirely on Drizzle ORM and Neon Postgres with no Payload dependency.
 `appDb` (from `db/index.ts`, using `APP_DATABASE_URL`) is the only database connection in app
@@ -97,17 +133,14 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
-1. **Phase 3 closure.** Run the Phase 3 browser checklist. Confirm all nav links load.
-   The retire list from Part 7 is complete.
-2. **G1, the link index.** Needed by every later view and by the AI.
-3. **Phase 4.** Port the continuity check, then run the first real writing check.
-4. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board,
+1. **G1, the link index.** Needed by every later view and by the AI. Per `next.md`, this is a new
+   build step, not a verification pass — ask before starting it.
+2. **Phase 4.** Port the continuity check, then run the first real writing check.
+3. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board,
    eras, lanes.
-5. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions.
-6. **W3 to W6.** Maps, chronicles, boards, interactive tables.
-7. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
-
-Do not start G1 yet.
+4. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions.
+5. **W3 to W6.** Maps, chronicles, boards, interactive tables.
+6. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
 
 ---
 

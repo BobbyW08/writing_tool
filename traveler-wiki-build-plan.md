@@ -39,7 +39,7 @@ Version 1 was a custom Next.js app with its own database and hand-built forms. T
 to a direct Drizzle + Neon stack in November 2026, completing Phase 3.
 
 - Phase 2A through 2C: all done. Data counters: C=40, L=13, U=5, F=2, K=102, S=74, W=3.
-- Phase 3 frontend complete. `npm run build` passes zero errors. G1 is next.
+- Phase 3 closed, verified in browser 2026-11-08. `npm run build` passes zero errors. G1 is next.
 - Writing Studio (S1) complete.
 
 This version (v3.0) adds the World features (steps W1 to W6), the link index (step G1), and the
@@ -598,11 +598,17 @@ fit between these phases. The master order is in "Build order" below.
 
 ### Phase 3: Rewire the frontend and retire the old app code
 Delivered together with step S2 and step W1.
-- [ ] UNK marker on every list and read page, and a basic review queue page.
-- [ ] Home, entry read pages, event read pages on the data layer with ID-code linkification.
-- [ ] Timeline reading and writing through the data layer (`startYear`).
-- [ ] Remove the old forms, actions, data layer, database code and legacy dependencies (list in
+- [x] UNK marker on every list and read page, and a basic review queue page.
+- [x] Home, entry read pages, event read pages on the data layer with ID-code linkification.
+- [x] Timeline reading and writing through the data layer (`startYear`).
+- [x] Remove the old forms, actions, data layer, database code and legacy dependencies (list in
       `BUILD_GUIDE.md`) once the migration is verified.
+- [x] **Milestone: Phase 3 closed.** Verified in browser against a production build 2026-11-08.
+      Three bugs found and fixed during closure: the UNK badge depended on an uninitialized cache
+      and only showed if `/` or `/review` had been visited first in the server process; the four
+      long-text event fields rendered their content twice (`CodeText` plus `EditableField`'s own
+      display both firing); `Location` on event pages showed literal `Location #<id>` instead of
+      a resolved link. See `BUILD_GUIDE.md` for details.
 
 ### Phase 4: Continuity check port
 - [ ] Rewrite `run-check.ts`, actions and data queries on the data layer; keep the pure files.
