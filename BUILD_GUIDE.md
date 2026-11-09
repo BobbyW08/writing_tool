@@ -14,7 +14,8 @@ closed. Steps W3 (maps), W4 (chronicles), W5 (boards) and W6 (interactive tables
 closed — see their sections below. That closes out the whole W1-W6 "Feature reference" block of
 Phase 5. The Gaps view (Phase 6) is also closed — see its section below; Phase 6's other two
 items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6. Phase
-5A step U1 (header actions) is also closed — see its section below. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+5A steps U1 (header actions) and U2 (edit relationships in place, place history) are also closed —
+see their sections below. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
 anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
 re-checked a third time this session (Bobby said it was resolved; it was not — same
 `customer_verification_required` error, including after a 90s wait for propagation) — still
@@ -146,6 +147,58 @@ each page hand-rolled its own status select placement and its own bottom-of-page
   confirmed the dialog, confirmed it redirected to `/boards` and the board was gone ("No boards
   yet."). Did not click through all 7 pages individually (same component, same two already-proven
   sub-components, low marginal risk) — a disclosed scope cut, not an oversight.
+- **Build**: `npm run build`, zero errors.
+
+### Phase 5A, step U2: edit relationships in place, place history
+
+- **`updateRelationshipAction(id, myCode, patch)`** in `lib/world/actions.ts`. `myCode` tells the
+  action which end of the relationship is "mine" so `patch.otherCode` always means the far end,
+  regardless of whether the page it's called from is the `from` or `to` side of the stored row.
+  Changes `type`, the other end's code, `startYear`, `endYear` and `notes` in place — never
+  deletes and recreates — so the relationship's own `X` code and anything referencing it survive.
+  Recomputes `title` when `type` or the other end changes. Runs `syncLinksForRecord('relationships',
+  id)` once afterward; since the link row this record owns is keyed by the relationship's own code
+  (not by either endpoint), one call correctly refreshes the edge's `fromCode`/`toCode`/`type` —
+  no separate per-endpoint sync needed.
+- **`createRelationshipAction`** gained two new trailing optional params, `startYear` and
+  `endYear`, so the add form can set them on create instead of requiring a create-then-edit round
+  trip. Existing callers (the board whiteboard's "Promote to relationship" bar) are unaffected —
+  the new params are optional and simply omitted there.
+- **`RelationshipEditor`**: the add form gained Start year / End year number inputs. Every row
+  gained an **Edit** control that swaps the row for an inline form (other code, type, start/end
+  year, notes) calling `updateRelationshipAction`; a year range ("Year 12 to 40", "Year 12 on",
+  "Until year 40") now renders next to each row when either year is set, and `notes` renders
+  below the row.
+- **Places section**: added to `app/(app)/[entityType]/[slug]/page.tsx`, shown only when
+  `entityType === "characters"`. Filters the page's existing `relEntries` to
+  `direction === "from"`, `collection === "locations"`, and `type` in `['born_in', 'lives_in',
+  'visited', 'rules']` (the plan's named place-relationship types — deliberately excludes
+  `located_in`, which is for location-hierarchy, not character place history), sorted by
+  `startYear` ascending. Resolves each place's display name via `buildCodeMap` (the same helper
+  already used elsewhere on this page for inline code mentions) rather than showing the code
+  twice. "Moving a character" needed no new code: set `endYear` on the old `lives_in` row via the
+  new Edit control, add a new one with the new `startYear` via the now-dated add form.
+- **Two real bugs found and fixed via the live test below** (neither caught by `tsc` or
+  `npm run build` — both are stale-client-state bugs, not type errors):
+  1. `RelationshipEditor`'s `rels` state was `useState(initial)` with nothing syncing it to a
+     later `initial` prop. `handleAdd` and the new edit-save path both call `router.refresh()`,
+     which refetches the server component tree (picking up the new row correctly in sibling
+     sections like Places) but does **not** remount this client component, so `rels` kept
+     showing its first-mount snapshot forever — a newly added relationship was invisible in its
+     own list until a full page reload. Fixed with `useEffect(() => { setRels(initial) }, [initial])`.
+  2. `handleRemove` never called `router.refresh()` at all (unlike add and edit), so deleting a
+     relationship removed it from this component's own list but left every other
+     server-rendered section on the page — Places, What links here, the relationship graph —
+     showing the just-deleted relationship until the next real navigation. Fixed by adding the
+     same `router.refresh()` call used by the other two handlers.
+- **Verified live** on `/characters/C6`: added a `lives_in` relationship to L3 with `startYear`
+  12 — appeared immediately in both the Relationships list and the new Places section ("Year 12
+  on"), confirming bug 1's fix. Added a second (`parent_of` L4) to confirm it wasn't a fluke.
+  Edited the `lives_in` row's `endYear` to 40 via the Edit control — both the Relationships list
+  and the Places section updated to "Year 12 to 40" without a reload. Removed both test
+  relationships — confirmed (after fixing bug 2) that Places, the Relationships list, and What
+  links here all went back to empty immediately, with no stale leftover rows anywhere. All test
+  data cleaned up.
 - **Build**: `npm run build`, zero errors.
 
 ### Step W5: boards
@@ -800,14 +853,15 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    a propagation delay) — looks like an account/team-scoping mismatch between where the card was
    added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
    Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
-2. **Phase 5A, steps U2 to U6.** "Working surfaces" — new scope added mid-session (see the plan's
-   own section). U1 (header actions) is closed. Remaining: U2 (edit relationships in place, place
-   history on character pages), U3 (a "Keep writing" section on story pages — **blocked** on the
+2. **Phase 5A, steps U3 to U6.** "Working surfaces" — new scope added mid-session (see the plan's
+   own section). U1 (header actions) and U2 (edit relationships in place, place history) are
+   closed. Remaining: U3 (a "Keep writing" section on story pages — **blocked** on the
    pre-existing `/write/[code]` Lexical #173 / React #418 crash, Phase 4 gap #2, since both pages
    share the same editor component), U4 (table and board views on every collection list page), U5
-   (record popups, editable relationship view/node map, movable nodes), U6 (story board drag and
-   drop). The plan says U1-U6 "can go anywhere after" Phase 5/item 6, so these are unblocked and
-   can proceed in any order except U3.
+   (record popups, editable relationship view/node map, movable nodes — U5's relationship-view
+   editing can now build on U2's `updateRelationshipAction`), U6 (story board drag and drop). The
+   plan says U1-U6 "can go anywhere after" Phase 5/item 6, so these are unblocked and can proceed
+   in any order except U3.
 3. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
    (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on
    S4-S6 above. Phases 7-8 are also unblocked while S4-S7 waits on the billing fix.

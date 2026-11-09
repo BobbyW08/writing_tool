@@ -392,7 +392,9 @@ export async function createRelationshipAction(
   fromCode: string,
   toCode: string,
   type: string,
-  notes?: string
+  notes?: string,
+  startYear?: number | null,
+  endYear?: number | null
 ): Promise<{ ok: boolean; id?: number; error?: string }> {
   try {
     const fromCollection = PREFIX_TO_SLUG[fromCode[0]]
@@ -433,6 +435,8 @@ export async function createRelationshipAction(
       toCode,
       type,
       notes: notes ?? null,
+      startYear: startYear ?? null,
+      endYear: endYear ?? null,
       title,
     }).returning({ id: schema.relationships.id })
 
@@ -440,6 +444,67 @@ export async function createRelationshipAction(
     await syncLinksForRecord('relationships', relId)
 
     return { ok: true, id: relId }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// ─── updateRelationshipAction ─────────────────────────────────────────────────
+// Step U2: edit a relationship in place rather than deleting and recreating it, so its code and
+// any history referencing it survive. myCode tells us which end is "mine" (unchanged) so
+// patch.otherCode always means the far end, regardless of which side the record was opened from.
+export async function updateRelationshipAction(
+  id: number,
+  myCode: string,
+  patch: { type?: string; otherCode?: string; startYear?: number | null; endYear?: number | null; notes?: string | null }
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const rows = await appDb.select().from(schema.relationships).where(eq(schema.relationships.id, id)).limit(1)
+    const rel = rows[0]
+    if (!rel) return { ok: false, error: 'Relationship not found' }
+
+    const updateData: Record<string, unknown> = { updatedAt: new Date() }
+
+    if (patch.otherCode !== undefined && patch.otherCode.trim()) {
+      const otherCode = patch.otherCode.trim().toUpperCase()
+      const otherCollection = PREFIX_TO_SLUG[otherCode[0]]
+      if (!otherCollection) return { ok: false, error: 'Unknown code prefix' }
+      const otherTable = getTable(otherCollection)
+      if (!otherTable) return { ok: false, error: 'Unknown collection table' }
+      const otherRows = await appDb.select({ id: (otherTable as typeof schema.characters).id })
+        .from(otherTable as never).where(eq((otherTable as typeof schema.characters).code, otherCode)).limit(1)
+      const otherId = (otherRows[0] as { id: number } | undefined)?.id
+      if (!otherId) return { ok: false, error: 'Record not found' }
+
+      if (rel.fromCode === myCode) {
+        updateData.toCollection = otherCollection
+        updateData.toId = otherId
+        updateData.toCode = otherCode
+      } else {
+        updateData.fromCollection = otherCollection
+        updateData.fromId = otherId
+        updateData.fromCode = otherCode
+      }
+    }
+
+    if (patch.type !== undefined) updateData.type = patch.type
+    if (patch.startYear !== undefined) updateData.startYear = patch.startYear
+    if (patch.endYear !== undefined) updateData.endYear = patch.endYear
+    if (patch.notes !== undefined) updateData.notes = patch.notes
+
+    if (patch.type !== undefined || patch.otherCode !== undefined) {
+      const { RELATIONSHIP_TYPES } = await import('@/lib/relationshipTypes')
+      const finalType = (updateData.type as string | undefined) ?? rel.type
+      const finalFromCode = (updateData.fromCode as string | undefined) ?? rel.fromCode
+      const finalToCode = (updateData.toCode as string | undefined) ?? rel.toCode
+      const typeLabel = RELATIONSHIP_TYPES.find(t => t.value === finalType)?.label ?? finalType
+      updateData.title = `${finalFromCode} ${typeLabel} ${finalToCode}`
+    }
+
+    await appDb.update(schema.relationships).set(updateData).where(eq(schema.relationships.id, id))
+    await syncLinksForRecord('relationships', id)
+
+    return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }
   }

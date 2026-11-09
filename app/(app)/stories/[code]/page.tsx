@@ -70,14 +70,14 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
     return null;
   }
 
-  type RelRow = { id: number; code: string; fromCollection: string; fromCode: string; toCollection: string; toCode: string; type?: string | null };
-  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: 'from' | 'to' };
+  type RelRow = { id: number; code: string; fromCollection: string; fromCode: string; toCollection: string; toCode: string; type?: string | null; startYear?: number | null; endYear?: number | null; notes?: string | null };
+  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: 'from' | 'to'; startYear: number | null; endYear: number | null; notes: string | null };
   const relEntries: RelEditorEntry[] = [];
   for (const r of rels.from as RelRow[]) {
-    relEntries.push({ id: r.id, code: r.toCode, collection: r.toCollection, name: r.toCode, type: r.type ?? '', direction: 'from' });
+    relEntries.push({ id: r.id, code: r.toCode, collection: r.toCollection, name: r.toCode, type: r.type ?? '', direction: 'from', startYear: r.startYear ?? null, endYear: r.endYear ?? null, notes: r.notes ?? null });
   }
   for (const r of rels.to as RelRow[]) {
-    relEntries.push({ id: r.id, code: r.fromCode, collection: r.fromCollection, name: r.fromCode, type: r.type ?? '', direction: 'to' });
+    relEntries.push({ id: r.id, code: r.fromCode, collection: r.fromCollection, name: r.fromCode, type: r.type ?? '', direction: 'to', startYear: r.startYear ?? null, endYear: r.endYear ?? null, notes: r.notes ?? null });
   }
 
   return (

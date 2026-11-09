@@ -46,6 +46,9 @@ type RelRow = {
   toCollection: string;
   toCode: string;
   type?: string | null;
+  startYear?: number | null;
+  endYear?: number | null;
+  notes?: string | null;
 };
 
 const EVENT_TYPE_OPTIONS = [
@@ -93,13 +96,13 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
     return null;
   }
 
-  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: "from" | "to" };
+  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: "from" | "to"; startYear: number | null; endYear: number | null; notes: string | null };
   const relEntries: RelEditorEntry[] = [];
   for (const r of rels.from as RelRow[]) {
-    relEntries.push({ id: r.id, code: r.toCode, collection: r.toCollection, name: r.toCode, type: r.type ?? "", direction: "from" });
+    relEntries.push({ id: r.id, code: r.toCode, collection: r.toCollection, name: r.toCode, type: r.type ?? "", direction: "from", startYear: r.startYear ?? null, endYear: r.endYear ?? null, notes: r.notes ?? null });
   }
   for (const r of rels.to as RelRow[]) {
-    relEntries.push({ id: r.id, code: r.fromCode, collection: r.fromCollection, name: r.fromCode, type: r.type ?? "", direction: "to" });
+    relEntries.push({ id: r.id, code: r.fromCode, collection: r.fromCollection, name: r.fromCode, type: r.type ?? "", direction: "to", startYear: r.startYear ?? null, endYear: r.endYear ?? null, notes: r.notes ?? null });
   }
 
   return (

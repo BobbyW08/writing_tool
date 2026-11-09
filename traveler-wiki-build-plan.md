@@ -682,7 +682,7 @@ along the way).
 ### Phase 5A: Working surfaces (steps U1 to U6)
 Detail is in "Steps U1 to U6: working surfaces" below.
 - [x] U1: status and delete in the top right of every read page. **Closed 2026-11-09.**
-- [ ] U2: edit relationships in place, and place history for characters.
+- [x] U2: edit relationships in place, and place history for characters. **Closed 2026-11-09.**
 - [ ] U3: a writing area on each story page.
 - [ ] U4: table and status board views on every collection page.
 - [ ] U5: editing, movable nodes and large record popups in the relationship view and node map.
@@ -1026,17 +1026,19 @@ behave exactly as they do everywhere else. There is no second write path.
       (unchanged — `RecordActions` wraps the existing `EditableField`).
 
 ### Step U2: edit relationships, keep place history
-- [ ] `updateRelationshipAction(id, patch)` in `lib/world/actions.ts`. It changes `type`, the other
+- [x] `updateRelationshipAction(id, patch)` in `lib/world/actions.ts`. It changes `type`, the other
       end, `startYear`, `endYear` and `notes` on the existing relationship record, keeping its code.
-      It runs the link index sync for both ends (hard rule 14).
-- [ ] `RelationshipEditor` gets an Edit control on every row, editing in place. The add form gets
+      It runs the link index sync for both ends (hard rule 14). **Closed 2026-11-09** — see
+      `BUILD_GUIDE.md`'s Phase 5A section.
+- [x] `RelationshipEditor` gets an Edit control on every row, editing in place. The add form gets
       Start year and End year fields. The fields already exist on the record; the form does not
       show them yet.
-- [ ] A "Places" section on character pages, built from the character's place relationships and
+- [x] A "Places" section on character pages, built from the character's place relationships and
       ordered by `startYear`. Each row shows the place, the type and the range ("Year 12 to 40",
       "Year 40 on" when `endYear` is empty). Past, current and planned homes all appear here.
-- [ ] Moving a character is two edits: set `endYear` on the old `lives in` record, add a new one
-      with the new `startYear`.
+- [x] Moving a character is two edits: set `endYear` on the old `lives in` record, add a new one
+      with the new `startYear`. No new code needed — both edits are now possible through the Edit
+      control and the Start/End year fields on the add form.
 
 ### Step U3: keep writing on the story page
 - [ ] A "Keep writing" section on `/stories/[code]` using the same Lexical editor and autosave as

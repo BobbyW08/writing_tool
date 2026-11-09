@@ -62,6 +62,9 @@ type RelRow = {
   toCode: string;
   type?: string | null;
   title?: string | null;
+  startYear?: number | null;
+  endYear?: number | null;
+  notes?: string | null;
 };
 
 export default async function EntityReadPage({ params }: { params: Promise<{ entityType: string; slug: string }> }) {
@@ -94,7 +97,7 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
     f => !["name", "summary", "status", "gapPrompt", "parent"].includes(f.name)
   );
 
-  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: "from" | "to" };
+  type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: "from" | "to"; startYear: number | null; endYear: number | null; notes: string | null };
   const relEntries: RelEditorEntry[] = [];
   for (const r of rels.from as RelRow[]) {
     relEntries.push({
@@ -104,6 +107,9 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
       name: r.toCode,
       type: r.type ?? "",
       direction: "from",
+      startYear: r.startYear ?? null,
+      endYear: r.endYear ?? null,
+      notes: r.notes ?? null,
     });
   }
   for (const r of rels.to as RelRow[]) {
@@ -114,7 +120,25 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
       name: r.fromCode,
       type: r.type ?? "",
       direction: "to",
+      startYear: r.startYear ?? null,
+      endYear: r.endYear ?? null,
+      notes: r.notes ?? null,
     });
+  }
+
+  const PLACE_HISTORY_TYPES = ["born_in", "lives_in", "visited", "rules"];
+  const placeEntries = entityType === "characters"
+    ? relEntries
+        .filter(r => r.direction === "from" && r.collection === "locations" && PLACE_HISTORY_TYPES.includes(r.type))
+        .sort((a, b) => (a.startYear ?? -Infinity) - (b.startYear ?? -Infinity))
+    : [];
+  const placeCodeMap = placeEntries.length > 0 ? await buildCodeMap(placeEntries.map(p => p.code)) : {};
+
+  function placeYearRangeText(startYear: number | null, endYear: number | null): string | null {
+    if (startYear == null && endYear == null) return null;
+    if (startYear != null && endYear != null) return `Year ${startYear} to ${endYear}`;
+    if (startYear != null) return `Year ${startYear} on`;
+    return `Until year ${endYear}`;
   }
 
   const rawImage = doc.image
@@ -251,6 +275,28 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
                   <span className="font-mono text-xs text-muted-foreground">{s.code}</span>
                   <span className="text-sm">{s.name}</span>
                 </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {entityType === "characters" && placeEntries.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">Places</h2>
+          <ul className="divide-y rounded-md border">
+            {placeEntries.map(p => (
+              <li key={p.id} className="flex items-center gap-2 p-2.5 text-sm">
+                <Link href={`/locations/${p.code}`} className="flex-1 hover:underline">
+                  <span className="font-mono text-xs text-muted-foreground">{p.code}</span>{" "}
+                  {placeCodeMap[p.code]?.name ?? p.code}
+                </Link>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {RELATIONSHIP_TYPES.find(t => t.value === p.type)?.label ?? p.type}
+                </span>
+                {placeYearRangeText(p.startYear, p.endYear) && (
+                  <span className="shrink-0 text-xs text-muted-foreground">{placeYearRangeText(p.startYear, p.endYear)}</span>
+                )}
               </li>
             ))}
           </ul>
