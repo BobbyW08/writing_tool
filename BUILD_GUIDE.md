@@ -15,12 +15,12 @@ closed — see their sections below. That closes out the whole W1-W6 "Feature re
 Phase 5. The Gaps view (Phase 6) is also closed — see its section below; Phase 6's other two
 items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6. Phase
 5A steps U1 (header actions), U2 (edit relationships in place, place history), U4 (table and
-board views on every collection list page) and U6 (story board drag and drop) are also closed —
-see their sections below. U4 and U6's drag-and-drop gestures themselves are flagged for Bobby to
-confirm by hand (browser automation couldn't exercise either; the code review backing that call is
-in each step's section). U5 is partially done this session: the record popup (parallel +
-intercepting routes) and movable nodes are built and verified live; edge editing and
-drag-to-create-relationship are not started yet — see U5's section. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+board views on every collection list page), U5 (record popup, movable nodes, edge editing and
+drag-to-create-relationship) and U6 (story board drag and drop) are also closed — see their
+sections below. U4 and U6's drag-and-drop gestures themselves are flagged for Bobby to confirm by
+hand (browser automation couldn't exercise either; the code review backing that call is in each
+step's section). Only U3 (a "Keep writing" section on story pages) remains in Phase 5A, blocked
+on the pre-existing `/write/[code]` crash (Phase 4 gap #2). Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
 anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
 re-checked a third time this session (Bobby said it was resolved; it was not — same
 `customer_verification_required` error, including after a 90s wait for propagation) — still
@@ -330,12 +330,10 @@ each page hand-rolled its own status select placement and its own bottom-of-page
 
 ### Phase 5A, step U5: record popup (parallel + intercepting routes)
 
-- **Scope this session**: the record popup itself, wired into all four places the plan names
-  (relationship view, node map, boards, story board), plus movable nodes in the relationship view
-  and node map. **Not yet done**: edge editing (select an edge to change its type/years/notes or
-  delete it) and drag-from-node-to-node to create a relationship. Left for a follow-up pass under
-  this same step — the popup was the larger, foundational piece and is now solid; the docs below
-  flag exactly what's left.
+- **Scope this session**: the record popup, wired into all four places the plan names
+  (relationship view, node map, boards, story board); movable nodes in the relationship view and
+  node map; and, in a follow-up pass the same session, edge editing and drag-to-create-relationship
+  in the node map and relationship view. This closes out step U5 in full.
 - **The mechanism**: Next's parallel + intercepting routes (`app/(app)/@modal/`), following the
   pattern in Next's own docs almost exactly (`node_modules/next/dist/docs/01-app/03-api-reference/
   03-file-conventions/{parallel,intercepting}-routes.md` — read in full before writing any of this,
@@ -406,9 +404,56 @@ each page hand-rolled its own status select placement and its own bottom-of-page
   triggers — same one-line `router.push` change as the two paths that were tested live, confirmed
   correct by code review rather than re-driving the browser through two more views for an
   identical mechanism already proven twice.
-- **Remaining for this step**: edge editing (select an edge in the relationship view or node map
-  to change its type/years/notes or delete it, reusing U2's `updateRelationshipAction`) and
-  drag-from-node-to-node to create a relationship (`createRelationshipAction`). Not started.
+
+**Edge editing and drag-to-create-relationship (closing out U5, same session):**
+- **`lib/world/queries.ts`**: added `getRelationshipByCode(code)` — the edge editor only has a
+  relationship's own X-code (`lib/graph/types.ts`'s `Edge.relationshipCode`, set only when
+  `source === 'relationship'`) to work from, and needs the full row (including the numeric `id`
+  `updateRelationshipAction`/`deleteRelationshipAction` take) to edit it.
+- **`app/api/relationships/[code]/route.ts`** (new): `GET`, backing the client components below
+  with that lookup (they're client components and can't import `queries.ts` directly — it's
+  marked `server-only`).
+- **`components/graph-edge-editor.tsx`** (new): a floating panel (`absolute bottom-3 right-3`,
+  inside a `relative` graph container) fetching the relationship by code, with a type `<select>`
+  (flat `RELATIONSHIP_TYPES` list, matching `relationship-editor.tsx`'s existing pattern),
+  start/end year inputs, notes, Save (`updateRelationshipAction`) and Delete (inline Yes/Cancel
+  confirm, no native dialog, matching the codebase's established pattern) — reuses U2's actions
+  untouched. `myCode` is always the stored `fromCode` since this panel never repoints an endpoint.
+- **`components/graph-connect-form.tsx`** (new): same floating-panel style, shown after a
+  drag-to-connect gesture; shows `{fromCode} → {toCode}`, a type picker, Create
+  (`createRelationshipAction`) — no silent guessed-type creation.
+- **`components/node-map-view.tsx`**: added `onEdgeClick` (looks up the clicked `FlowEdge`'s id
+  against `filteredEdges`, only opens the editor when `source === 'relationship'` and a
+  `relationshipCode` exists — field/parent/text/pin edges aren't editable) and `onConnect` (node
+  ids here are already plain codes, so `connection.source`/`target` go straight to
+  `GraphConnectForm`). Added `refreshKey` state, included in the data-fetch `useEffect`'s
+  dependency array, bumped by both panels on success so the graph refetches without disturbing the
+  user's filters. Container div made `relative` so the panels can sit over the canvas.
+- **`components/relationship-view.tsx`**: same two handlers, but this view's non-center flow-node
+  ids are composite (`` `${code}-${edgeId}` ``, not plain codes), so `onConnect` resolves each
+  endpoint back to a real code via a `resolveNodeCode()` helper that walks the existing `related`
+  array (the same lookup pattern `onNodeDoubleClick` already used). `onEdgeClick` matches against
+  `related` by edge id the same way. Own `refreshKey`, re-triggering its `/api/codes/:code/links`
+  fetch.
+- **Typecheck and build**: `npx tsc --noEmit` and `npm run build` both zero errors. One real
+  TS error along the way: `RELATIONSHIP_TYPES[0].value`'s inferred literal type (`"parent_of"`)
+  made `useState(RELATIONSHIP_TYPES[0].value)` too narrow for `onChange` to widen later — fixed by
+  typing the state explicitly as `useState<string>(...)`.
+- **Verified live**: on the node map centered on a character (Vashten, C3) with a `relationship`-
+  sourced "Related to" edge to another character — clicked the edge, the editor opened showing
+  `C3 → C5` with the correct type preselected; closed it. Dragged from Vashten's node handle to an
+  unrelated node (Renmark, L2) — the connect panel opened showing `C3 → L2` with a type picker;
+  closed without creating (didn't want to write a throwaway relationship into Bobby's real data).
+  Same edge-click test repeated on `/characters/C3`'s embedded `RelationshipView` (composite node
+  ids) — opened correctly showing `C3 → C5`, confirming `resolveNodeCode()` works. No console
+  errors from either interaction (checked after both). The only dev-overlay issue present was the
+  known, pre-existing, unrelated hydration note from a ClickUp browser extension injecting a class
+  onto `<body>` — not caused by this work.
+- **Not separately live-tested**: actually completing a drag-to-create (clicked Close instead of
+  Create, to avoid writing test data into the real database) and the Delete confirm flow on the
+  edge editor — both call the same pre-existing, already-tested U2 actions
+  (`createRelationshipAction`, `deleteRelationshipAction`) with no new logic of their own beyond
+  the args already shown correct in the panel.
 
 ### Step W5: boards
 
@@ -1062,14 +1107,10 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    a propagation delay) — looks like an account/team-scoping mismatch between where the card was
    added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
    Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
-2. **Phase 5A, steps U3, U5 (remainder).** "Working surfaces" — new scope added mid-session (see
-   the plan's own section). U1, U2, U4 and U6 are closed. U5 is partially done: the record popup
-   and movable nodes are built; remaining is edge editing (select an edge to change its type/
-   years/notes or delete it) and drag-from-node-to-node to create a relationship, both in the
-   relationship view and node map, reusing U2's `updateRelationshipAction`/`createRelationshipAction`.
-   U3 (a "Keep writing" section on story pages) stays **blocked** on the pre-existing
-   `/write/[code]` Lexical #173 / React #418 crash, Phase 4 gap #2, since both pages share the
-   same editor component.
+2. **Phase 5A, step U3.** "Working surfaces" — new scope added mid-session (see the plan's own
+   section). U1, U2, U4, U5 and U6 are all closed. U3 (a "Keep writing" section on story pages)
+   stays **blocked** on the pre-existing `/write/[code]` Lexical #173 / React #418 crash, Phase 4
+   gap #2, since both pages share the same editor component. This is the only Phase 5A item left.
 3. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
    (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on
    S4-S6 above. Phases 7-8 are also unblocked while S4-S7 waits on the billing fix.

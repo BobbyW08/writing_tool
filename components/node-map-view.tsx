@@ -9,10 +9,13 @@ import {
   MiniMap,
   type Node as FlowNode,
   type Edge as FlowEdge,
+  type OnConnect,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { GRAPH_NODE_TYPES, type GraphNodeData } from "@/components/graph-node";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import { GraphEdgeEditor } from "@/components/graph-edge-editor";
+import { GraphConnectForm } from "@/components/graph-connect-form";
 import { layoutNodeMap } from "@/lib/graph/layout";
 import type { Graph } from "@/lib/graph/types";
 
@@ -44,6 +47,9 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
   const [depth, setDepth] = useState(2);
   const [graph, setGraph] = useState<Graph | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedEdgeCode, setSelectedEdgeCode] = useState<string | null>(null);
+  const [pendingConnect, setPendingConnect] = useState<{ from: string; to: string } | null>(null);
 
   const candidateOptions: MultiSelectOption[] = useMemo(
     () => candidates.map(c => ({ value: c.code, label: c.name, group: COLLECTION_LABELS[c.collection] ?? c.collection })),
@@ -74,7 +80,7 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
         setGraph(g);
         setLoading(false);
       });
-  }, [collections, sources, startCode, depth]);
+  }, [collections, sources, startCode, depth, refreshKey]);
 
   const filteredEdges = useMemo(() => {
     if (!graph) return [];
@@ -130,6 +136,21 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
     router.push(`/view/${collection}/${data.code}`);
   }, [router, graph]);
 
+  // Step U5: an edge is only editable when it's backed by a real relationship record (source ===
+  // "relationship"), never a derived field/parent/text/pin connection.
+  const onEdgeClick = useCallback((_: unknown, edge: FlowEdge) => {
+    const match = filteredEdges.find(e => e.id === edge.id);
+    if (match?.source === "relationship" && match.relationshipCode) {
+      setSelectedEdgeCode(match.relationshipCode);
+    }
+  }, [filteredEdges]);
+
+  const onConnect: OnConnect = useCallback((connection) => {
+    if (connection.source && connection.target) {
+      setPendingConnect({ from: connection.source, to: connection.target });
+    }
+  }, []);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3 rounded-md border p-3">
@@ -174,10 +195,11 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
 
       <p className="text-xs text-muted-foreground">
         Click a node to center the map on it. Double-click to open its entry in a popup.
+        Click a relationship edge to edit it, or drag from one node&apos;s handle to another to create one.
         {graph?.truncated && <span className="ml-1 font-medium text-amber-600">Truncated — too many nodes to show at once; narrow the filters.</span>}
       </p>
 
-      <div className="h-[640px] rounded-md border bg-muted/10">
+      <div className="relative h-[640px] rounded-md border bg-muted/10">
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading…</div>
         ) : flowNodes.length === 0 ? (
@@ -189,6 +211,8 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
             nodeTypes={GRAPH_NODE_TYPES}
             onNodeClick={onNodeClick}
             onNodeDoubleClick={onNodeDoubleClick}
+            onEdgeClick={onEdgeClick}
+            onConnect={onConnect}
             fitView
             minZoom={0.1}
           >
@@ -196,6 +220,21 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
             <Controls />
             <MiniMap pannable zoomable nodeColor={(n) => (n.data as unknown as GraphNodeData).color} />
           </ReactFlow>
+        )}
+        {selectedEdgeCode && (
+          <GraphEdgeEditor
+            code={selectedEdgeCode}
+            onClose={() => setSelectedEdgeCode(null)}
+            onChanged={() => setRefreshKey(k => k + 1)}
+          />
+        )}
+        {pendingConnect && (
+          <GraphConnectForm
+            fromCode={pendingConnect.from}
+            toCode={pendingConnect.to}
+            onClose={() => setPendingConnect(null)}
+            onCreated={() => setRefreshKey(k => k + 1)}
+          />
         )}
       </div>
     </div>

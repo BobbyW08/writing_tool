@@ -688,10 +688,10 @@ Detail is in "Steps U1 to U6: working surfaces" below.
       drag-and-drop gesture on the board view couldn't be exercised via browser automation (dnd-kit
       never registered a drag start under simulated pointer input); flagged for Bobby to confirm by
       hand. Everything else verified live. See `BUILD_GUIDE.md`'s U4 section.
-- [ ] U5: editing, movable nodes and large record popups in the relationship view and node map.
-      **Partially closed 2026-11-09** — record popups (parallel + intercepting routes) and movable
-      nodes are done and verified live. Edge editing and drag-to-create-relationship are not
-      started yet. See `BUILD_GUIDE.md`'s U5 section.
+- [x] U5: editing, movable nodes and large record popups in the relationship view and node map.
+      **Closed 2026-11-09** — record popups (parallel + intercepting routes), movable nodes, edge
+      editing and drag-to-create-relationship are all done and verified live. See `BUILD_GUIDE.md`'s
+      U5 section.
 - [x] U6: drag and drop on the story board. **Closed 2026-11-09.** Same drag-and-drop-gesture
       caveat as U4 (browser automation couldn't exercise it; flagged for Bobby to confirm by hand).
 
@@ -1081,7 +1081,7 @@ behave exactly as they do everywhere else. There is no second write path.
       (view switch, column grouping, "+" create, status mapping) verified live.
 - [x] This is a view over a collection. It is separate from the user-built grids of step W6.
 
-### Step U5: edit and explore from the relationship view and node map — **Partially closed 2026-11-09**
+### Step U5: edit and explore from the relationship view and node map — **Closed 2026-11-09**
 - [x] Record popup: clicking a record name in the relationship view, the node map, a board or the
       story board opens a large popup (about 80 percent of the window) showing that record's full
       read page: infobox, details, relationships, What links here, editable in place. It has
@@ -1090,9 +1090,12 @@ behave exactly as they do everywhere else. There is no second write path.
       keep their normal behavior. Scoped to the 8 world collections, events and stories (the ones
       the relationship view/node map/boards/story board actually link into); boards, chronicles,
       maps and tables don't have a popup since nothing reaches them this way.
-- [ ] Edit from the views: select an edge to change its type, years and notes or delete it. Drag
-      from one node to another to create a relationship. Both use the actions from step U2.
-      **Not started.**
+- [x] Edit from the views: select an edge to change its type, years and notes or delete it. Drag
+      from one node to another to create a relationship. Both use the actions from step U2
+      (`updateRelationshipAction`, `deleteRelationshipAction`, `createRelationshipAction`), via two
+      new floating panels (`GraphEdgeEditor`, `GraphConnectForm`) wired into both the node map and
+      the relationship view. Verified live: edge click and drag-to-connect both open the correct
+      panel with the right codes in each view. See `BUILD_GUIDE.md`'s U5 section.
 - [x] Movable nodes: any node can be dragged aside to read what is under it, and a dragged or
       selected node comes to the front. Positions are saved only on a board (hard rule 15). In an
       unsaved node map the move lasts for the session.

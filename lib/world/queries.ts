@@ -222,6 +222,15 @@ export async function getRelationshipsByCode(code: string) {
   return { from: fromRows, to: toRows }
 }
 
+// ─── getRelationshipByCode ─────────────────────────────────────────────────────
+// Step U5: the edge editor (node map, relationship view) only has a relationship's own X-code
+// (lib/graph/types.ts's Edge.relationshipCode) to work from -- this resolves it to the full
+// editable row, including the numeric id updateRelationshipAction/deleteRelationshipAction need.
+export async function getRelationshipByCode(code: string) {
+  const rows = await appDb.select().from(schema.relationships).where(eq(schema.relationships.code, code.toUpperCase())).limit(1)
+  return rows[0] ?? null
+}
+
 // ─── getEventsInvolving ───────────────────────────────────────────────────────
 export async function getEventsInvolving(entryCollection: string, entryId: number) {
   const involves = await appDb.select({ eventId: schema.eventInvolves.eventId })
