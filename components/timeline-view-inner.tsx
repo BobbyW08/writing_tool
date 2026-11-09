@@ -12,9 +12,12 @@ import "react-calendar-timeline/dist/style.css";
 import "./timeline-view.css";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ZoomOut } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ZoomOut, Search } from "lucide-react";
 import { updateEventYearAction, updateEventLaneAction } from "@/lib/world/actions";
-import { ITEM_WIDTH_YEARS, msToSortOrder, sortOrderToMs } from "@/lib/timeline-scale";
+import { ITEM_WIDTH_YEARS, msToSortOrder, sortOrderToMs, yearToMs, msToYear, type TimeGap } from "@/lib/timeline-scale";
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import { TimelineMinimap } from "@/components/timeline-minimap";
 
 export interface TimelineEventInput {
   id: string;
@@ -54,8 +57,21 @@ const TIME_STEPS = { second: 3600, minute: 3600, hour: 24, day: 30, month: 12, y
 const DEFAULT_START = -5;
 const DEFAULT_END = 65;
 const LINE_HEIGHT = 44;
-const HEADER_HEIGHT = 30;
+const PRIMARY_HEADER_HEIGHT = 22;
+const YEAR_HEADER_HEIGHT = 30;
+const HEADER_HEIGHT = PRIMARY_HEADER_HEIGHT + YEAR_HEADER_HEIGHT;
 const SIDEBAR_WIDTH = 72;
+
+const EVENT_TYPE_OPTIONS: MultiSelectOption[] = [
+  { value: "celestial", label: "Celestial" },
+  { value: "political", label: "Political" },
+  { value: "battle", label: "Battle" },
+  { value: "discovery", label: "Discovery" },
+  { value: "death", label: "Death" },
+  { value: "birth", label: "Birth" },
+  { value: "journey", label: "Journey" },
+  { value: "other", label: "Other" },
+];
 
 const EVENT_TYPE_COLOR: Record<string, string> = {
   celestial: "#7c3aed",
@@ -91,13 +107,20 @@ export default function TimelineView({
   events,
   eras,
   focusEraCode,
+  gaps = [],
 }: {
   events: TimelineEventInput[];
   eras: TimelineEraInput[];
   focusEraCode?: string | null;
+  gaps?: TimeGap[];
 }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Gap-aware mapping: identity when `gaps` is empty, so every call site below behaves exactly
+  // as it did before this feature existed. See lib/timeline-scale.ts.
+  const toMs = useMemo(() => (year: number) => yearToMs(year, gaps), [gaps]);
+  const toYear = useMemo(() => (ms: number) => msToYear(ms, gaps), [gaps]);
 
   const lanes = useMemo(() => {
     const used = new Set<number>([0, ...events.map((e) => e.lane)]);
@@ -114,8 +137,8 @@ export default function TimelineView({
       id: e.id,
       group: e.lane,
       title: e.title,
-      start_time: sortOrderToMs(e.sortOrder),
-      end_time: sortOrderToMs(e.sortOrder + ITEM_WIDTH_YEARS),
+      start_time: toMs(e.sortOrder),
+      end_time: toMs(e.sortOrder + ITEM_WIDTH_YEARS),
       canResize: false,
       canMove: true,
     })),
@@ -127,13 +150,13 @@ export default function TimelineView({
         id: e.id,
         group: e.lane,
         title: e.title,
-        start_time: sortOrderToMs(e.sortOrder),
-        end_time: sortOrderToMs(e.sortOrder + ITEM_WIDTH_YEARS),
+        start_time: toMs(e.sortOrder),
+        end_time: toMs(e.sortOrder + ITEM_WIDTH_YEARS),
         canResize: false,
         canMove: true,
       })),
     );
-  }, [events]);
+  }, [events, toMs]);
 
   const eventById = useMemo(() => new Map(events.map((e) => [e.id, e])), [events]);
   const childrenByParent = useMemo(() => {
@@ -156,11 +179,11 @@ export default function TimelineView({
     if (focusEra && focusEra.startYear != null) {
       const padding = Math.max(((focusEra.endYear ?? focusEra.startYear) - focusEra.startYear) * 0.25, 10);
       return {
-        start: sortOrderToMs(focusEra.startYear - padding),
-        end: sortOrderToMs((focusEra.endYear ?? focusEra.startYear) + padding),
+        start: toMs(focusEra.startYear - padding),
+        end: toMs((focusEra.endYear ?? focusEra.startYear) + padding),
       };
     }
-    return { start: sortOrderToMs(DEFAULT_START), end: sortOrderToMs(DEFAULT_END) };
+    return { start: toMs(DEFAULT_START), end: toMs(DEFAULT_END) };
   });
   // react-calendar-timeline only reads visibleTimeStart/End props once, at mount — they
   // aren't reactive after that. Programmatic zoom (click-to-zoom, reset view, jump-to-era)
@@ -205,17 +228,48 @@ export default function TimelineView({
     return () => ro.disconnect();
   }, []);
 
+  // Search and filter (W2 polish): search zooms to a matching event, the type filter dims
+  // non-matching items without changing the layout (so lanes/groups never shift under a filter).
+  const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+
+  const searchMatches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return events.filter((e) => e.title.toLowerCase().includes(q)).slice(0, 8);
+  }, [search, events]);
+
+  function zoomToEvent(ev: TimelineEventInput) {
+    const children = childrenByParent.get(ev.id) ?? [];
+    const sortOrders = [ev.sortOrder, ...children.map((c) => c.sortOrder)];
+    const min = Math.min(...sortOrders);
+    const max = Math.max(...sortOrders);
+    const padding = Math.max((max - min) * 0.2, 3);
+    goToRange(toMs(min - padding), toMs(max + ITEM_WIDTH_YEARS + padding));
+  }
+
+  // Mini-map: the full navigable range (padded a little past the earliest/latest event) and a
+  // tick per event, in the same compressed-ms space the main canvas scrolls in.
+  const { totalStart, totalEnd } = useMemo(() => {
+    const years = events.map((e) => e.sortOrder);
+    const minYear = Math.min(DEFAULT_START, ...years) - 10;
+    const maxYear = Math.max(DEFAULT_END, ...years.map((y) => y + ITEM_WIDTH_YEARS)) + 10;
+    return { totalStart: toMs(minYear), totalEnd: toMs(maxYear) };
+  }, [events, toMs]);
+  const tickPositions = useMemo(() => events.map((e) => toMs(e.sortOrder)), [events, toMs]);
+
   function handleItemMove(itemId: string | number, dragTime: number, newGroupOrder: number) {
     const id = String(itemId);
-    const newSortOrder = msToSortOrder(dragTime);
+    const newSortOrder = Math.round(toYear(dragTime));
     const newLane = groups[newGroupOrder]?.id as number | undefined;
     setItems((prev) =>
       prev.map((it) =>
         it.id === id
           ? {
               ...it,
-              start_time: sortOrderToMs(newSortOrder),
-              end_time: sortOrderToMs(newSortOrder + ITEM_WIDTH_YEARS),
+              start_time: toMs(newSortOrder),
+              end_time: toMs(newSortOrder + ITEM_WIDTH_YEARS),
               group: newLane ?? it.group,
             }
           : it,
@@ -243,13 +297,7 @@ export default function TimelineView({
   // Single click zooms to fit the event (and its sub-events, if any); double click opens it.
   function handleItemClick(itemId: string | number) {
     const ev = eventById.get(String(itemId));
-    if (!ev) return;
-    const children = childrenByParent.get(ev.id) ?? [];
-    const sortOrders = [ev.sortOrder, ...children.map((c) => c.sortOrder)];
-    const min = Math.min(...sortOrders);
-    const max = Math.max(...sortOrders);
-    const padding = Math.max((max - min) * 0.2, 3);
-    goToRange(sortOrderToMs(min - padding), sortOrderToMs(max + ITEM_WIDTH_YEARS + padding));
+    if (ev) zoomToEvent(ev);
   }
 
   function handleItemDoubleClick(itemId: string | number) {
@@ -259,20 +307,52 @@ export default function TimelineView({
 
   // Click empty space to add an event at that year and lane.
   function handleCanvasClick(groupId: string | number, time: number) {
-    const year = msToSortOrder(time);
+    const year = Math.round(toYear(time));
     router.push(`/events/new?startYear=${year}&lane=${groupId}`);
   }
 
   return (
     <div className="space-y-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => goToRange(sortOrderToMs(DEFAULT_START), sortOrderToMs(DEFAULT_END))}
-      >
-        <ZoomOut className="size-4" /> Reset view
-      </Button>
+      <div className="flex flex-wrap items-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => goToRange(toMs(DEFAULT_START), toMs(DEFAULT_END))}>
+          <ZoomOut className="size-4" /> Reset view
+        </Button>
+
+        <div className="relative w-56">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+              placeholder="Jump to an event..."
+              className="h-9 pl-7 text-sm"
+            />
+          </div>
+          {searchOpen && searchMatches.length > 0 && (
+            <ul className="absolute z-20 mt-1 w-full rounded-md border bg-popover shadow-md">
+              {searchMatches.map((ev) => (
+                <li key={ev.id}>
+                  <button
+                    type="button"
+                    className="block w-full truncate px-2.5 py-1.5 text-left text-sm hover:bg-accent"
+                    onMouseDown={(e) => { e.preventDefault(); zoomToEvent(ev); setSearch(ev.title); setSearchOpen(false); }}
+                  >
+                    {ev.title}
+                    {ev.yearLabel && <span className="ml-1.5 text-xs text-muted-foreground">{ev.yearLabel}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="w-64">
+          <MultiSelect options={EVENT_TYPE_OPTIONS} selected={typeFilter} onChange={setTypeFilter} placeholder="Filter by event type" />
+        </div>
+      </div>
+
       <div ref={containerRef} className="relative rounded-md border">
         {/* Era bands: positioned behind the timeline's own rows/grid (those sit at z-index 30-88). */}
         <div
@@ -281,8 +361,8 @@ export default function TimelineView({
         >
           {eras.map((era) => {
             if (era.startYear == null) return null;
-            const startMs = sortOrderToMs(era.startYear);
-            const endMs = sortOrderToMs(era.endYear ?? era.startYear + 1);
+            const startMs = toMs(era.startYear);
+            const endMs = toMs(era.endYear ?? era.startYear + 1);
             const { left, width } = bandPercent(startMs, endMs, visibleRange.start, visibleRange.end);
             if (width <= 0) return null;
             return (
@@ -294,6 +374,32 @@ export default function TimelineView({
               >
                 <span className="absolute left-1 top-0.5 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-foreground/70">
                   {era.name}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Gap markers: a thin torn-looking divider over each compressed span, same overlay
+            technique as era bands. Drawn above era bands (z-10) since a gap matters more. */}
+        <div
+          className="pointer-events-none absolute z-10 overflow-hidden"
+          style={{ left: SIDEBAR_WIDTH, top: HEADER_HEIGHT, width: canvasWidthPx, height: groups.length * LINE_HEIGHT }}
+        >
+          {gaps.map((gap, i) => {
+            const startMs = toMs(gap.fromYear);
+            const endMs = toMs(gap.toYear);
+            const { left, width } = bandPercent(startMs, endMs, visibleRange.start, visibleRange.end);
+            if (width <= 0) return null;
+            return (
+              <div
+                key={i}
+                className="absolute top-0 flex h-full items-center justify-center border-x-2 border-dashed border-amber-500/60 bg-amber-500/10"
+                style={{ left: `${left}%`, width: `${width}%` }}
+                title={`${gap.label} (${gap.fromYear}–${gap.toYear})`}
+              >
+                <span className="rotate-90 whitespace-nowrap text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  {gap.label}
                 </span>
               </div>
             );
@@ -323,6 +429,7 @@ export default function TimelineView({
             // value. Importance-driven sizing has to live on an inner div instead, which the
             // library never touches.
             const scale = heightForImportance(ev?.importance ?? null);
+            const dimmed = typeFilter.length > 0 && !(ev?.eventType && typeFilter.includes(ev.eventType));
             const { key, ...itemProps } = getItemProps({
               style: { backgroundColor: "transparent", border: "none" },
             });
@@ -330,7 +437,11 @@ export default function TimelineView({
               <div key={key} {...itemProps}>
                 <div
                   className="rct-item-content flex items-center"
-                  style={{ maxWidth: itemContext.dimensions.width, height: `${scale * 100}%`, margin: "auto 0", backgroundColor: color, borderColor: color, borderRadius: 4, color: "var(--color-primary-foreground)" }}
+                  style={{
+                    maxWidth: itemContext.dimensions.width, height: `${scale * 100}%`, margin: "auto 0",
+                    backgroundColor: color, borderColor: color, borderRadius: 4, color: "var(--color-primary-foreground)",
+                    opacity: dimmed ? 0.25 : 1,
+                  }}
                 >
                   {itemContext.title}
                 </div>
@@ -351,9 +462,24 @@ export default function TimelineView({
         >
           <TimelineHeaders>
             <DateHeader
+              unit="primaryHeader"
+              height={PRIMARY_HEADER_HEIGHT}
+              intervalRenderer={(props) => {
+                if (!props) return null;
+                const { key, ...intervalProps } = props.getIntervalProps();
+                const startYear = Math.round(toYear(props.intervalContext.interval.startTime.valueOf()));
+                const endYear = Math.round(toYear(props.intervalContext.interval.endTime.valueOf()));
+                return (
+                  <div key={key} {...intervalProps} className="rct-dateHeader rct-dateHeader-primary">
+                    {`Year ${startYear}–${endYear}`}
+                  </div>
+                );
+              }}
+            />
+            <DateHeader
               unit="year"
-              height={HEADER_HEIGHT}
-              labelFormat={([start]) => `Year ${msToSortOrder(start.valueOf())}`}
+              height={YEAR_HEADER_HEIGHT}
+              labelFormat={([start]) => `Year ${Math.round(toYear(start.valueOf()))}`}
               intervalRenderer={(props) => {
                 if (!props) return null;
                 const { key, ...intervalProps } = props.getIntervalProps();
@@ -366,6 +492,17 @@ export default function TimelineView({
             />
           </TimelineHeaders>
         </Timeline>
+      </div>
+
+      <div style={{ marginLeft: SIDEBAR_WIDTH }}>
+        <TimelineMinimap
+          totalStart={totalStart}
+          totalEnd={totalEnd}
+          visibleStart={visibleRange.start}
+          visibleEnd={visibleRange.end}
+          tickPositions={tickPositions}
+          onNavigate={goToRange}
+        />
       </div>
     </div>
   );

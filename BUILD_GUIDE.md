@@ -7,13 +7,16 @@ end of every session.
 
 ---
 
-## Current state (as of 2026-11-08)
+## Current state (as of 2026-11-09)
 
 **Phase 3, G1 (the link index) and Phase 4 (the continuity check port) are all closed. Phase 5
-(views) is in progress — see below. Build passes zero errors. See the gaps flagged at the end of
-the Phase 4 section before touching anything AI- or writing-related again.**
+(views) is done per the plan's checklist — eras/lanes/era-bands, the multi-select filter and
+convergence view, node map and relationship view, story board, and the timeline's W2 polish
+(search/filter, time gaps, mini-map, two-tier header) are all built, verified live, and
+committed. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section
+before touching anything AI- or writing-related again.**
 
-### Phase 5: views (in progress)
+### Phase 5: views
 
 Done so far, committed:
 - Schema: `eras` table (code Y, generic world-shaped CRUD — wired into the same `getTable()` maps
@@ -117,8 +120,48 @@ Done so far, committed:
 - Verified live: all 73 real stories rendered in their correct cells (9 floating, the rest spread
   across all seven era rows), no console errors, a card's link resolved to the correct
   `/stories/S16` read-page route.
-- Not yet done: the rest of W2's polish (mini-map, search/filter, time gaps, two-tier header). See
-  `next.md`.
+- W2 polish (search/filter, time gaps, mini-map, two-tier header) — closes out Phase 5's checklist:
+  - **Time gaps**: `lib/timeline-scale.ts` gained `compressYear()`/`expandYear()` (real year <->
+    compressed display year, piecewise-linear over `timelineSettings.gaps`) and `yearToMs()`/
+    `msToYear()` composing those with the existing `sortOrderToMs()`/`msToSortOrder()`. Both are
+    the **identity when `gaps` is empty** — every one of `timeline-view-inner.tsx`'s existing call
+    sites (items, drag, zoom-to-fit, click-to-add, era bands, the DateHeader labels) was switched
+    from the raw `sortOrderToMs`/`msToSortOrder` to gap-aware `toMs`/`toYear` wrappers, so with no
+    gap configured the view behaves byte-identically to before this feature existed — verified by
+    re-running the exact same drag/zoom checks from the eras/lanes chunk. New
+    `components/timeline-gaps-manager.tsx` (same collapsible-panel pattern as `era-manager.tsx`)
+    edits the existing `timelineSettings.gaps` singleton field (schema and
+    `updateTimelineSettingsAction` already existed from the Phase 5 start but had no UI until now).
+    A new gap-band overlay (same absolutely-positioned-overlay technique as era bands) marks each
+    gap's squeezed span with a dashed border and rotated label.
+  - **Two-tier header**: a `unit="primaryHeader"` `DateHeader` (the library's auto-granularity
+    row, which normally labels in real calendar terms) stacked above the existing per-year row,
+    with a custom `intervalRenderer` that converts the row's own interval boundaries through
+    `toYear()` so it always shows "Year N–M" instead of a real calendar date.
+  - **Mini-map**: new `components/timeline-minimap.tsx`, a plain overview strip (not a
+    react-calendar-timeline feature) spanning every event's year range, a density tick per event,
+    the current viewport as a highlighted rectangle, click-anywhere-to-recenter. Operates in the
+    same compressed-ms space the main canvas does, so it never drifts from what's on screen.
+  - **Search/filter**: a search box (`components/timeline-view-inner.tsx`, reusing the existing
+    zoom-to-fit logic factored out as `zoomToEvent()`) with a live dropdown of title matches; an
+    event-type `MultiSelect` that dims (not hides, so lanes/positions never shift) non-matching
+    items via the `itemRenderer`.
+  - Found and fixed a real bug during verification, not a test artifact: the first drag attempt
+    (a `left_click_drag` at the item's reported center) registered as neither a click nor a drag —
+    the DB showed no change at all. Re-measured the item's actual `getBoundingClientRect()`
+    immediately before retrying (rather than reusing a stale position from an earlier query) and
+    the drag then worked correctly and committed. Root cause was stale coordinates in the test,
+    not application code — recorded here because it's a trap worth remembering for any future
+    live-browser drag test on this view: always re-read the element's rect right before dragging it.
+  - Verified live: two-tier header renders correctly with `gaps=[]` (identity case holds, no
+    console errors); search-to-zoom centers the correct event (typed "Ritual", clicked the match,
+    confirmed the header range shifted to center on year 7); event-type filter dims all items when
+    none match and un-dims on clear; drag-to-reposition still correctly persists (`E1`'s
+    `startYear` 7 → 10 → reverted to 7 afterward via a one-off script, same cleanup pattern as
+    prior sessions); added a real gap (years 40→100, shown as 5) via the new UI and confirmed the
+    header ticks compressed exactly as designed (`40, 52, 64, 76, 88, 100` — 60 real years over 5
+    compressed ticks, 12 years each) with the "60 YEARS SKIPPED" marker in the right place, then
+    removed it and confirmed `timeline_settings.gaps` is back to `[]`.
 
 ### Phase 4: the continuity check port
 
