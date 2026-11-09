@@ -105,8 +105,20 @@ Done so far, committed:
   the embedded relationship view on `/events/E94` showed the same 2-node/1-edge graph; on
   `/characters/C1` (SERO) it rendered 18 nodes / 17 edges, center fixed at (0,0), event nodes
   correctly grouped in a single column. No test-data mutations were made (read-only verification).
-- Not yet done: story board, and the rest of W2's polish (mini-map, search/filter, time gaps,
-  two-tier header). See `next.md`.
+- Story board (`/story-board`): stories grouped by their existing free-text `era` field (the seven
+  story-catalog eras — `era_one`..`era_seven`, unrelated to the new Y-coded `eras` timeline
+  collection; this field already existed on `stories`, nothing new needed in the schema) and
+  `stage`, floating stories (`floating = true`) pulled into their own lane above the grid, per
+  `stories.era`/`stage`/`floating`. New `lib/stories.ts` (`STORY_ERAS`, `STORY_STAGES` + label
+  maps) — pulled out of `app/(app)/stories/page.tsx`, which had its own local copies of both maps,
+  so the story board can't drift from the stories list's labels. Read-only grid (no drag-and-drop —
+  not in the plan for this view; `dnd-kit` is reserved for Phase 7 compilation reordering per the
+  stack table); editing stage/era still happens on the story's own read page.
+- Verified live: all 73 real stories rendered in their correct cells (9 floating, the rest spread
+  across all seven era rows), no console errors, a card's link resolved to the correct
+  `/stories/S16` read-page route.
+- Not yet done: the rest of W2's polish (mini-map, search/filter, time gaps, two-tier header). See
+  `next.md`.
 
 ### Phase 4: the continuity check port
 

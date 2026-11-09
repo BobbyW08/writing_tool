@@ -28,6 +28,7 @@ const WORLD_NAV = [
 const STORY_NAV = [
   { href: "/events", label: "Events" },
   { href: "/stories", label: "Stories" },
+  { href: "/story-board", label: "Story board" },
   { href: "/timeline", label: "Timeline" },
   { href: "/node-map", label: "Node map" },
 ];

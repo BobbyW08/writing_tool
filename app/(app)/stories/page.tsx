@@ -1,23 +1,6 @@
 import Link from "next/link";
 import { getStoriesList, isUnk } from "@/lib/world/queries";
-
-const ERA_LABELS: Record<string, string> = {
-  era_one: "Era One",
-  era_two: "Era Two",
-  era_three: "Era Three",
-  era_four: "Era Four",
-  era_five: "Era Five",
-  era_six: "Era Six",
-  era_seven: "Era Seven",
-};
-
-const STAGE_LABELS: Record<string, string> = {
-  idea: "Idea",
-  outlined: "Outlined",
-  drafting: "Drafting",
-  written: "Written",
-  shelved: "Shelved",
-};
+import { STORY_ERA_LABELS, STORY_STAGE_LABELS } from "@/lib/stories";
 
 export default async function StoriesPage() {
   const { docs } = await getStoriesList();
@@ -51,10 +34,10 @@ export default async function StoriesPage() {
                 UNK
               </span>
             )}
-            {s.era && <span className="shrink-0 text-xs text-muted-foreground">{ERA_LABELS[s.era] ?? s.era}</span>}
+            {s.era && <span className="shrink-0 text-xs text-muted-foreground">{STORY_ERA_LABELS[s.era] ?? s.era}</span>}
             {s.stage && (
               <span className="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground">
-                {STAGE_LABELS[s.stage] ?? s.stage}
+                {STORY_STAGE_LABELS[s.stage] ?? s.stage}
               </span>
             )}
           </Link>
