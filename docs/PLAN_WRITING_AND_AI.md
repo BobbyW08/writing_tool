@@ -137,8 +137,9 @@ file owns, with where each sits in that list.
 - [ ] **S2. Front end shell and rewire** (item 3). Icon rail, side panel, canvas layout, dashboard.
       Delivered with Phase 3 of the build plan (read pages on the data layer, retire the old data
       layer) and step W1 (world tree, infobox, home hub).
-- [ ] **S3. Timeline and node map** (item 6). Phase 5 of the build plan (timeline, convergence, node
+- [x] **S3. Timeline and node map** (item 6). Phase 5 of the build plan (timeline, convergence, node
       map, relationship view), delivered with step W2 (eras, lanes). The node map reads the link index (step G1).
+      Done 2026-11-09.
 - [ ] **S4. AI foundation** (item 7). Spike, `lib/ai/`, context builder on the link index,
       `ai_proposals`, `ai_settings`, the Accept and Reject inbox, the `AI suggested` tag.
 - [ ] **S5. Story Builder** (item 8). `beats` table, lane view, suggestion tray, promote to event.

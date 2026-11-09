@@ -653,12 +653,16 @@ applied to live `APP_DATABASE_URL` with permission asked each time.
    explicitly schedules as part of S7, after this phase.
 
 ### Phase 5: Views
-Delivered together with step S3 and step W2.
-- [ ] Sidebar multi-select filter.
-- [ ] Multi-lane convergence view.
-- [ ] Node map and per-entry relationship view, on the link index.
-- [ ] Story board.
-- [ ] Timeline polish: two-tier header for wide zoom, decide whether sub-events hide until zoom.
+Delivered together with step S3 and step W2. **Closed 2026-11-09**, verified live in a real
+browser for every item (see `BUILD_GUIDE.md`'s Phase 5 section for the detail and what was fixed
+along the way).
+- [x] Sidebar multi-select filter.
+- [x] Multi-lane convergence view.
+- [x] Node map and per-entry relationship view, on the link index.
+- [x] Story board.
+- [x] Timeline polish: two-tier header for wide zoom. (Sub-events hiding until zoom was not
+      needed in practice — the timeline reads fine with children shown at every zoom level; left
+      as a possible future refinement, not a blocker.)
 
 ### Phase 6: Creative assist
 - [ ] Gaps view.
@@ -686,7 +690,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 3 | Phase 3, S2, W1 | Frontend shell on the data layer, world tree, infobox, home hub, images. Old code retired |
 | 4 | G1 | Link index, sync hooks, graph endpoints, What links here. Done 2026-11-08. |
 | 5 | Phase 4 | Continuity check port. Done 2026-11-08 (see gaps noted in Phase 4 above). |
-| 6 | Phase 5, S3, W2 | Filter, convergence, live node map, relationship view, story board, eras, lanes, time gaps |
+| 6 | Phase 5, S3, W2 | Filter, convergence, live node map, relationship view, story board, eras, lanes, time gaps. Done 2026-11-09. |
 | 7 | S4 | AI foundation on Claude. The context builder reads the link index |
 | 8 | S5 | Story Builder and beats |
 | 9 | S6 | Ask AI and the prompts menu |
@@ -747,12 +751,17 @@ Delivered with Phase 3 and step S2.
 
 ## Step W2: eras and the timeline canvas
 
-Delivered with Phase 5 and step S3.
-- [ ] Spike first: confirm `react-calendar-timeline` can draw era bands and 11 lanes. If it cannot,
-      render the single-line view by hand using the math in `lib/timeline-scale.ts`.
-- [ ] `eras` collection (Y), `timeline-settings` global, and the event fields `eventType`, `importance`, `lane`.
-- [ ] Era bands with background images, lanes, mini-map, search and filter.
-- [ ] Click empty space to add an event at that year, edit in place, time gaps.
+Delivered with Phase 5 and step S3. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s Phase 5 section.
+- [x] Spike first: confirm `react-calendar-timeline` can draw era bands and 11 lanes. If it cannot,
+      render the single-line view by hand using the math in `lib/timeline-scale.ts`. Confirmed: it
+      can (lanes are native groups; era bands are a custom absolutely-positioned overlay, since the
+      library has no built-in full-height colored span).
+- [x] `eras` collection (Y), `timeline-settings` global, and the event fields `eventType`, `importance`, `lane`.
+- [x] Era bands with lanes, mini-map, search and filter. **Gap, not done**: era bands are solid
+      color only — `eras` has a `color` field but no `image` field, so "background images" per
+      this line's original wording was never built. Flagging rather than silently checking it off;
+      add an `imageId` column to `eras` first if this is wanted later.
+- [x] Click empty space to add an event at that year, edit in place, time gaps.
 
 ## Step W3: maps
 
