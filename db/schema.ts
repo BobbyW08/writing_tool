@@ -142,10 +142,29 @@ export const events = pgTable('events', {
   whyItHappened: text('why_it_happened'),
   whatItCaused: text('what_it_caused'),
   whatWasLearned: text('what_was_learned'),
+  // New, step W2: timeline rendering.
+  eventType: text('event_type'), // celestial | political | battle | discovery | death | birth | journey | other
+  importance: text('importance').notNull().default('normal'), // minor | normal | important
+  lane: integer('lane').notNull().default(0), // 0-10, parallel timeline lanes
 }, (t) => [
   index('events_code_idx').on(t.code),
   index('events_start_year_idx').on(t.startYear),
   index('events_legacy_idx').on(t.legacyId),
+])
+
+// ─── Eras (new, step W2, code Y) ──────────────────────────────────────────────
+// A span of years on the timeline. parentId lets an age sit inside an era.
+
+export const eras = pgTable('eras', {
+  ...worldSharedCols(),
+  startYear: integer('start_year'),
+  endYear: integer('end_year'),
+  yearLabel: text('year_label'),
+  color: text('color'),
+  kind: text('kind').notNull().default('era'), // era | age | period
+}, (t) => [
+  index('eras_code_idx').on(t.code),
+  index('eras_parent_idx').on(t.parentId),
 ])
 
 // Many-to-many: events involve world entries (characters/locations/items/etc.)
@@ -318,6 +337,20 @@ export const media = pgTable('media', {
   sizes: jsonb('sizes').$type<Record<string, { url: string; width: number; height: number }>>()
     .default(sql`'{}'::jsonb`),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// ─── Timeline settings (new, global, step W2) ────────────────────────────────
+// One row, id fixed at 1. Read/created with an upsert, same pattern as counters.
+
+export const timelineSettings = pgTable('timeline_settings', {
+  id: integer('id').primaryKey(),
+  scaleMode: text('scale_mode').notNull().default('to_scale'), // to_scale | in_sequence
+  gaps: jsonb('gaps')
+    .$type<{ fromYear: number; toYear: number; collapsedTo: number; label: string }[]>()
+    .default(sql`'[]'::jsonb`),
+  defaultZoomStart: integer('default_zoom_start'),
+  defaultZoomEnd: integer('default_zoom_end'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 // ─── Counters ─────────────────────────────────────────────────────────────────

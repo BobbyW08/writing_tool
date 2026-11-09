@@ -9,9 +9,11 @@ interface DeleteRecordButtonProps {
   id: number
   code: string
   name: string
+  /** Where to go after a successful delete. Defaults to the collection's list page. */
+  onDeleted?: () => void
 }
 
-export function DeleteRecordButton({ collection, id, code, name }: DeleteRecordButtonProps) {
+export function DeleteRecordButton({ collection, id, code, name, onDeleted }: DeleteRecordButtonProps) {
   const [phase, setPhase] = useState<'idle' | 'checking' | 'confirm' | 'conflicts' | 'deleting'>('idle')
   const [conflicts, setConflicts] = useState<{ collection: string; code: string; name: string }[]>([])
   const [error, setError] = useState('')
@@ -32,7 +34,8 @@ export function DeleteRecordButton({ collection, id, code, name }: DeleteRecordB
     setPhase('deleting')
     const result = await deleteEntityAction(collection, id)
     if (result.ok) {
-      router.push(`/${collection}`)
+      if (onDeleted) onDeleted()
+      else router.push(`/${collection}`)
     } else {
       setError(result.error ?? 'Delete failed')
       setPhase('idle')

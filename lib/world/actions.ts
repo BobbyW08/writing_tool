@@ -20,6 +20,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   races: schema.races as unknown as AnyTable,
   languages: schema.languages as unknown as AnyTable,
   lore: schema.lore as unknown as AnyTable,
+  eras: schema.eras as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -35,6 +36,75 @@ export async function updateEventYearAction(id: string, year: number) {
     .set({ startYear: Math.round(year), updatedAt: new Date() })
     .where(eq(schema.events.id, Number(id)))
   revalidatePath('/timeline')
+}
+
+// ─── updateEventLaneAction ────────────────────────────────────────────────────
+export async function updateEventLaneAction(id: string, lane: number) {
+  await appDb.update(schema.events)
+    .set({ lane: Math.max(0, Math.min(10, Math.round(lane))), updatedAt: new Date() })
+    .where(eq(schema.events.id, Number(id)))
+  revalidatePath('/timeline')
+}
+
+// ─── updateTimelineSettingsAction ─────────────────────────────────────────────
+// timeline_settings is a singleton global (id fixed at 1), not a coded collection, so it gets
+// its own small upsert rather than going through getTable()/createEntityAction.
+export async function updateTimelineSettingsAction(
+  data: Partial<{
+    scaleMode: 'to_scale' | 'in_sequence'
+    gaps: { fromYear: number; toYear: number; collapsedTo: number; label: string }[]
+    defaultZoomStart: number | null
+    defaultZoomEnd: number | null
+  }>
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.insert(schema.timelineSettings)
+      .values({ id: 1, ...data, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: schema.timelineSettings.id, set: { ...data, updatedAt: new Date() } })
+    revalidatePath('/timeline')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// ─── Era actions ──────────────────────────────────────────────────────────────
+// Thin wrappers so the Timeline page's era panel doesn't need to know createEntityAction's
+// generic collection-string signature. Eras use the same generic CRUD as the world collections
+// (getTable('eras') is wired above) — no bespoke table logic needed.
+export async function createEraAction(data: {
+  name: string
+  startYear: number | null
+  endYear: number | null
+  yearLabel: string | null
+  color: string | null
+  kind: string
+  parentId: number | null
+}): Promise<{ id: number; code?: string; error?: string }> {
+  return createEntityAction('eras', data)
+}
+
+export async function updateEraAction(
+  id: number,
+  data: Partial<{
+    name: string
+    startYear: number | null
+    endYear: number | null
+    yearLabel: string | null
+    color: string | null
+    kind: string
+    parentId: number | null
+  }>
+): Promise<{ ok: boolean; error?: string }> {
+  for (const [field, value] of Object.entries(data)) {
+    const res = await updateFieldAction('eras', id, field, value)
+    if (!res.ok) return res
+  }
+  return { ok: true }
+}
+
+export async function deleteEraAction(id: number): Promise<{ ok: boolean; error?: string }> {
+  return deleteEntityAction('eras', id)
 }
 
 // ─── searchForEntry ───────────────────────────────────────────────────────────

@@ -40,6 +40,7 @@ const WORLD_TABLE_MAP: Record<string, AnyWorldTable> = {
   races: schema.races as unknown as AnyWorldTable,
   languages: schema.languages as unknown as AnyWorldTable,
   lore: schema.lore as unknown as AnyWorldTable,
+  eras: schema.eras as unknown as AnyWorldTable,
 }
 
 function getWorldTable(collection: string) {
@@ -257,6 +258,22 @@ export async function getEventBySlug(slug: string) {
   const rows = await appDb.select().from(schema.events).where(eq(schema.events.slug, slug)).limit(1)
   if (!rows[0]) return null
   return enrichWorldRow(rows[0] as unknown as Record<string, unknown>, 'events')
+}
+
+// ─── getErasList ──────────────────────────────────────────────────────────────
+export async function getErasList() {
+  const docs = await appDb.select().from(schema.eras).orderBy(schema.eras.startYear)
+  return { docs, totalDocs: docs.length }
+}
+
+// ─── getTimelineSettings ──────────────────────────────────────────────────────
+export async function getTimelineSettings() {
+  const rows = await appDb.select().from(schema.timelineSettings).where(eq(schema.timelineSettings.id, 1)).limit(1)
+  if (rows[0]) return rows[0]
+  return {
+    id: 1, scaleMode: 'to_scale' as const, gaps: [] as { fromYear: number; toYear: number; collapsedTo: number; label: string }[],
+    defaultZoomStart: null, defaultZoomEnd: null, updatedAt: new Date(),
+  }
 }
 
 // ─── getLocationRef ───────────────────────────────────────────────────────────

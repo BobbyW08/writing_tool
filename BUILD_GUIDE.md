@@ -9,9 +9,49 @@ end of every session.
 
 ## Current state (as of 2026-11-08)
 
-**Phase 3, G1 (the link index) and Phase 4 (the continuity check port) are all closed. Build passes
-zero errors. Phase 5 (views) is next — see the gaps flagged at the end of the Phase 4 section below
-before touching anything AI- or writing-related again.**
+**Phase 3, G1 (the link index) and Phase 4 (the continuity check port) are all closed. Phase 5
+(views) is in progress — see below. Build passes zero errors. See the gaps flagged at the end of
+the Phase 4 section before touching anything AI- or writing-related again.**
+
+### Phase 5: views (in progress)
+
+Done so far, committed:
+- Schema: `eras` table (code Y, generic world-shaped CRUD — wired into the same `getTable()` maps
+  as the 8 world collections in `lib/world/actions.ts`, `lib/world/queries.ts`, `lib/graph/sync.ts`,
+  so it gets code assignment, parent-link sync, text-mention resolution, and delete-conflict checks
+  for free). `timeline_settings` global (singleton row, id fixed at 1, upserted). `events` gained
+  `eventType`, `importance`, `lane`. Migration `0004_perpetual_ricochet.sql`, applied to
+  `APP_DATABASE_URL`.
+- Fixed a real pre-existing bug while wiring eras in: `components/code-text.tsx` had its own
+  hardcoded, stale prefix regex (`[CLEIFRGKSWXQTU]`) instead of importing `CODE_PREFIX_CHARS` from
+  `lib/codes.ts` — any newer prefix (Y, B, A, M, P, H, D, N) silently failed to even match as a
+  code in free text, let alone link. Now builds the regex from the single source of truth.
+- Eras have no dedicated read page (not in the plan's Frontend views list — they're managed inline
+  from the Timeline page's "Eras" panel, `components/era-manager.tsx`, using the same
+  `EditableField`/`DeleteRecordButton` components every other collection's read page uses). A
+  Y-code rendered in text or "What links here" links to `/timeline?era=<code>` instead of a
+  `/eras/<code>` page, which doesn't exist.
+- Timeline canvas (step W2's spike item, now confirmed): `components/timeline-view-inner.tsx`
+  rewritten. Lanes are real `react-calendar-timeline` groups, computed dynamically from the
+  distinct `lane` values in use (always includes lane 0). Era bands are a custom absolutely-
+  positioned overlay (the library has no native concept of a full-height colored time-span) —
+  positioned as a percentage of the currently-visible time range, recomputed on every
+  `onTimeChange`, so it tracks pan/zoom exactly. `eventType` sets marker color (fixed 8-color map);
+  `importance` sets marker height — found during verification that `getItemProps()` silently
+  reclaims any `top`/`height` passed to it (it owns row-stacking math), so importance-driven sizing
+  had to move to an *inner* content div the library never touches, not the outer item wrapper.
+  Click empty canvas space to add an event, now routes to `/events/new?startYear=<y>&lane=<n>` with
+  `NewEntityForm` prefilling from those params.
+- Verified live in a real browser (not just `npm run build`): created a real era via the UI, got
+  code Y1, confirmed its band's `left`/`width` % matched the expected math exactly
+  (`(0-(-5))/70 = 7.14%`, `55/70 = 71.43%` against the default `-5..65` view); set a real event's
+  lane and eventType via its read page, confirmed a second lane row appeared and the marker colored
+  and sized correctly; confirmed click-to-add's query-param prefill. All test mutations reverted
+  afterward (test era deleted, E1's lane/eventType/importance reset to their original values via a
+  one-off script, same pattern as prior sessions' live-data checks).
+- Not yet done: sidebar multi-select filter, multi-lane convergence view (`i-storyline-js`), node
+  map + per-entry relationship view (React Flow — not yet installed), story board, and the rest of
+  W2's polish (mini-map, search/filter, time gaps, two-tier header). See `next.md`.
 
 ### Phase 4: the continuity check port
 

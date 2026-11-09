@@ -29,6 +29,13 @@
       "when": 1794191410924,
       "tag": "0003_abandoned_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794193179047,
+      "tag": "0004_perpetual_ricochet",
+      "breakpoints": true
     }
   ]
 }

@@ -29,6 +29,9 @@ type EventDoc = {
   whatWasLearned?: string | null;
   body?: string | null;
   status?: string | null;
+  eventType?: string | null;
+  importance?: string | null;
+  lane?: number | null;
   updatedAt: Date | string;
 };
 
@@ -47,6 +50,23 @@ const STATUS_OPTIONS = [
   { label: "In development", value: "in_development" },
   { label: "Needs a name", value: "needs_name" },
   { label: "Placeholder (still to decide)", value: "placeholder" },
+];
+
+const EVENT_TYPE_OPTIONS = [
+  { label: "Celestial", value: "celestial" },
+  { label: "Political", value: "political" },
+  { label: "Battle", value: "battle" },
+  { label: "Discovery", value: "discovery" },
+  { label: "Death", value: "death" },
+  { label: "Birth", value: "birth" },
+  { label: "Journey", value: "journey" },
+  { label: "Other", value: "other" },
+];
+
+const IMPORTANCE_OPTIONS = [
+  { label: "Minor", value: "minor" },
+  { label: "Normal", value: "normal" },
+  { label: "Important", value: "important" },
 ];
 
 export default async function EventReadPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -144,6 +164,18 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
           ) : (
             <span className="text-muted-foreground italic">None</span>
           )}
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground">Event type</p>
+          <EditableField collection="events" docId={doc.id} fieldName="eventType" value={doc.eventType} kind="select" options={EVENT_TYPE_OPTIONS} placeholder="Click to set" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground">Importance</p>
+          <EditableField collection="events" docId={doc.id} fieldName="importance" value={doc.importance} kind="select" options={IMPORTANCE_OPTIONS} />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground">Timeline lane</p>
+          <EditableField collection="events" docId={doc.id} fieldName="lane" value={doc.lane} kind="number" placeholder="0" />
         </div>
       </div>
 

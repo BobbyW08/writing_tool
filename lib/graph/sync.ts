@@ -21,6 +21,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   races: schema.races as unknown as AnyTable,
   languages: schema.languages as unknown as AnyTable,
   lore: schema.lore as unknown as AnyTable,
+  eras: schema.eras as unknown as AnyTable,
 }
 
 function getTable(collection: string) {

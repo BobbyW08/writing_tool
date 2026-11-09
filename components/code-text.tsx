@@ -1,8 +1,16 @@
 import Link from 'next/link'
+import { CODE_PREFIX_CHARS } from '@/lib/codes'
 
-const CODE_RE = /(?<![A-Za-z0-9])([CLEIFRGKSWXQTU])(\d{1,6})(?![A-Za-z0-9])/g
+const CODE_RE = new RegExp(`(?<![A-Za-z0-9])([${CODE_PREFIX_CHARS}])(\\d{1,6})(?![A-Za-z0-9])`, 'g')
 
 type CodeMap = Record<string, { name: string; collection: string } | null>
+
+const COLLECTION_HREF: Record<string, (code: string) => string> = {
+  eras: (code) => `/timeline?era=${code}`, // eras have no read page; they live on the timeline
+}
+function hrefFor(collection: string, code: string): string {
+  return COLLECTION_HREF[collection]?.(code) ?? `/${collection}/${code}`
+}
 
 // Renders plain text with ID codes (C4, L1, E27) replaced by named links.
 // Pass a pre-resolved codeMap from buildCodeMap() in the parent server component.
@@ -21,7 +29,7 @@ export function CodeText({ text, codeMap, className }: { text: string; codeMap: 
       segments.push(
         <Link
           key={key++}
-          href={`/${resolved.collection}/${code}`}
+          href={hrefFor(resolved.collection, code)}
           className="font-medium underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground"
         >
           {resolved.name}

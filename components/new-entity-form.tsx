@@ -9,10 +9,11 @@ interface NewEntityFormProps {
   collection: string
   fields: FieldDef[]
   redirectBase: string
+  initialValues?: Record<string, unknown>
 }
 
-export function NewEntityForm({ collection, fields, redirectBase }: NewEntityFormProps) {
-  const [values, setValues] = useState<Record<string, unknown>>({})
+export function NewEntityForm({ collection, fields, redirectBase, initialValues }: NewEntityFormProps) {
+  const [values, setValues] = useState<Record<string, unknown>>(() => initialValues ?? {})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()

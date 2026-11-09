@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-export type { TimelineEventInput } from "@/components/timeline-view-inner";
+export type { TimelineEventInput, TimelineEraInput } from "@/components/timeline-view-inner";
 
 // react-calendar-timeline measures its container and uses legacy context APIs that
 // break during Next.js server-side prerendering — it must only ever render client-side.

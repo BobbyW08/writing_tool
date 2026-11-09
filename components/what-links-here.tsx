@@ -5,6 +5,7 @@ const COLLECTION_HREF: Record<string, (code: string) => string> = {
   events: (code) => `/events/${code}`,
   stories: (code) => `/stories/${code}`,
   writing: (code) => `/write/${code}`,
+  eras: (code) => `/timeline?era=${code}`, // eras have no read page; they live on the timeline
 };
 
 function hrefFor(collection: string, code: string): string {

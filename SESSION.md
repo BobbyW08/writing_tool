@@ -31,7 +31,7 @@ spreads" decision (written the same day) isn't implemented yet — today Draft a
 auto-apply identically, matching the mechanism as ported. That doc itself schedules the fix
 (the claims ledger) for S7, after Phase 4, so this is tracked, not missed.
 
-Committed: not yet — pending user review of this session's changes.
+Committed: yes (`4635001`, includes G1's prior commit `b92b929` on top of it in history).
 
 ## Previous session (2026-11-08c): G1, the link index
 
