@@ -24,6 +24,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   eras: schema.eras as unknown as AnyTable,
   maps: schema.maps as unknown as AnyTable,
   'map-pins': schema.mapPins as unknown as AnyTable,
+  chronicles: schema.chronicles as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -104,6 +105,7 @@ const ARRAY_FIELD_LINKS: Record<string, { idsField: string; toCollection: string
     { idsField: 'homelandIds', toCollection: 'locations', type: 'homeland' },
     { idsField: 'cultureLanguageIds', toCollection: 'languages', type: 'language' },
   ],
+  chronicles: [{ idsField: 'eraIds', toCollection: 'eras', type: 'includesEra' }],
 }
 
 async function extractSimpleFieldLinks(
@@ -198,6 +200,29 @@ async function extractMapPinLinksLinks(ownerCode: string, mapPinId: number): Pro
     entryCollection: schema.mapPinLinks.entryCollection, entryId: schema.mapPinLinks.entryId,
   }).from(schema.mapPinLinks).where(eq(schema.mapPinLinks.mapPinId, mapPinId))
   return extractJoinTableLinks(ownerCode, 'map-pins', 'links', rows)
+}
+
+// Step W4: an event's `pins` field — always map-pins, so a plain id join rather than the generic
+// entryCollection/entryId shape.
+async function extractEventPinsLinks(ownerCode: string, eventId: number): Promise<PendingLink[]> {
+  const rows = await appDb.select({ mapPinId: schema.eventPins.mapPinId })
+    .from(schema.eventPins).where(eq(schema.eventPins.eventId, eventId))
+  return extractJoinTableLinks(
+    ownerCode, 'events', 'pins',
+    rows.map(r => ({ entryCollection: 'map-pins', entryId: r.mapPinId }))
+  )
+}
+
+// Step W4: a chronicle's mapPeriods — a jsonb array of {mapId, ...}, not a separate table, so this
+// reads the record's own column rather than a join table like the extractors above.
+async function extractChronicleMapPeriodsLinks(
+  ownerCode: string, mapPeriods: { mapId: number }[]
+): Promise<PendingLink[]> {
+  const ids = [...new Set(mapPeriods.map(p => p.mapId))]
+  return extractJoinTableLinks(
+    ownerCode, 'chronicles', 'showsMap',
+    ids.map(id => ({ entryCollection: 'maps', entryId: id }))
+  )
 }
 
 // ─── parent: the `parentId` ("Part of") field ────────────────────────────────
@@ -304,6 +329,7 @@ async function writeOwnedLinks(ownerCode: string, pending: PendingLink[]): Promi
 // the field maps it mirrors, so the two can never drift apart.
 export function isLinkRelevantField(collection: string, field: string): boolean {
   if (field === 'parentId' || field === 'details') return true
+  if (collection === 'chronicles' && field === 'mapPeriods') return true
   if (SIMPLE_FIELD_LINKS[collection]?.some(s => s.idField === field)) return true
   if (ARRAY_FIELD_LINKS[collection]?.some(s => s.idsField === field)) return true
   if (TEXT_FIELDS[collection]?.some(s => s.kind === 'plain' && s.field === field)) return true
@@ -334,12 +360,20 @@ export async function computeOwnedLinks(collection: string, id: number): Promise
     ...await extractArrayFieldLinks(collection, ownerCode, record),
     ...await extractTextLinks(collection, ownerCode, record),
   ]
-  if (collection === 'events') pending.push(...await extractEventInvolvesLinks(ownerCode, record.id as number))
+  if (collection === 'events') {
+    pending.push(...await extractEventInvolvesLinks(ownerCode, record.id as number))
+    pending.push(...await extractEventPinsLinks(ownerCode, record.id as number))
+  }
   if (collection === 'stories') {
     pending.push(...await extractStoryInvolvesLinks(ownerCode, record.id as number))
     pending.push(...await extractStoryDramatizesLinks(ownerCode, record.id as number))
   }
   if (collection === 'map-pins') pending.push(...await extractMapPinLinksLinks(ownerCode, record.id as number))
+  if (collection === 'chronicles') {
+    pending.push(...await extractChronicleMapPeriodsLinks(
+      ownerCode, (record.mapPeriods ?? []) as { mapId: number }[]
+    ))
+  }
   return pending
 }
 

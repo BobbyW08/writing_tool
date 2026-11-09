@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq, and, desc, inArray, like, or, isNotNull } from 'drizzle-orm'
+import { eq, and, desc, inArray, like, or, isNotNull, gte, lte } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { CODE_REGEX, CODE_PREFIX_CHARS, ENTITY_SLUGS, PREFIX_TO_SLUG } from '@/lib/codes'
@@ -43,6 +43,7 @@ const WORLD_TABLE_MAP: Record<string, AnyWorldTable> = {
   eras: schema.eras as unknown as AnyWorldTable,
   maps: schema.maps as unknown as AnyWorldTable,
   'map-pins': schema.mapPins as unknown as AnyWorldTable,
+  chronicles: schema.chronicles as unknown as AnyWorldTable,
 }
 
 function getWorldTable(collection: string) {
@@ -216,23 +217,9 @@ export async function getRelationshipsByCode(code: string) {
 
 // ─── getEventsInvolving ───────────────────────────────────────────────────────
 export async function getEventsInvolving(entryCollection: string, entryId: number) {
-  const involveRows = await appDb.select({ eventId: schema.eventInvolves.eventId })
-    .from(schema.eventInvolves)
-    .where(
-      eq(schema.eventInvolves.entryCollection, entryCollection)
-    )
-  const filtered = involveRows.filter(r => {
-    const rows2 = appDb.select({ entryId: schema.eventInvolves.entryId })
-      .from(schema.eventInvolves)
-      .where(eq(schema.eventInvolves.eventId, r.eventId))
-    return true
-  })
-  // Re-query directly
   const involves = await appDb.select({ eventId: schema.eventInvolves.eventId })
     .from(schema.eventInvolves)
-    .where(
-      eq(schema.eventInvolves.entryId, entryId)
-    )
+    .where(and(eq(schema.eventInvolves.entryCollection, entryCollection), eq(schema.eventInvolves.entryId, entryId)))
   if (!involves.length) return []
   const eventIds = involves.map(r => r.eventId)
   const evts = await appDb.select().from(schema.events).where(inArray(schema.events.id, eventIds))
@@ -384,12 +371,7 @@ async function resolveLinkEntries(
   return out
 }
 
-export async function getMapByCode(code: string) {
-  await getAllTags()
-  const rows = await appDb.select().from(schema.maps).where(eq(schema.maps.code, code.toUpperCase())).limit(1)
-  const map = rows[0]
-  if (!map) return null
-
+async function buildMapData(map: typeof schema.maps.$inferSelect) {
   const [baseImage, location, allPinRows] = await Promise.all([
     resolveMedia(map.baseImageId),
     getLocationRef(map.locationId),
@@ -428,6 +410,23 @@ export async function getMapByCode(code: string) {
   }
 }
 
+export async function getMapByCode(code: string) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.maps).where(eq(schema.maps.code, code.toUpperCase())).limit(1)
+  const map = rows[0]
+  if (!map) return null
+  return buildMapData(map)
+}
+
+// Step W4: a chronicle shows several maps (one per mapPeriod, switched by which one an event's
+// pin sits on) and needs them all loaded up front so selecting an event never round-trips.
+export async function getMapsDataByIds(ids: number[]) {
+  if (ids.length === 0) return []
+  await getAllTags()
+  const rows = await appDb.select().from(schema.maps).where(inArray(schema.maps.id, ids))
+  return Promise.all(rows.map(buildMapData))
+}
+
 export async function getMapsForLocation(locationId: number) {
   const docs = await appDb.select({ id: schema.maps.id, code: schema.maps.code, name: schema.maps.name })
     .from(schema.maps).where(eq(schema.maps.locationId, locationId))
@@ -456,6 +455,148 @@ export async function getPinsForEntry(entryCollection: string, entryId: number) 
     : []
   const mapById = new Map(maps.map(m => [m.id, m]))
   return pins.map(p => ({ ...p, map: mapById.get(p.mapId) ?? null }))
+}
+
+export async function getEventPins(eventId: number) {
+  const rows = await appDb.select({ mapPinId: schema.eventPins.mapPinId })
+    .from(schema.eventPins).where(eq(schema.eventPins.eventId, eventId))
+  if (rows.length === 0) return []
+  const pinIds = rows.map(r => r.mapPinId)
+  const pins = await appDb.select({
+    id: schema.mapPins.id, code: schema.mapPins.code, name: schema.mapPins.name, mapId: schema.mapPins.mapId,
+  }).from(schema.mapPins).where(inArray(schema.mapPins.id, pinIds))
+  const mapIds = [...new Set(pins.map(p => p.mapId))]
+  const maps = mapIds.length > 0
+    ? await appDb.select({ id: schema.maps.id, code: schema.maps.code, name: schema.maps.name })
+        .from(schema.maps).where(inArray(schema.maps.id, mapIds))
+    : []
+  const mapById = new Map(maps.map(m => [m.id, m]))
+  return pins.map(p => ({ ...p, map: mapById.get(p.mapId) ?? null }))
+}
+
+// ─── Chronicles (step W4) ───────────────────────────────────────────────────────
+export async function getChroniclesList() {
+  await getAllTags()
+  const docs = await appDb.select().from(schema.chronicles).orderBy(schema.chronicles.name)
+  return {
+    docs: docs.map(d => ({ ...d, tags: resolveTagIds((d.tagIds ?? []) as number[]) })),
+    totalDocs: docs.length,
+  }
+}
+
+export type ChronicleMapPeriod = { mapId: number; fromYear: number | null; toYear: number | null; isDefault: boolean }
+export type ChronicleFilter = { collections: string[]; tagIds: number[]; involvesCodes: string[] }
+
+export async function getChronicleByCode(code: string) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.chronicles).where(eq(schema.chronicles.code, code.toUpperCase())).limit(1)
+  const chronicle = rows[0]
+  if (!chronicle) return null
+
+  const mapPeriods = (chronicle.mapPeriods ?? []) as ChronicleMapPeriod[]
+  const eraIds = (chronicle.eraIds ?? []) as number[]
+  const filter = (chronicle.filter ?? { collections: [], tagIds: [], involvesCodes: [] }) as ChronicleFilter
+
+  const mapIds = [...new Set(mapPeriods.map(p => p.mapId))]
+  const [maps, eras] = await Promise.all([
+    mapIds.length > 0
+      ? appDb.select({ id: schema.maps.id, code: schema.maps.code, name: schema.maps.name })
+          .from(schema.maps).where(inArray(schema.maps.id, mapIds))
+      : Promise.resolve([] as { id: number; code: string; name: string }[]),
+    eraIds.length > 0
+      ? appDb.select().from(schema.eras).where(inArray(schema.eras.id, eraIds))
+      : Promise.resolve([] as (typeof schema.eras.$inferSelect)[]),
+  ])
+  const mapById = new Map(maps.map(m => [m.id, m]))
+
+  return {
+    ...chronicle,
+    tags: resolveTagIds((chronicle.tagIds ?? []) as number[]),
+    mapPeriods: mapPeriods.map(p => ({ ...p, map: mapById.get(p.mapId) ?? null })),
+    eras,
+    filter,
+  }
+}
+
+// Events shown on a chronicle's timeline strip: bounded by its startYear/endYear, narrowed by its
+// filter (any of collections/tagIds/involvesCodes — each only applies when non-empty), each with
+// its `pins` resolved so the paired map pane knows where to zoom.
+export async function getEventsForChronicle(chronicle: {
+  startYear: number | null
+  endYear: number | null
+  filter: ChronicleFilter
+}) {
+  const conditions = [isNotNull(schema.events.startYear)]
+  if (chronicle.startYear != null) conditions.push(gte(schema.events.startYear, chronicle.startYear))
+  if (chronicle.endYear != null) conditions.push(lte(schema.events.startYear, chronicle.endYear))
+
+  const events = await appDb.select().from(schema.events).where(and(...conditions)).orderBy(schema.events.startYear)
+  if (events.length === 0) return []
+  const eventIds = events.map(e => e.id)
+
+  const [involveRows, pinRows] = await Promise.all([
+    appDb.select().from(schema.eventInvolves).where(inArray(schema.eventInvolves.eventId, eventIds)),
+    appDb.select().from(schema.eventPins).where(inArray(schema.eventPins.eventId, eventIds)),
+  ])
+
+  const involvesByEvent = new Map<number, { entryCollection: string; entryId: number }[]>()
+  for (const r of involveRows) {
+    const list = involvesByEvent.get(r.eventId) ?? []
+    list.push({ entryCollection: r.entryCollection, entryId: r.entryId })
+    involvesByEvent.set(r.eventId, list)
+  }
+  const pinIdsByEvent = new Map<number, number[]>()
+  for (const r of pinRows) {
+    const list = pinIdsByEvent.get(r.eventId) ?? []
+    list.push(r.mapPinId)
+    pinIdsByEvent.set(r.eventId, list)
+  }
+
+  const idsByCollection = new Map<string, Set<number>>()
+  for (const rows of involvesByEvent.values()) {
+    for (const r of rows) {
+      const set = idsByCollection.get(r.entryCollection) ?? new Set<number>()
+      set.add(r.entryId)
+      idsByCollection.set(r.entryCollection, set)
+    }
+  }
+  const codeOf = new Map<string, string>()
+  await Promise.all(Array.from(idsByCollection.entries()).map(async ([collection, ids]) => {
+    const table = getWorldTable(collection)
+    if (!table) return
+    const rows = await appDb.select({ id: table.id, code: table.code })
+      .from(table as never).where(inArray(table.id, [...ids]))
+    for (const row of rows as { id: number; code: string }[]) codeOf.set(`${collection}:${row.id}`, row.code)
+  }))
+
+  const allPinIds = [...new Set(pinRows.map(r => r.mapPinId))]
+  const pins = allPinIds.length > 0
+    ? await appDb.select({
+        id: schema.mapPins.id, code: schema.mapPins.code, name: schema.mapPins.name, mapId: schema.mapPins.mapId,
+      }).from(schema.mapPins).where(inArray(schema.mapPins.id, allPinIds))
+    : []
+  const pinById = new Map(pins.map(p => [p.id, p]))
+
+  const { collections, tagIds, involvesCodes } = chronicle.filter
+
+  return events
+    .filter(e => {
+      const involves = involvesByEvent.get(e.id) ?? []
+      if (collections.length > 0 && !involves.some(r => collections.includes(r.entryCollection))) return false
+      if (tagIds.length > 0 && !((e.tagIds ?? []) as number[]).some(t => tagIds.includes(t))) return false
+      if (involvesCodes.length > 0) {
+        const eventCodes = involves.map(r => codeOf.get(`${r.entryCollection}:${r.entryId}`)).filter((c): c is string => !!c)
+        if (!eventCodes.some(c => involvesCodes.includes(c))) return false
+      }
+      return true
+    })
+    .map(e => ({
+      id: e.id, code: e.code, name: e.name, startYear: e.startYear!,
+      eventType: e.eventType, importance: e.importance,
+      pins: (pinIdsByEvent.get(e.id) ?? [])
+        .map(id => pinById.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p),
+    }))
 }
 
 // ─── getLocationRef ───────────────────────────────────────────────────────────

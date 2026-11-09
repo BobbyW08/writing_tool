@@ -10,11 +10,73 @@ end of every session.
 ## Current state (as of 2026-11-09)
 
 **Phase 3, G1 (the link index), Phase 4 (the continuity check port) and Phase 5 (views) are all
-closed. Step W3 (maps) is also closed — see its section below. Build passes zero errors. See the
-gaps flagged at the end of the Phase 4 section before touching anything AI- or writing-related
-again. The Vercel AI Gateway billing block (Phase 4 gap #1) was re-checked twice this session
-after the user added a card and is still failing with the identical `customer_verification_required`
-error — needs resolving account-side before S4 can start; don't keep re-spiking it blindly.**
+closed. Steps W3 (maps) and W4 (chronicles) are also closed — see their sections below. Build
+passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
+re-checked twice this session after the user added a card and is still failing with the identical
+`customer_verification_required` error — needs resolving account-side before S4 can start; don't
+keep re-spiking it blindly.**
+
+### Step W4: chronicles
+
+A chronicle (code H) pairs a timeline strip with a map: selecting an event moves the map to
+wherever that event happened and switches maps when the pin sits on a different one than is
+currently shown.
+
+- **Schema**: `chronicles` table (generic `worldSharedCols()` plus `mapPeriods` jsonb
+  `{mapId, fromYear, toYear, isDefault}[]`, `eraIds` jsonb `number[]`, `filter` jsonb
+  `{collections, tagIds, involvesCodes}`, `startYear`/`endYear`). New `event_pins` join table
+  (plain `{eventId, mapPinId}`, not the generic `entryCollection/entryId` shape, since pins are
+  always `map-pins`) — the map pins showing where an event happened. Migration
+  `0007_acoustic_photon.sql` (purely additive), applied to `APP_DATABASE_URL`.
+- **Full data-layer wiring**, following the same pattern as `eras`/`maps`/`map-pins`: `chronicles`
+  added to `WORLD_TABLE_MAP` in `lib/world/actions.ts` and `lib/world/queries.ts`; code assignment
+  (H prefix) in `lib/codes.ts`; text-mention scanning in `lib/graph/extract.ts`; link-index sync in
+  `lib/graph/sync.ts` (`eraIds` through the existing `ARRAY_FIELD_LINKS` mechanism; two bespoke
+  extractors, `extractEventPinsLinks` and `extractChronicleMapPeriodsLinks`, for the two
+  non-generic jsonb/join shapes, with `isLinkRelevantField` taught that `chronicles.mapPeriods` is
+  link-relevant); node styling in `lib/nodeKinds.ts`; nav entry in `app/(app)/layout.tsx`;
+  `scripts/rebuild-links.ts`'s `TABLES` map.
+- **Queries** (`lib/world/queries.ts`): `getEventPins`, `getChroniclesList`, `getChronicleByCode`
+  (resolves `mapPeriods` map refs and `eraIds` era rows), `getEventsForChronicle` (loads a
+  chronicle's events within its year range, applying the `filter`), and `getMapsDataByIds` — all
+  the maps a chronicle might need are prefetched server-side in one batch (since the active map
+  changes client-side as the user clicks events), which required extracting `getMapByCode`'s body
+  into a shared `buildMapData()` helper.
+- **UI**: `app/(app)/chronicles/page.tsx` (list) + `components/new-chronicle-form.tsx`;
+  `app/(app)/chronicles/[code]/page.tsx` (detail/editor — map periods, eras shown, and event
+  filters, plus the paired view); `components/chronicle-config.tsx` (`MapPeriodsEditor`,
+  `ChronicleErasEditor`, `ChronicleFilterEditor`); `components/chronicle-view.tsx` — a custom,
+  lightweight, read-only timeline strip (plain percentage-based absolute positioning, same
+  technique as the era-band overlay on `/timeline`, deliberately lighter than
+  `react-calendar-timeline` since chronicles only need click-to-select, not drag-editing) paired
+  with `MapCanvas` in `editable={false}` mode; selecting an event resolves the map to show via its
+  first pin if it has one (focusing that pin), else via `mapPeriods` (preferring the entry marked
+  `isDefault`) for the event's year. `components/event-pins-editor.tsx` (`EventPinsEditor`, added
+  to the event read page) mirrors the maps step's `PinLinksEditor` code-input Add/Remove pattern.
+- **Two real, pre-existing bugs found via live testing** (not introduced this step, but surfaced
+  while exercising the era-deletion path during W4 verification): `checkDeleteConflictsAction`'s
+  "events that involve this entry" delete-conflict check, and the read-only `getEventsInvolving()`
+  query (used on every world-entity read page's "Events involving this" section), both filtered
+  `eventInvolves` rows by `entryId` alone, never scoping by `entryCollection` — so two records in
+  different collections that happen to share a numeric id falsely cross-reference each other's
+  involvement (ids are per-table sequences, not globally unique). Confirmed live: deleting era Y3
+  (id=3) was falsely blocked by an `eventInvolves` row that actually belonged to a `locations`
+  entry with the same numeric id. Fixed both by adding the missing `entryCollection` filter.
+  **Lesson for future work on this codebase**: any join-table lookup keyed by a generic
+  `(entryCollection, entryId)` pair must filter by both fields together — filtering by `entryId`
+  alone is a silent correctness trap the moment two unrelated records in different collections
+  share a numeric id.
+- **Verified live, in order**: chronicle creation; event selection switching the displayed event;
+  adding a map period and watching the view fall back to the default map correctly; era-band
+  rendering at the correct position; the "only show events involving these collections" filter
+  correctly narrowing the event set; the link index recording `showsMap` (confirmed via "What
+  links here" on a map showing "Shown by chronicle" after adding it as a map period) and `pins`
+  edges; drawing a pin on a test map, linking it to an event via `EventPinsEditor`, and confirming
+  selecting that event in the chronicle view switched to that map and opened/focused that exact
+  pin — the core "selecting an event zooms to its pin" spec requirement. All test records (test
+  chronicle, test map and its pin, the leftover duplicate test era from W3's cleanup) were deleted
+  afterward.
 
 ### Step W3: maps
 
@@ -533,20 +595,18 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
-1. **W4: chronicles.** Needs W2 + W3, both now closed. `chronicles` (H), the event `pins` field,
-   the paired timeline + map view with map switching by pin and by period.
-2. **W5: boards.** React Flow is already installed (Phase 5). Spike a whiteboard library first.
-3. **W6: interactive tables.** Spike a grid library first.
-4. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
+1. **W5: boards.** React Flow is already installed (Phase 5). Spike a whiteboard library first.
+2. **W6: interactive tables.** Spike a grid library first.
+3. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
    (S7 is also where Phase 4's documented "Draft never spreads" gap gets closed, via the claims
    ledger — see the Phase 4 section above). **Blocked** on the Vercel AI Gateway billing issue
    (`customer_verification_required`, re-confirmed twice this session even after a card was added
    — looks like an account/team-scoping issue, not something retrying from here can fix). Re-spike
    once the user confirms it's genuinely resolved account-side, then resume.
-5. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
+4. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
 
 Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
-#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it for W4+.
+#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it for W5+.
 
 ---
 

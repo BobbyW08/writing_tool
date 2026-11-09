@@ -179,6 +179,18 @@ export const eventInvolves = pgTable('event_involves', {
   index('event_involves_entry_idx').on(t.entryCollection, t.entryId),
 ])
 
+// Many-to-many: an event's `pins` field (step W4) — the map pins showing where it happened. Always
+// map-pins, so (unlike eventInvolves) this is a plain two-column join, not entryCollection/entryId.
+export const eventPins = pgTable('event_pins', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull(),
+  mapPinId: integer('map_pin_id').notNull(),
+}, (t) => [
+  unique().on(t.eventId, t.mapPinId),
+  index('event_pins_event_idx').on(t.eventId),
+  index('event_pins_pin_idx').on(t.mapPinId),
+])
+
 // ─── Stories ─────────────────────────────────────────────────────────────────
 
 export const stories = pgTable('stories', {
@@ -484,6 +496,27 @@ export const mapPinLinks = pgTable('map_pin_links', {
   unique().on(t.mapPinId, t.entryCollection, t.entryId),
   index('map_pin_links_pin_idx').on(t.mapPinId),
   index('map_pin_links_entry_idx').on(t.entryCollection, t.entryId),
+])
+
+// ─── Chronicles (step W4) ──────────────────────────────────────────────────────
+// A timeline paired with maps. Selecting an event moves the map to that event's pin (switching
+// maps if the pin is on a different one); with no pin, mapPeriods picks the map for that year.
+
+export const chronicles = pgTable('chronicles', {
+  ...worldSharedCols(),
+  mapPeriods: jsonb('map_periods')
+    .$type<{ mapId: number; fromYear: number | null; toYear: number | null; isDefault: boolean }[]>()
+    .default(sql`'[]'::jsonb`),
+  eraIds: jsonb('era_ids').$type<number[]>().default(sql`'[]'::jsonb`),
+  // A saved view filter, not canon — same spirit as a board's Query (never link-indexed).
+  filter: jsonb('filter')
+    .$type<{ collections: string[]; tagIds: number[]; involvesCodes: string[] }>()
+    .default(sql`'{"collections":[],"tagIds":[],"involvesCodes":[]}'::jsonb`),
+  startYear: integer('start_year'),
+  endYear: integer('end_year'),
+}, (t) => [
+  index('chronicles_code_idx').on(t.code),
+  index('chronicles_parent_idx').on(t.parentId),
 ])
 
 // ─── Cultures join tables (kept as denorm columns in world tables, not separate) ─

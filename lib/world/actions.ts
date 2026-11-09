@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { eq, or } from 'drizzle-orm'
+import { eq, or, and } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { assignNextCode, slugify } from '@/db/codes'
@@ -23,6 +23,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   eras: schema.eras as unknown as AnyTable,
   maps: schema.maps as unknown as AnyTable,
   'map-pins': schema.mapPins as unknown as AnyTable,
+  chronicles: schema.chronicles as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -149,6 +150,13 @@ export async function resolveEntryForLinkAction(
   const entry = await getEntryByCode(result.collection, result.code) as { id: number } | null
   if (!entry) return null
   return { collection: result.collection, entryId: entry.id, name: result.name }
+}
+
+// Like resolveEntryForLinkAction, but also returns the resolved code itself — for fields that
+// store a plain code string (a chronicle's filter.involvesCodes), not a foreign-key id.
+export async function resolveCodeForDisplayAction(query: string): Promise<{ code: string; collection: string; name: string } | null> {
+  const { resolveCodeLookup } = await import('@/lib/world/queries')
+  return resolveCodeLookup(query)
 }
 
 export async function updateMapPinLinksAction(
@@ -306,7 +314,7 @@ export async function checkDeleteConflictsAction(
   if (collection !== 'events' && collection !== 'stories' && collection !== 'writing' && collection !== 'relationships') {
     const involveRows = await appDb.select({ eventId: schema.eventInvolves.eventId })
       .from(schema.eventInvolves)
-      .where(eq(schema.eventInvolves.entryId, id))
+      .where(and(eq(schema.eventInvolves.entryId, id), eq(schema.eventInvolves.entryCollection, collection)))
     if (involveRows.length > 0) {
       const eventIds = involveRows.map(r => r.eventId)
       const evts = await appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name })
@@ -345,9 +353,14 @@ export async function deleteEntityAction(
       .from(table as never).where(eq((table as typeof schema.characters).id, id)).limit(1)
     const code = (rows[0] as { code: string } | undefined)?.code
 
-    // No DB-level cascade is defined for map_pins/map_pin_links, so clean up children by hand.
+    // No DB-level cascade is defined for map_pins/map_pin_links/event_pins/event_involves, so
+    // clean up children by hand.
     if (collection === 'map-pins') {
       await appDb.delete(schema.mapPinLinks).where(eq(schema.mapPinLinks.mapPinId, id))
+      await appDb.delete(schema.eventPins).where(eq(schema.eventPins.mapPinId, id))
+    } else if (collection === 'events') {
+      await appDb.delete(schema.eventInvolves).where(eq(schema.eventInvolves.eventId, id))
+      await appDb.delete(schema.eventPins).where(eq(schema.eventPins.eventId, id))
     } else if (collection === 'maps') {
       const pins = await appDb.select({ id: schema.mapPins.id, code: schema.mapPins.code })
         .from(schema.mapPins).where(eq(schema.mapPins.mapId, id))
@@ -495,6 +508,27 @@ export async function updateEventInvolvesAction(
           entryId: i.value,
         }))
       )
+    }
+    await appDb.update(schema.events).set({ updatedAt: new Date() }).where(eq(schema.events.id, eventId))
+    await syncLinksForRecord('events', eventId)
+    revalidatePath('/events')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// ─── updateEventPinsAction ─────────────────────────────────────────────────────
+// Step W4: the map pins showing where an event happened. A chronicle uses these to move the map
+// when an event is selected.
+export async function updateEventPinsAction(
+  eventId: number,
+  mapPinIds: number[]
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.delete(schema.eventPins).where(eq(schema.eventPins.eventId, eventId))
+    if (mapPinIds.length > 0) {
+      await appDb.insert(schema.eventPins).values(mapPinIds.map(mapPinId => ({ eventId, mapPinId })))
     }
     await appDb.update(schema.events).set({ updatedAt: new Date() }).where(eq(schema.events.id, eventId))
     await syncLinksForRecord('events', eventId)

@@ -676,6 +676,166 @@ along the way).
 - [ ] Search across everything (by name, alias, or code).
 - [ ] Switch from dev auto-push to migrations, deploy to Vercel with a real single-user login.
 
+### Phase 9: Cartographer Studio Design
+A design system, interface polish, relationship visibility, and optional sample content pass.
+Not a replacement for the agreed architecture. Implement only after every phase above is closed.
+
+**Before starting:** read this file, `CLAUDE.md`, `db/schema.ts`, the data layer write functions,
+`lib/graph/types.ts`, the Lexical editor code, and the existing UI components. Reuse the existing
+stack (Next.js App Router, Drizzle, `appDb`, Lexical with Markdown storage, `lib/codes.ts`,
+the link index, `lib/graph/types.ts`, the existing media pipeline, the existing timeline,
+convergence, React Flow and Leaflet integrations, the whiteboard and table libraries chosen by
+their spikes, and `lib/ai/`). Do not introduce a competing database client, editor format, graph
+model, component framework, or AI integration. Reuse existing UI primitives and styling
+conventions where practical.
+
+**Visual direction: Cartographer.** A dark studio frame around a warm, spacious writing surface.
+A working creative studio, not a SaaS dashboard, not a fake medieval manuscript, not a neon
+science fiction control panel.
+
+- [ ] Define centralized semantic color tokens, not literal colors scattered through components.
+      Starting values: app background `#171A1B`, raised dark surface `#222728`, writing surface
+      `#F3EFE6`, primary text on paper `#292D2C`, primary text on dark `#E7E5DF`, main accent
+      (aged brass) `#BE965C`, secondary accent (mineral green) `#76A99B`. Check real contrast on
+      actual foreground and background pairs and adjust tokens as needed.
+- [ ] Also define tokens for: muted text on light and dark surfaces, borders and dividers, hover
+      states, selected states, keyboard focus, destructive actions, record type markers, and
+      graph edges and canvas grids.
+- [ ] Use brass sparingly: active indicators, small highlights, selected tools. Not every button.
+- [ ] No parchment textures, leather textures, heavy gradients, glowing borders, or decorative
+      animated backgrounds.
+- [ ] Typography: DM Sans for both manuscript and interface. Manuscript at normal weight 400.
+      Metadata and record codes use an existing restrained monospace font, or add one only if
+      needed. Manuscript starting size 19px, line height 1.75, reading width about 70ch. Apply
+      the manuscript font inside Lexical itself, not only to surrounding headings. Do not use
+      Source Serif as the manuscript font. Keep prose spacious and navigation compact, and avoid
+      heavy uppercase labels and wide letter spacing.
+- [ ] If an editor preferences mechanism already exists, add font size, reading width, and
+      paper versus dark writing surface to it. Do not build a second, competing preferences
+      system.
+
+**Studio layout.** Desktop: app rail (about 48px), project browser (about 240px, resizable), main
+workspace (flexible), contextual inspector (about 300px, collapsible). Use existing resizable
+primitives and persist panel sizes through the established preference mechanism.
+
+- [ ] The inspector shows details for whatever is selected: a record while writing, a pin or
+      location on a map, a node or edge in the relationship view, an event on the timeline, a
+      selected record in a table or whiteboard.
+- [ ] A writing focus mode hides the app rail, project browser and inspector, with an obvious
+      exit control.
+- [ ] At narrow widths, collapse secondary panels into drawers or an equivalent existing pattern.
+      Do not force four desktop columns onto a phone screen.
+- [ ] Preserve unsaved editing state when panels open, close, or resize.
+- [ ] Per surface styling: writing is warm paper with generous margins and almost no visible
+      boxes; the relationship graph is a dark canvas with a faint dot grid and compact neutral
+      nodes with colored type markers; maps let the image dominate with a consistent pin family
+      and restrained floating controls; the timeline uses fine rules and quiet date labels with
+      lightly tinted event blocks; convergence uses muted character colored paths and emphasizes
+      the selected path rather than making every path bright; the whiteboard shares the graph's
+      canvas language, selection outline, toolbar styling and record cards; tables use compact
+      rows, subtle separators and a sticky header, and avoid boxing every cell.
+- [ ] Keep toolbars, menus, record previews, selection states and inspectors visually related
+      across all these view libraries, without replacing any working view library to get there.
+- [ ] Component details: control corners about 4 to 6px, floating panel corners about 8px, fine
+      borders preferred over shadows, shadows reserved for genuinely floating surfaces, one
+      consistent icon family, clear hover, selection, keyboard focus and disabled states, short
+      restrained transitions, and respect for reduced motion preferences. No endlessly animated
+      graph edges.
+
+**Record type identities.** Use one shared mapping of label, icon and color per record type
+across the project browser, search results, record previews, map pins, graph nodes, timeline
+entries, inspector headings and table rows. Suggested starting identities: character (muted
+violet, person icon), location (mineral green, map pin icon), event (amber, calendar icon),
+organization (dusty blue, flag icon), object (copper, diamond icon), writing or document (neutral
+stone, page icon). Adapt these to the real record types in `db/schema.ts`. Keep most surfaces
+neutral and use color only as a marker, never relying on color alone to identify a type.
+
+**Make relationships visible everywhere**, not only inside the graph view.
+
+- [ ] Record header: below the title and metadata, show real relationship summaries built from
+      actual link index data (for example, where last seen, what is carried, what is being
+      searched for), never hardcoded text, and never a claim the data does not actually support.
+      Every related record named here is navigable.
+- [ ] Contextual inspector: group connections by category or relationship type, covering incoming
+      and outgoing connections, explicit relationships, and backlinks and writing appearances
+      (visibly distinguished from explicit relationships), with readable direction labels instead
+      of raw predicates, a useful empty state, a clear way to add a relationship, and a link to
+      open the graph with the current record already selected. Connection counts must come from
+      real data and must not double count a relationship that appears in both an incoming and an
+      outgoing list.
+- [ ] Inline record mentions stay subtle (readable prose, not large colored pills), and where the
+      editor model supports it, the displayed text can differ from the record's title. Record
+      previews on hover or focus show name, type, short description, a thumbnail when available,
+      and options to open the record or open it alongside the current one, and this must be
+      reachable by keyboard, not hover only. Preserve the established Markdown round trip: if a
+      durable mention needs a serialization convention that does not exist yet, inspect the
+      current converter in `lib/studio/lexical.ts` and extend it with a tested, compatible
+      approach rather than dropping record IDs or inventing unsupported Markdown syntax.
+- [ ] AI suggestions stay separate from saved relationships. If suggestion functionality already
+      exists, show proposals in a clearly labeled section with accept and dismiss actions, and
+      only an accepted proposal becomes a saved relationship. Do not add a permanently open AI
+      chat panel as part of this phase.
+
+**Optional Traveler sample content package.** A small, coherent, clearly provisional seed package
+for testing the app, not established canon. It must not assume the Traveler's identity, origin,
+destination, cosmology or means of travel.
+
+- [ ] Sample premise: the Traveler reaches an abandoned signal station after an unexplained
+      transmission; a missing cartographer's notes suggest a route thought impassable may have
+      reopened; an unmarked compass seems to respond to the same signal.
+- [ ] Sample records (characters, locations, objects, events, and two short writing pieces) and
+      the relationships between them, as specified in the design handoff kept with this phase.
+      Use the schema's real supported types and fields. If a needed concept is unsupported,
+      report the mismatch and choose the smallest compatible fix rather than building a parallel
+      content system.
+- [ ] Create every sample relationship through the established data layer write functions. Never
+      write directly to the derived `links` table as an alternative source of truth.
+- [ ] Use relative chronology for sample events, not invented canon dates. If a view library needs
+      numeric or calendar coordinates, keep those implementation values clearly separate from any
+      story world date, and never display an arbitrary test timestamp as established chronology.
+- [ ] Create any needed map assets locally and originally. No copyrighted map imagery, no
+      dependence on remote image URLs.
+- [ ] Populate every existing view (writing, relationship graph, map, timeline, convergence,
+      whiteboard, table, compilation) from the same underlying sample records. Do not build
+      separate mock datasets per screen, and do not build a second implementation of any view
+      just to show off the sample content.
+- [ ] Loading: scope the package to the selected project, mark every created record and asset with
+      a durable package identifier compatible with the schema, track generated record IDs rather
+      than matching by title, make loading idempotent, never overwrite existing records or user
+      edits on a repeat load, go through the normal data layer so counters and the link index
+      stay correct, handle partial failures safely, and never auto-load into an existing project
+      without the user choosing to.
+- [ ] Removal: a preview and confirmation step showing which sample records and assets will be
+      removed, any sample records edited since creation, incoming references from non-sample
+      content, and what happens to the affected links. Preserve user created records. Never
+      cascade delete non-sample content, and never silently delete an edited sample record or
+      shared media without an explicit decision. Use the existing deletion rules, clean up the
+      link index through the normal data layer, and never reset the global ID counters.
+
+**Testing before this phase is marked done:**
+
+- [ ] DM Sans at normal weight 400 is the manuscript font; the dark frame and warm writing
+      surface are consistent; the manuscript stays readable at narrow widths; panels resize and
+      collapse without losing editor state; focus mode has an accessible exit; keyboard focus is
+      visible; reduced motion preferences are respected; type identity is consistent across every
+      view; no map, graph or timeline control becomes unreadable against its own canvas.
+- [ ] Headers and inspectors show real data; incoming and outgoing relationships display
+      correctly; relationship labels preserve meaning and direction; inline mentions survive save,
+      load and Markdown conversion; the derived link index rebuilds correctly; navigation opens
+      the correct related record; counts never double count the same relationship.
+- [ ] Loading the sample package twice does not duplicate records; loading never overwrites user
+      edits; sample records appear consistently across every populated view; no fake canon dates
+      appear anywhere; the removal preview correctly identifies external references and edited
+      content; removal preserves every non-sample record; a partial load or removal failure never
+      leaves unexplained orphaned data; normal ID generation and counters stay intact.
+- [ ] Run every available type check, lint, test, and the production build. Report anything that
+      could not be run.
+
+**When this phase is done:** check off its items above, update `BUILD_GUIDE.md`'s current state
+and next up, update `SESSION.md`, and write a short implementation report covering the summary of
+changes, key files touched, any new dependencies and why, how to load and remove the Traveler
+sample, test and build results, and any limitations.
+
 ---
 
 ## Build order
@@ -700,9 +860,11 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 13 | W5 | Boards: saved node maps, content trees, whiteboards, story map |
 | 14 | W6 | Interactive tables |
 | 15 | Phases 6 to 8 | Gaps view, export, compilations, search, deploy |
+| 16 | Phase 9 | Cartographer studio design: visual direction, layout, relationship visibility, optional Traveler sample content. Implemented only after every item above is closed |
 
 The user may reorder items 6 to 14. Items 1 to 5 stay first: item 4 is needed by every later view
-and by the AI, and item 3 retires the old code those views would otherwise build on.
+and by the AI, and item 3 retires the old code those views would otherwise build on. Item 16 stays
+last: it is a polish pass over the finished app, not a dependency for anything else.
 
 ---
 
@@ -783,9 +945,11 @@ Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W3 section.
 
 ## Step W4: chronicles
 
-Needs W2 and W3.
-- [ ] `chronicles` (H) and the event `pins` field.
-- [ ] The paired timeline and map view, with map switching by pin and by period.
+Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W4 section.
+- [x] `chronicles` (H) and the event `pins` field (`event_pins` join table).
+- [x] The paired timeline and map view, with map switching by pin and by period. Verified live:
+      selecting an event with a pin switches to that pin's map and focuses it; selecting an event
+      with no pin falls back to `mapPeriods` (preferring the entry marked `isDefault`) for its year.
 
 ## Step W5: boards
 

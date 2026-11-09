@@ -23,6 +23,9 @@ export const FIELD_LABELS: Record<string, FieldLabel> = {
   onMap: { label: 'Pin on', inverse: 'Has pin' },
   opensMap: { label: 'Opens map', inverse: 'Opened by pin' },
   links: { label: 'Shown on pin', inverse: 'Pin shows' },
+  pins: { label: 'Pinned at', inverse: 'Marks event' },
+  includesEra: { label: 'Shows era', inverse: 'Shown by chronicle' },
+  showsMap: { label: 'Shows map', inverse: 'Shown by chronicle' },
 }
 
 export function fieldLabel(type: string): FieldLabel {

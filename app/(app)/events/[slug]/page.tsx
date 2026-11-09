@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEventByCode, getEventBySlug, getRelationshipsByCode, buildCodeMap, isUnk, getLocationRef } from "@/lib/world/queries";
+import { getEventByCode, getEventBySlug, getRelationshipsByCode, buildCodeMap, isUnk, getLocationRef, getEventPins } from "@/lib/world/queries";
 import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
 import { DeleteRecordButton } from "@/components/delete-record-button";
 import { WhatLinksHere } from "@/components/what-links-here";
 import { RelationshipView } from "@/components/relationship-view";
+import { EventPinsEditor, type EventPinRef } from "@/components/event-pins-editor";
 import { nodeKindFor } from "@/lib/nodeKinds";
 
 const CODE_RE = /^E\d{1,6}$/i;
@@ -83,6 +84,7 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
   const code = doc.code ?? "";
 
   const rels = code ? await getRelationshipsByCode(code) : { from: [], to: [] };
+  const pins = await getEventPins(doc.id);
 
   const allTexts = [doc.whatHappened, doc.whyItHappened, doc.whatItCaused, doc.whatWasLearned];
   const codeMap = await buildCodeMap(allTexts);
@@ -222,6 +224,8 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
           </pre>
         </div>
       )}
+
+      <EventPinsEditor eventId={doc.id} pins={pins as EventPinRef[]} />
 
       <RelationshipEditor myCode={code} initial={relEntries} />
 
