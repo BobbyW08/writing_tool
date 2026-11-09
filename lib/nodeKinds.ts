@@ -23,6 +23,7 @@ export const NODE_KINDS: Record<string, NodeKind> = {
   'map-pins': { color: '#0891b2', icon: 'MapPinned' },
   chronicles: { color: '#be123c', icon: 'History' },
   boards: { color: '#475569', icon: 'LayoutDashboard' },
+  tables: { color: '#0369a1', icon: 'Table' },
 }
 
 export const DEFAULT_NODE_KIND: NodeKind = { color: '#71717a', icon: 'Circle' }

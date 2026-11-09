@@ -45,6 +45,7 @@ const WORLD_TABLE_MAP: Record<string, AnyWorldTable> = {
   'map-pins': schema.mapPins as unknown as AnyWorldTable,
   chronicles: schema.chronicles as unknown as AnyWorldTable,
   boards: schema.boards as unknown as AnyWorldTable,
+  tables: schema.tables as unknown as AnyWorldTable,
 }
 
 function getWorldTable(collection: string) {
@@ -919,5 +920,33 @@ export async function getBoardByCode(code: string) {
     rootCodes: (board.rootCodes ?? []) as string[],
     query: board.query as BoardQuery,
     nodePositions: (board.nodePositions ?? {}) as BoardNodePositions,
+  }
+}
+
+// ─── Tables (step W6) ──────────────────────────────────────────────────────
+
+export type TableColumnType = 'text' | 'number' | 'date' | 'link' | 'tag'
+export type TableColumn = { key: string; label: string; type: TableColumnType; width: number | null }
+export type TableRow = Record<string, string>
+
+export async function getTablesList() {
+  await getAllTags()
+  const docs = await appDb.select().from(schema.tables).orderBy(schema.tables.name)
+  return {
+    docs: docs.map(d => ({ ...d, tags: resolveTagIds((d.tagIds ?? []) as number[]) })),
+    totalDocs: docs.length,
+  }
+}
+
+export async function getTableByCode(code: string) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.tables).where(eq(schema.tables.code, code.toUpperCase())).limit(1)
+  const table = rows[0]
+  if (!table) return null
+  return {
+    ...table,
+    tags: resolveTagIds((table.tagIds ?? []) as number[]),
+    columns: (table.columns ?? []) as TableColumn[],
+    rows: (table.rows ?? []) as TableRow[],
   }
 }

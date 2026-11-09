@@ -7,6 +7,7 @@
 export type TextFieldSource =
   | { kind: 'plain'; field: string } // a single markdown/text column, fieldName = the field name
   | { kind: 'details' } // the `details` jsonb array, fieldName = `details.<label>` per row
+  | { kind: 'rows' } // step W6: a table's `rows` jsonb array of {[columnKey]: string}, fieldName = `rows.<columnKey>`
 
 const WORLD_TEXT_FIELDS: TextFieldSource[] = [
   { kind: 'plain', field: 'body' },
@@ -36,4 +37,5 @@ export const TEXT_FIELDS: Record<string, TextFieldSource[]> = {
   'map-pins': [{ kind: 'plain', field: 'summary' }],
   chronicles: WORLD_TEXT_FIELDS,
   boards: WORLD_TEXT_FIELDS,
+  tables: [...WORLD_TEXT_FIELDS, { kind: 'rows' }],
 }

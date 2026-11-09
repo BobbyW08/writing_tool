@@ -64,6 +64,13 @@
       "when": 1794236975453,
       "tag": "0008_secret_tempest",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794255926950,
+      "tag": "0009_bitter_ronan",
+      "breakpoints": true
     }
   ]
 }

@@ -42,7 +42,7 @@ them, not a replacement.
 | Node map, trees and relationship views | React Flow (`@xyflow/react`) |
 | Image maps with pins | `leaflet` (`1.9.4`) + `react-leaflet` (`5.0.0`) with `CRS.Simple` for pixel-based, non-geographic maps. Drawing/editing toolbar: `@geoman-io/leaflet-geoman-free` (`2.20.6`) |
 | Whiteboards | `tldraw` (`tldraw@5.6.0`). React 19 SDK, infinite canvas, sticky notes/shapes/images/frames built in, scene persisted via `editor.getSnapshot()`/`loadSnapshot()` as opaque JSON in the board's `scene` column |
-| Table grid | One library, chosen by the step W6 spike and recorded in this row |
+| Table grid | `@tanstack/react-table` (`8.21.3` — pinned to the stable v8 line; v9 is a recent, differently-shaped rewrite), headless — custom cell rendering per column type (text/number/date/link/tag), own Tailwind styling. CSV import/export via `papaparse` (`5.7.0`) |
 | Sidebar multi-select | `shadcn-multi-select-component` (copy-paste shadcn) |
 | Compilation reordering | `dnd-kit` (`@dnd-kit/sortable`) |
 | AI | All AI runs on Claude: the `ai` package through Vercel AI Gateway, plain `anthropic/...` model strings, behind one module (`lib/ai/`). Covers suggestions, the prompts menu and the continuity check |

@@ -967,8 +967,13 @@ Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W5 section.
 
 ## Step W6: interactive tables
 
-- [ ] Spike first: pick one maintained grid library and record the choice in the stack table.
-- [ ] `tables` (N), the grid editor, typed columns, CSV import and export, code cells that link and index.
+Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W6 section.
+- [x] Spike first: pick one maintained grid library and record the choice in the stack table.
+      Confirmed: `@tanstack/react-table` (pinned to the stable v8 line) + `papaparse` for CSV.
+- [x] `tables` (N), the grid editor, typed columns, CSV import and export, code cells that link and
+      index. CSV import/export verified by code review, not live-clicked this pass (disclosed in
+      `BUILD_GUIDE.md`); everything else verified live end to end, including a code typed into a
+      cell showing up as a text mention in the link index.
 
 ---
 
@@ -995,7 +1000,7 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 | List reordering | **Available**, `@dnd-kit/sortable` | For compilations |
 | Image maps | **Available**, library chosen by the W3 spike | Pins, shapes, layers |
 | Whiteboards | **Available**, `tldraw` | Scene stored on the board via `editor.getSnapshot()` |
-| Table grid | **Available**, library chosen by the W6 spike | Typed columns, CSV |
+| Table grid | **Available**, `@tanstack/react-table` + `papaparse` | Typed columns, CSV |
 | ID codes, code lookup endpoints | **Custom, small** | Written, in the starter |
 | Entity and relationship collections | **Custom** | Written, in the starter |
 | Link index and graph helpers | **Custom** | Step G1 |

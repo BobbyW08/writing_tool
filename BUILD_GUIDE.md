@@ -10,12 +10,72 @@ end of every session.
 ## Current state (as of 2026-11-09)
 
 **Phase 3, G1 (the link index), Phase 4 (the continuity check port) and Phase 5 (views) are all
-closed. Steps W3 (maps), W4 (chronicles) and W5 (boards) are also closed — see their sections
-below. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before
+closed. Steps W3 (maps), W4 (chronicles), W5 (boards) and W6 (interactive tables) are also
+closed — see their sections below. That closes out the whole W1-W6 "Feature reference" block of
+Phase 5. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before
 touching anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap
 #1) was re-checked twice this session after the user added a card and is still failing with the
 identical `customer_verification_required` error — needs resolving account-side before S4 can
 start; don't keep re-spiking it blindly.**
+
+### Step W6: interactive tables
+
+An interactive table (code N) for tabular reference data (a magic system's tiers, a ruler list).
+A cell can hold an ID code, which renders as a link and is indexed as a text mention — never a
+relationship or join row.
+
+- **Library spike** (recorded in `CLAUDE.md`'s stack table): `@tanstack/react-table`, pinned to the
+  stable **v8** line (`8.21.3`), not the newly-installed v9 (`9.3.1`) — v9 turned out to be a
+  recent, differently-shaped rewrite (feature-based `constructTable`/`createTableHook`/`Subscribe`
+  API, no `useReactTable`/`getCoreRowModel` at all), caught immediately by `tsc` after the first
+  install. Swapped to v8 (`useReactTable`, `getCoreRowModel`, `flexRender`, `createColumnHelper` —
+  the long-stable, widely-documented API) rather than learning v9's shape mid-task. Headless, so
+  cell rendering per column type (text/number/date/link/tag) and all styling are ours. CSV via
+  `papaparse@5.7.0`.
+- **Schema**: `tables` table (`worldSharedCols()` plus `columns` (jsonb array of
+  `{key,label,type,width}`) and `rows` (jsonb array of `{[columnKey]: string}`)). Migration
+  `0009_bitter_ronan.sql` (purely additive), applied to `APP_DATABASE_URL`.
+- **Full data-layer wiring**, same pattern as `boards`: `tables` added to `WORLD_TABLE_MAP` in
+  `lib/world/actions.ts`, `lib/world/queries.ts`, `lib/graph/sync.ts`, and to
+  `scripts/rebuild-links.ts`'s `TABLES` map; code assignment (N prefix) in `lib/codes.ts`; node
+  styling in `lib/nodeKinds.ts`; nav entry in `app/(app)/layout.tsx`. No bespoke server actions —
+  the generic `createEntityAction`/`updateFieldAction` cover it entirely, same as `boards`.
+- **New `TEXT_FIELDS` kind, `'rows'`** (`lib/graph/extract.ts`, handled in
+  `lib/graph/sync.ts`'s `extractTextLinks`): scans every string value of every row object (not
+  just one named field or the `details` array) for ID codes, same `text`/`mentions` link source as
+  everything else — this is what makes "a cell can hold an ID code, which renders as a link and
+  appears in the link index as a text mention" (the plan's spec for this step) actually true,
+  without inventing a new link source or a bespoke join table. `isLinkRelevantField` taught that
+  `tables.rows` is link-relevant, so editing a table's rows triggers a resync like any other
+  text field edit.
+- **UI**: `app/(app)/tables/page.tsx` (list) + `components/new-table-form.tsx`.
+  `app/(app)/tables/[code]/page.tsx` (detail) + `components/table-grid.tsx` — a TanStack Table
+  instance with a column-management bar (add/rename/retype/remove columns) above an editable grid
+  (every cell a plain `<input>`, typed by column `type`), Add/remove row buttons, CSV import
+  (`papaparse` parse, auto-creates columns from the CSV header when the table has none yet,
+  otherwise matches by column label and replaces the row set) and export (`papaparse` unparse +
+  a Blob download), and a "Save table" button that persists `columns`/`rows` together.
+- **Real bug found and fixed via live testing** (type-check and build alone would not have caught
+  it): `createColumnHelper<TableRow>()` was called fresh inside the component body on every
+  render. The `colDefs` `useMemo` depended on `[columns, columnHelper]`, so a new `columnHelper`
+  identity on every render busted that memo on every keystroke (not just on real column changes),
+  rebuilding the column defs and remounting the cell `<input>`s mid-type — typing "C6" into a cell
+  landed as just "C". Confirmed live via `read_page` showing the cell's actual value, not just a
+  screenshot. Fixed by hoisting `columnHelper` to module scope so its identity is stable across
+  renders. **Lesson for future work on this codebase**: a value recreated on every render but fed
+  into a `useMemo`/`useCallback` dependency array silently busts that memo every render, not just
+  when its logical inputs change — easy to miss since nothing throws and the UI often still "looks
+  right" for anything slower than live typing (a reload-driven test would have passed here, since
+  by the time you read the saved value the cursor-stealing damage was already baked into what got
+  typed).
+- **Verified live**: created a table, added a text column, added a row, typed a code (`C6`) into
+  the cell (first catching the bug above this way, then confirming the fix the same way), saved,
+  confirmed persistence on reload, and confirmed the `rows`-sourced text mention appeared correctly
+  on C6's "What links here" ("Test Ruler Table — Mentioned in"), then deleted the test table and
+  confirmed the mention was cleanly gone. CSV import/export were not live-tested this pass (a
+  disclosed scope cut, not an oversight) — `papaparse` is a mature, widely-used library and the
+  glue code around it is small; worth a quick manual spot-check before relying on it for a real
+  import.
 
 ### Step W5: boards
 
@@ -661,17 +721,17 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
-1. **W6: interactive tables.** Spike a grid library first.
-2. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
+1. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
    (S7 is also where Phase 4's documented "Draft never spreads" gap gets closed, via the claims
    ledger — see the Phase 4 section above). **Blocked** on the Vercel AI Gateway billing issue
    (`customer_verification_required`, re-confirmed twice this session even after a card was added
    — looks like an account/team-scoping issue, not something retrying from here can fix). Re-spike
    once the user confirms it's genuinely resolved account-side, then resume.
-3. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
+2. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy. With W1-W6 all closed, this
+   is the next unblocked work if S4-S7 stay blocked on the billing issue.
 
 Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
-#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it for W6+.
+#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it further.
 
 ---
 

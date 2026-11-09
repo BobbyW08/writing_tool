@@ -26,6 +26,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   'map-pins': schema.mapPins as unknown as AnyTable,
   chronicles: schema.chronicles as unknown as AnyTable,
   boards: schema.boards as unknown as AnyTable,
+  tables: schema.tables as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -262,12 +263,22 @@ async function extractTextLinks(
       for (const code of extractCodes(text)) {
         if (!fieldNameOf.has(code)) fieldNameOf.set(code, spec.field)
       }
-    } else {
+    } else if (spec.kind === 'details') {
       const details = (record.details ?? []) as { label: string; value: string }[]
       for (const d of details) {
         if (!d.value) continue
         for (const code of extractCodes(d.value)) {
           if (!fieldNameOf.has(code)) fieldNameOf.set(code, `details.${d.label}`)
+        }
+      }
+    } else if (spec.kind === 'rows') {
+      const rows = (record.rows ?? []) as Record<string, unknown>[]
+      for (const row of rows) {
+        for (const [key, value] of Object.entries(row)) {
+          if (typeof value !== 'string' || !value) continue
+          for (const code of extractCodes(value)) {
+            if (!fieldNameOf.has(code)) fieldNameOf.set(code, `rows.${key}`)
+          }
         }
       }
     }
@@ -331,6 +342,7 @@ async function writeOwnedLinks(ownerCode: string, pending: PendingLink[]): Promi
 export function isLinkRelevantField(collection: string, field: string): boolean {
   if (field === 'parentId' || field === 'details') return true
   if (collection === 'chronicles' && field === 'mapPeriods') return true
+  if (collection === 'tables' && field === 'rows') return true
   if (SIMPLE_FIELD_LINKS[collection]?.some(s => s.idField === field)) return true
   if (ARRAY_FIELD_LINKS[collection]?.some(s => s.idsField === field)) return true
   if (TEXT_FIELDS[collection]?.some(s => s.kind === 'plain' && s.field === field)) return true

@@ -540,6 +540,20 @@ export const boards = pgTable('boards', {
   index('boards_parent_idx').on(t.parentId),
 ])
 
+// An interactive table (step W6) — a magic system's tiers, a ruler list, anything tabular. A cell
+// can hold an ID code, which renders as a link and is indexed as a text mention (see TEXT_FIELDS'
+// 'rows' kind in lib/graph/extract.ts) — never a separate relationship or join row.
+export const tables = pgTable('tables', {
+  ...worldSharedCols(),
+  columns: jsonb('columns')
+    .$type<{ key: string; label: string; type: 'text' | 'number' | 'date' | 'link' | 'tag'; width: number | null }[]>()
+    .default(sql`'[]'::jsonb`),
+  rows: jsonb('rows').$type<Record<string, string>[]>().default(sql`'[]'::jsonb`),
+}, (t) => [
+  index('tables_code_idx').on(t.code),
+  index('tables_parent_idx').on(t.parentId),
+])
+
 // ─── Cultures join tables (kept as denorm columns in world tables, not separate) ─
 
 // cultures.homelands and cultures.languages are many-to-many.
