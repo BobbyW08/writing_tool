@@ -13,8 +13,8 @@ end of every session.
 closed. Steps W3 (maps), W4 (chronicles), W5 (boards) and W6 (interactive tables) are also
 closed — see their sections below. That closes out the whole W1-W6 "Feature reference" block of
 Phase 5. The Gaps view (Phase 6) is also closed — see its section below; Phase 6's other two
-items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6.
-Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6. Phase
+5A step U1 (header actions) is also closed — see its section below. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
 anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
 re-checked a third time this session (Bobby said it was resolved; it was not — same
 `customer_verification_required` error, including after a 90s wait for propagation) — still
@@ -110,6 +110,43 @@ status editor already existed (every entity read page, plus the continuity check
   an actual inline edit on this page specifically (not needed — same component, same server
   action, already covered by prior sessions' live tests on entity pages).
 - **Build**: `npm run build`, zero errors, `/gaps` listed as a new dynamic route.
+
+### Phase 5A, step U1: header actions
+
+New scope added to the plan mid-session (not authored this session, but implemented as part of
+it): a `RecordActions` component shared across every coded read page, replacing the pattern where
+each page hand-rolled its own status select placement and its own bottom-of-page delete button.
+
+- **Component**: `components/record-actions.tsx`. Wraps the existing `EditableField`
+  (`kind="select"`, now sourced from a single exported `STATUS_OPTIONS` in `lib/world/fields.ts`
+  instead of 4 near-identical copies pasted across `[entityType]/[slug]`, `events/[slug]`,
+  `stories/[code]` and `gaps/page.tsx`) and the existing `DeleteRecordButton`, side by side. No
+  new logic: status save-on-change and the delete confirm/conflicts flow are both unchanged,
+  exactly where they already were.
+- **Wired onto all 7 read pages** that had a `DeleteRecordButton`: `[entityType]/[slug]`,
+  `events/[slug]`, `stories/[code]`, `boards/[code]`, `chronicles/[code]`, `maps/[code]`,
+  `tables/[code]`. Each page's bottom `<div className="border-t pt-4"><DeleteRecordButton .../>
+  </div>` block is gone; `RecordActions` now sits next to the title instead. `boards`, `chronicles`,
+  `maps` and `tables` had no status editor at all before this (their schema carries `status` via
+  `worldSharedCols()`, but no page surfaced it) — they gained one as a side effect of adding
+  `RecordActions`, per the plan's literal wording ("the status select, on collections that have
+  `status`"). `events` and `stories` each had their own separately-placed status row elsewhere on
+  the page; those were removed once the header got one.
+- **Incidental cleanup**: the stories page had a per-record `/admin/collections/stories/:id` link
+  next to its stage selector. There is no `/admin` route anywhere in this codebase (hard rule 12:
+  no login, no admin UI) — confirmed by searching `app/(app)/` — so this was dead, pre-migration
+  Payload-era cruft. Removed it while rebuilding that same header row rather than leaving it next
+  to the new `RecordActions`. Two other dead `/admin` references still exist (the sidebar's bottom
+  "Admin" link in `app/(app)/layout.tsx`, and `/review`'s relationships link) — left alone, out of
+  scope for this step.
+- **Verified live**: `/characters/C6` — header now shows "Locked (canon)" and "Delete" together
+  next to the title, no duplicate delete control at the bottom of the page. Created a throwaway
+  board (`D3`, kind `node_map`) to exercise a collection that had no status editor before this
+  step — confirmed its header showed "In development" and "Delete" together, clicked Delete,
+  confirmed the dialog, confirmed it redirected to `/boards` and the board was gone ("No boards
+  yet."). Did not click through all 7 pages individually (same component, same two already-proven
+  sub-components, low marginal risk) — a disclosed scope cut, not an oversight.
+- **Build**: `npm run build`, zero errors.
 
 ### Step W5: boards
 
@@ -763,9 +800,17 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    a propagation delay) — looks like an account/team-scoping mismatch between where the card was
    added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
    Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
-2. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
+2. **Phase 5A, steps U2 to U6.** "Working surfaces" — new scope added mid-session (see the plan's
+   own section). U1 (header actions) is closed. Remaining: U2 (edit relationships in place, place
+   history on character pages), U3 (a "Keep writing" section on story pages — **blocked** on the
+   pre-existing `/write/[code]` Lexical #173 / React #418 crash, Phase 4 gap #2, since both pages
+   share the same editor component), U4 (table and board views on every collection list page), U5
+   (record popups, editable relationship view/node map, movable nodes), U6 (story board drag and
+   drop). The plan says U1-U6 "can go anywhere after" Phase 5/item 6, so these are unblocked and
+   can proceed in any order except U3.
+3. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
    (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on
-   S4-S6 above. Phases 7-8 are the next unblocked work while S4-S7 waits on the billing fix.
+   S4-S6 above. Phases 7-8 are also unblocked while S4-S7 waits on the billing fix.
 
 3. **Phase 5A, steps U1 to U6 (working surfaces).** Header actions, editable relationships and
    place history, a writing area on story pages, table and status board views on collection pages,

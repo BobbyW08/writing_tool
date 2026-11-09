@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMapByCode } from "@/lib/world/queries";
 import { EditableField } from "@/components/editable-field";
-import { DeleteRecordButton } from "@/components/delete-record-button";
+import { RecordActions } from "@/components/record-actions";
 import { MapBaseImageUpload } from "@/components/map-base-image-upload";
 import { MapCanvas, type MapData } from "@/components/map-canvas";
 import { WhatLinksHere } from "@/components/what-links-here";
@@ -43,6 +43,7 @@ export default async function MapPage({
           <div className="flex items-center gap-2">
             <EditableField collection="maps" docId={map.id} fieldName="kind" value={map.kind} kind="select" options={KIND_OPTIONS} />
             <MapBaseImageUpload mapId={map.id} hasImage={!!map.baseImage} />
+            <RecordActions collection="maps" id={map.id} code={map.code} name={map.name} status={map.status} />
           </div>
         </div>
         <div className="mt-2">
@@ -58,10 +59,6 @@ export default async function MapPage({
       <MapCanvas map={map as unknown as MapData} editable focusPinCode={pin} />
 
       <WhatLinksHere code={map.code} />
-
-      <div className="border-t pt-4">
-        <DeleteRecordButton collection="maps" id={map.id} code={map.code} name={map.name} />
-      </div>
     </div>
   );
 }

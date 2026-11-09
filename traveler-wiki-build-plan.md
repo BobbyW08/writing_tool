@@ -681,7 +681,7 @@ along the way).
 
 ### Phase 5A: Working surfaces (steps U1 to U6)
 Detail is in "Steps U1 to U6: working surfaces" below.
-- [ ] U1: status and delete in the top right of every read page.
+- [x] U1: status and delete in the top right of every read page. **Closed 2026-11-09.**
 - [ ] U2: edit relationships in place, and place history for characters.
 - [ ] U3: a writing area on each story page.
 - [ ] U4: table and status board views on every collection page.
@@ -1014,12 +1014,16 @@ Every edit goes through the existing data layer write functions in `lib/world/ac
 behave exactly as they do everywhere else. There is no second write path.
 
 ### Step U1: header actions
-- [ ] One shared `RecordActions` component in the top right of every read page header: entries,
+- [x] One shared `RecordActions` component in the top right of every read page header: entries,
       events, stories, boards, chronicles, maps and tables. It holds the status select (on
-      collections that have `status`) and the delete button, beside the page title.
-- [ ] Delete keeps its confirmation dialog and its existing cleanup of parent links, relationships
-      and link index rows. The delete button at the bottom of each page is removed.
-- [ ] A status change saves at once through the data layer and shows a short confirmation.
+      collections that have `status`) and the delete button, beside the page title. **Closed
+      2026-11-09** — `components/record-actions.tsx`, wired onto all 7 pages. See
+      `BUILD_GUIDE.md`'s Phase 5A section.
+- [x] Delete keeps its confirmation dialog and its existing cleanup of parent links, relationships
+      and link index rows (unchanged — `RecordActions` wraps the existing `DeleteRecordButton`
+      rather than replacing its logic). The delete button at the bottom of each page is removed.
+- [x] A status change saves at once through the data layer and shows a short confirmation
+      (unchanged — `RecordActions` wraps the existing `EditableField`).
 
 ### Step U2: edit relationships, keep place history
 - [ ] `updateRelationshipAction(id, patch)` in `lib/world/actions.ts`. It changes `type`, the other

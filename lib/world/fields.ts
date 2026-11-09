@@ -14,7 +14,7 @@ export interface FieldDef {
   description?: string
 }
 
-const STATUS_OPTIONS = [
+export const STATUS_OPTIONS = [
   { label: 'Locked (canon)', value: 'locked' },
   { label: 'In development', value: 'in_development' },
   { label: 'Needs a name', value: 'needs_name' },

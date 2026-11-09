@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBoardByCode, getGraphCandidates } from "@/lib/world/queries";
 import { EditableField } from "@/components/editable-field";
-import { DeleteRecordButton } from "@/components/delete-record-button";
+import { RecordActions } from "@/components/record-actions";
 import { WhatLinksHere } from "@/components/what-links-here";
 import { BoardGraphView } from "@/components/board-graph-view";
 import { BoardWhiteboard } from "@/components/board-whiteboard";
@@ -28,10 +28,15 @@ export default async function BoardPage({ params }: { params: Promise<{ code: st
           <span>/</span>
           <span>{KIND_LABELS[board.kind] ?? board.kind}</span>
         </div>
-        <h1 className="mt-1 text-2xl font-semibold">
-          <EditableField collection="boards" docId={board.id} fieldName="name" value={board.name} kind="text" className="text-2xl font-semibold" />
-        </h1>
-        <p className="font-mono text-xs text-muted-foreground">{board.code}</p>
+        <div className="mt-1 flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold">
+              <EditableField collection="boards" docId={board.id} fieldName="name" value={board.name} kind="text" className="text-2xl font-semibold" />
+            </h1>
+            <p className="font-mono text-xs text-muted-foreground">{board.code}</p>
+          </div>
+          <RecordActions collection="boards" id={board.id} code={board.code} name={board.name} status={board.status} />
+        </div>
         <div className="mt-2">
           <EditableField collection="boards" docId={board.id} fieldName="summary" value={board.summary} kind="textarea" placeholder="Click to add summary" className="text-sm" />
         </div>
@@ -51,10 +56,6 @@ export default async function BoardPage({ params }: { params: Promise<{ code: st
       )}
 
       <WhatLinksHere code={board.code} />
-
-      <div className="border-t pt-4">
-        <DeleteRecordButton collection="boards" id={board.id} code={board.code} name={board.name} />
-      </div>
     </div>
   );
 }

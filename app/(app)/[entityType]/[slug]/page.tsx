@@ -8,7 +8,7 @@ import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
 import { EditableField } from "@/components/editable-field";
 import { DetailsEditor } from "@/components/details-editor";
 import { RelationshipEditor } from "@/components/relationship-editor";
-import { DeleteRecordButton } from "@/components/delete-record-button";
+import { RecordActions } from "@/components/record-actions";
 import { COLLECTION_FIELDS } from "@/lib/world/fields";
 import { Infobox } from "@/components/infobox";
 import { INFOBOX_FIELDS } from "@/lib/infobox";
@@ -63,13 +63,6 @@ type RelRow = {
   type?: string | null;
   title?: string | null;
 };
-
-const STATUS_OPTIONS = [
-  { label: "Locked (canon)", value: "locked" },
-  { label: "In development", value: "in_development" },
-  { label: "Needs a name", value: "needs_name" },
-  { label: "Placeholder (still to decide)", value: "placeholder" },
-];
 
 export default async function EntityReadPage({ params }: { params: Promise<{ entityType: string; slug: string }> }) {
   const { entityType, slug } = await params;
@@ -182,9 +175,7 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
               </p>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <EditableField collection={entityType} docId={doc.id} fieldName="status" value={doc.status} kind="select" options={STATUS_OPTIONS} />
-          </div>
+          <RecordActions collection={entityType} id={doc.id} code={code} name={doc.name} status={doc.status} />
         </div>
 
         <div className="mt-2">
@@ -303,10 +294,6 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
       <RelationshipView code={code} name={doc.name} color={nodeKindFor(entityType).color} icon={nodeKindFor(entityType).icon} />
 
       <WhatLinksHere code={code} />
-
-      <div className="border-t pt-4">
-        <DeleteRecordButton collection={entityType} id={doc.id} code={code} name={doc.name} />
-      </div>
     </div>
   );
 }

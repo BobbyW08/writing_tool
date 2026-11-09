@@ -4,7 +4,7 @@ import { getEventByCode, getEventBySlug, getRelationshipsByCode, buildCodeMap, i
 import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
-import { DeleteRecordButton } from "@/components/delete-record-button";
+import { RecordActions } from "@/components/record-actions";
 import { WhatLinksHere } from "@/components/what-links-here";
 import { RelationshipView } from "@/components/relationship-view";
 import { EventPinsEditor, type EventPinRef } from "@/components/event-pins-editor";
@@ -47,13 +47,6 @@ type RelRow = {
   toCode: string;
   type?: string | null;
 };
-
-const STATUS_OPTIONS = [
-  { label: "Locked (canon)", value: "locked" },
-  { label: "In development", value: "in_development" },
-  { label: "Needs a name", value: "needs_name" },
-  { label: "Placeholder (still to decide)", value: "placeholder" },
-];
 
 const EVENT_TYPE_OPTIONS = [
   { label: "Celestial", value: "celestial" },
@@ -136,6 +129,7 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
             {yearText() && <p className="text-sm text-muted-foreground">{yearText()}</p>}
             {code && <p className="font-mono text-xs text-muted-foreground">{code}</p>}
           </div>
+          <RecordActions collection="events" id={doc.id} code={code} name={doc.name} status={doc.status} />
         </div>
       </div>
 
@@ -183,11 +177,6 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-xs font-semibold text-muted-foreground">Status</span>
-        <EditableField collection="events" docId={doc.id} fieldName="status" value={doc.status} kind="select" options={STATUS_OPTIONS} />
-      </div>
-
       <div className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Still to decide</p>
         <EditableField collection="events" docId={doc.id} fieldName="gapPrompt" value={doc.gapPrompt} kind="textarea" placeholder="What still needs deciding?" className="text-sm" />
@@ -232,10 +221,6 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
       <RelationshipView code={code} name={doc.name} color={nodeKindFor("events").color} icon={nodeKindFor("events").icon} />
 
       <WhatLinksHere code={code} />
-
-      <div className="border-t pt-4">
-        <DeleteRecordButton collection="events" id={doc.id} code={code} name={doc.name} />
-      </div>
     </div>
   );
 }

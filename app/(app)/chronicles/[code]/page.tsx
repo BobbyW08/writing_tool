@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getChronicleByCode, getEventsForChronicle, getMapsDataByIds } from "@/lib/world/queries";
 import { EditableField } from "@/components/editable-field";
-import { DeleteRecordButton } from "@/components/delete-record-button";
+import { RecordActions } from "@/components/record-actions";
 import { WhatLinksHere } from "@/components/what-links-here";
 import { MapPeriodsEditor, ChronicleErasEditor, ChronicleFilterEditor } from "@/components/chronicle-config";
 import { ChronicleView, type ChronicleEvent } from "@/components/chronicle-view";
@@ -33,10 +33,15 @@ export default async function ChroniclePage({ params }: { params: Promise<{ code
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link href="/chronicles" className="hover:underline">Chronicles</Link>
         </div>
-        <h1 className="mt-1 text-2xl font-semibold">
-          <EditableField collection="chronicles" docId={chronicle.id} fieldName="name" value={chronicle.name} kind="text" className="text-2xl font-semibold" />
-        </h1>
-        <p className="font-mono text-xs text-muted-foreground">{chronicle.code}</p>
+        <div className="mt-1 flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold">
+              <EditableField collection="chronicles" docId={chronicle.id} fieldName="name" value={chronicle.name} kind="text" className="text-2xl font-semibold" />
+            </h1>
+            <p className="font-mono text-xs text-muted-foreground">{chronicle.code}</p>
+          </div>
+          <RecordActions collection="chronicles" id={chronicle.id} code={chronicle.code} name={chronicle.name} status={chronicle.status} />
+        </div>
         <div className="mt-2">
           <EditableField collection="chronicles" docId={chronicle.id} fieldName="summary" value={chronicle.summary} kind="textarea" placeholder="Click to add summary" className="text-sm" />
         </div>
@@ -71,10 +76,6 @@ export default async function ChroniclePage({ params }: { params: Promise<{ code
       />
 
       <WhatLinksHere code={chronicle.code} />
-
-      <div className="border-t pt-4">
-        <DeleteRecordButton collection="chronicles" id={chronicle.id} code={chronicle.code} name={chronicle.name} />
-      </div>
     </div>
   );
 }

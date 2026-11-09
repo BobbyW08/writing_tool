@@ -4,7 +4,7 @@ import { getStoryByCode, getRelationshipsByCode, buildCodeMap, isUnk } from "@/l
 import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
-import { DeleteRecordButton } from "@/components/delete-record-button";
+import { RecordActions } from "@/components/record-actions";
 import { WhatLinksHere } from "@/components/what-links-here";
 
 type StoryDoc = {
@@ -49,13 +49,6 @@ const FORMAT_OPTIONS = [
   { label: 'Short story', value: 'short_story' },
   { label: 'Vignette', value: 'vignette' },
   { label: 'Other', value: 'other' },
-];
-
-const STATUS_OPTIONS = [
-  { label: 'Locked (canon)', value: 'locked' },
-  { label: 'In development', value: 'in_development' },
-  { label: 'Needs a name', value: 'needs_name' },
-  { label: 'Placeholder (still to decide)', value: 'placeholder' },
 ];
 
 export default async function StoryReadPage({ params }: { params: Promise<{ code: string }> }) {
@@ -108,9 +101,7 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <EditableField collection="stories" docId={doc.id} fieldName="stage" value={doc.stage} kind="select" options={STAGE_OPTIONS} />
-            <Link href={`/admin/collections/stories/${doc.id}`} className="text-xs text-muted-foreground hover:underline">
-              Admin
-            </Link>
+            <RecordActions collection="stories" id={doc.id} code={storyCode} name={doc.name} status={(doc as Record<string, unknown>).status as string} />
           </div>
         </div>
         <div className="mt-2">
@@ -152,10 +143,6 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
           <p className="text-xs font-semibold text-muted-foreground">Floating</p>
           <EditableField collection="stories" docId={doc.id} fieldName="floating" value={doc.floating} kind="checkbox" />
         </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground">Status</p>
-          <EditableField collection="stories" docId={doc.id} fieldName="status" value={(doc as Record<string, unknown>).status as string} kind="select" options={STATUS_OPTIONS} />
-        </div>
       </div>
 
       {/* Gap prompt */}
@@ -185,11 +172,6 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
 
       {/* What links here */}
       <WhatLinksHere code={storyCode} />
-
-      {/* Delete */}
-      <div className="border-t pt-4">
-        <DeleteRecordButton collection="stories" id={doc.id} code={storyCode} name={doc.name} />
-      </div>
     </div>
   );
 }
