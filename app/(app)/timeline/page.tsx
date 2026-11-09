@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getEventsList, getErasList } from "@/lib/world/queries";
+import { getEventsList, getErasList, getConvergenceCandidates } from "@/lib/world/queries";
 import { TimelineView } from "@/components/timeline-view";
 import { EraManager } from "@/components/era-manager";
+import { ConvergenceView } from "@/components/convergence-view";
 import type { TimelineEventInput, TimelineEraInput } from "@/components/timeline-view";
 
 export default async function TimelinePage({
@@ -12,6 +13,7 @@ export default async function TimelinePage({
   const { era } = await searchParams;
   const { docs } = await getEventsList();
   const { docs: eraDocs } = await getErasList();
+  const candidates = await getConvergenceCandidates();
 
   type Ev = {
     id: number; code?: string | null; name: string; yearLabel?: string | null; startYear?: number | null;
@@ -64,6 +66,8 @@ export default async function TimelinePage({
       />
 
       <TimelineView events={placed} eras={eras} focusEraCode={era ?? null} />
+
+      <ConvergenceView candidates={candidates} />
 
       {unplaced.length > 0 && (
         <div className="space-y-2">

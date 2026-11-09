@@ -49,9 +49,33 @@ Done so far, committed:
   and sized correctly; confirmed click-to-add's query-param prefill. All test mutations reverted
   afterward (test era deleted, E1's lane/eventType/importance reset to their original values via a
   one-off script, same pattern as prior sessions' live-data checks).
-- Not yet done: sidebar multi-select filter, multi-lane convergence view (`i-storyline-js`), node
-  map + per-entry relationship view (React Flow — not yet installed), story board, and the rest of
-  W2's polish (mini-map, search/filter, time gaps, two-tier header). See `next.md`.
+- Sidebar multi-select filter + multi-lane convergence view: built as one coupled chunk (the
+  multi-select is the convergence view's entry-picker). `components/ui/multi-select.tsx` is a
+  copy-paste shadcn-style component (`Command`/`Popover`/`Badge`/`Button`, all already in this
+  project — not an installed package, per CLAUDE.md's stack-table note and hard rule 10). Reverse-
+  engineered `i-storyline-js`'s real `loadJSON()` API directly from its source (its README only
+  documents an XML-file path): `lib/convergence/build.ts` (pure story-JSON builder — finds every
+  event whose `involves` names two or more of the selected entries, builds a `Story.Characters`
+  span map with shared "converging" sessions at those years), `lib/convergence/actions.ts` (server
+  action — runs the library entirely server-side via `getConvergenceGraphAction`, returns only
+  plain SVG path strings so the library's weight never reaches the client bundle),
+  `types/i-storyline-js.d.ts` (minimal ambient shim — package ships no types and none exist on
+  npm), `components/convergence-view.tsx` (client component: multi-select, calls the action on
+  selection change, renders an SVG with one colored path per entry, a legend, and a text list of
+  convergence points). New queries: `getConvergenceCandidates()` (every coded entry across all 8
+  world collections), `getEventsForConvergence()` (every placed event's `involves` resolved to
+  codes). Wired into `app/(app)/timeline/page.tsx` below the timeline canvas.
+  `i-storyline-js`'s `main` field points at unbundled ESM source with extensionless relative
+  imports — resolves fine through Turbopack (confirmed via `npm run build`, zero errors) but not
+  plain Node, so it can't be smoke-tested standalone outside the Next.js server.
+- Verified live in a real browser: selected SERO (C1) and Vashten (C3) in the multi-select: the
+  SVG rendered 2 paths (confirmed via DOM inspection — `viewBox="0 0 1000 160"`, both `d` attrs
+  non-empty), the points list showed exactly the three events where both are in `involves` (Year
+  7 — The Ritual, Year 10 — The Arrival of the Asharan Empire, Year 23 — Giana's Death), no console
+  errors. No test-data cleanup needed — selecting entries in the UI doesn't mutate anything.
+- Not yet done: node map + per-entry relationship view (React Flow — not yet installed), story
+  board, and the rest of W2's polish (mini-map, search/filter, time gaps, two-tier header). See
+  `next.md`.
 
 ### Phase 4: the continuity check port
 

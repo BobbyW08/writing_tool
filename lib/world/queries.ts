@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq, desc, inArray, like, or } from 'drizzle-orm'
+import { eq, desc, inArray, like, or, isNotNull } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { CODE_REGEX, CODE_PREFIX_CHARS, ENTITY_SLUGS, PREFIX_TO_SLUG } from '@/lib/codes'
@@ -258,6 +258,66 @@ export async function getEventBySlug(slug: string) {
   const rows = await appDb.select().from(schema.events).where(eq(schema.events.slug, slug)).limit(1)
   if (!rows[0]) return null
   return enrichWorldRow(rows[0] as unknown as Record<string, unknown>, 'events')
+}
+
+// ─── getConvergenceCandidates ─────────────────────────────────────────────────
+// Everything that can appear in an event's `involves` (any world entry — not events or stories
+// themselves), for the multi-lane convergence view's entry picker.
+export async function getConvergenceCandidates(): Promise<{ code: string; name: string; collection: string }[]> {
+  const { WORLD_SLUGS } = await import('@/lib/codes')
+  const results = await Promise.all(WORLD_SLUGS.map(async (collection) => {
+    const table = getWorldTable(collection)
+    if (!table) return []
+    const rows = await appDb.select({ code: table.code, name: table.name }).from(table as never)
+    return (rows as { code: string; name: string }[]).map(r => ({ ...r, collection }))
+  }))
+  return results.flat()
+}
+
+// ─── getEventsForConvergence ──────────────────────────────────────────────────
+// Every placed event with its `involves` list resolved to codes, for the multi-lane
+// convergence view (lib/convergence/). Not the generic event list — this exists only to
+// answer "which selected entries does this event involve."
+export async function getEventsForConvergence(): Promise<{
+  code: string; name: string; startYear: number; involvesCodes: string[]
+}[]> {
+  const [events, involveRows] = await Promise.all([
+    appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name, startYear: schema.events.startYear })
+      .from(schema.events).where(isNotNull(schema.events.startYear)),
+    appDb.select().from(schema.eventInvolves),
+  ])
+
+  const byEvent = new Map<number, { entryCollection: string; entryId: number }[]>()
+  for (const r of involveRows) {
+    const list = byEvent.get(r.eventId) ?? []
+    list.push({ entryCollection: r.entryCollection, entryId: r.entryId })
+    byEvent.set(r.eventId, list)
+  }
+
+  const idsByCollection = new Map<string, Set<number>>()
+  for (const rows of byEvent.values()) {
+    for (const r of rows) {
+      const set = idsByCollection.get(r.entryCollection) ?? new Set<number>()
+      set.add(r.entryId)
+      idsByCollection.set(r.entryCollection, set)
+    }
+  }
+
+  const codeOf = new Map<string, string>() // `${collection}:${id}` -> code
+  await Promise.all(Array.from(idsByCollection.entries()).map(async ([collection, ids]) => {
+    const table = getWorldTable(collection)
+    if (!table) return
+    const rows = await appDb.select({ id: table.id, code: table.code })
+      .from(table as never).where(inArray(table.id, [...ids]))
+    for (const row of rows as { id: number; code: string }[]) codeOf.set(`${collection}:${row.id}`, row.code)
+  }))
+
+  return events.map(e => ({
+    code: e.code, name: e.name, startYear: e.startYear!,
+    involvesCodes: (byEvent.get(e.id) ?? [])
+      .map(r => codeOf.get(`${r.entryCollection}:${r.entryId}`))
+      .filter((c): c is string => !!c),
+  }))
 }
 
 // ─── getErasList ──────────────────────────────────────────────────────────────
