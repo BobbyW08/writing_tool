@@ -22,6 +22,8 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   languages: schema.languages as unknown as AnyTable,
   lore: schema.lore as unknown as AnyTable,
   eras: schema.eras as unknown as AnyTable,
+  maps: schema.maps as unknown as AnyTable,
+  'map-pins': schema.mapPins as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -90,6 +92,11 @@ const SIMPLE_FIELD_LINKS: Record<string, { idField: string; toCollection: string
   factions: [{ idField: 'cultureId', toCollection: 'cultures', type: 'culture' }],
   events: [{ idField: 'locationId', toCollection: 'locations', type: 'location' }],
   writing: [{ idField: 'storyId', toCollection: 'stories', type: 'story' }],
+  maps: [{ idField: 'locationId', toCollection: 'locations', type: 'location' }],
+  'map-pins': [
+    { idField: 'mapId', toCollection: 'maps', type: 'onMap' },
+    { idField: 'opensMapId', toCollection: 'maps', type: 'opensMap' },
+  ],
 }
 
 const ARRAY_FIELD_LINKS: Record<string, { idsField: string; toCollection: string; type: string }[]> = {
@@ -184,6 +191,13 @@ async function extractStoryDramatizesLinks(ownerCode: string, storyId: number): 
     ownerCode, 'stories', 'dramatizes',
     rows.map(r => ({ entryCollection: 'events', entryId: r.eventId }))
   )
+}
+
+async function extractMapPinLinksLinks(ownerCode: string, mapPinId: number): Promise<PendingLink[]> {
+  const rows = await appDb.select({
+    entryCollection: schema.mapPinLinks.entryCollection, entryId: schema.mapPinLinks.entryId,
+  }).from(schema.mapPinLinks).where(eq(schema.mapPinLinks.mapPinId, mapPinId))
+  return extractJoinTableLinks(ownerCode, 'map-pins', 'links', rows)
 }
 
 // ─── parent: the `parentId` ("Part of") field ────────────────────────────────
@@ -325,6 +339,7 @@ export async function computeOwnedLinks(collection: string, id: number): Promise
     pending.push(...await extractStoryInvolvesLinks(ownerCode, record.id as number))
     pending.push(...await extractStoryDramatizesLinks(ownerCode, record.id as number))
   }
+  if (collection === 'map-pins') pending.push(...await extractMapPinLinksLinks(ownerCode, record.id as number))
   return pending
 }
 

@@ -765,11 +765,21 @@ Delivered with Phase 5 and step S3. **Closed 2026-11-09** — see `BUILD_GUIDE.m
 
 ## Step W3: maps
 
-- [ ] Spike first: pick one maintained library for image maps (pan, zoom, markers, shapes, layers). Record
-      the choice in the stack table in `CLAUDE.md`.
-- [ ] `maps` (M) and `map-pins` (P), layers, pin groups, popups, open-another-map pins.
-- [ ] Map viewer, then the editor (right click to add, drag, draw lines, circles and polygons).
-- [ ] Show a map inside a read page.
+Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W3 section.
+- [x] Spike first: pick one maintained library for image maps (pan, zoom, markers, shapes, layers). Record
+      the choice in the stack table in `CLAUDE.md`. Confirmed: `leaflet` + `react-leaflet` with
+      `CRS.Simple`, drawing/editing via `@geoman-io/leaflet-geoman-free`.
+- [x] `maps` (M) and `map-pins` (P), layers, pin groups, popups, open-another-map pins (`open_entry`
+      and `open_map` behaviors both built and verified; `open_map` was verified at the data/UI-field
+      level, not by clicking through to a second map, since the test pass used only one map).
+- [x] Map viewer, then the editor (right click to add, drag, draw lines, circles and polygons). Pin
+      and circle creation, drag, and circle edit-shape (resize) were all verified live. Line and
+      polygon drawing use the identical `pm:create` → draft-form → save path proven for pin/circle,
+      but were not separately clicked through in the browser this pass. The `label` shape is spec'd
+      in the schema (`shape` enum) but has no distinct rendering/behavior yet — plain pins and labels
+      look and act the same.
+- [x] Show a map inside a read page. Embedded (read-only) on the Location read page when a location
+      has one or more maps; verified live with a real location.
 
 ## Step W4: chronicles
 

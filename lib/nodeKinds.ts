@@ -19,6 +19,8 @@ export const NODE_KINDS: Record<string, NodeKind> = {
   events: { color: '#ea580c', icon: 'Zap' },
   stories: { color: '#4f46e5', icon: 'NotebookPen' },
   writing: { color: '#64748b', icon: 'FileText' },
+  maps: { color: '#0891b2', icon: 'Map' },
+  'map-pins': { color: '#0891b2', icon: 'MapPinned' },
 }
 
 export const DEFAULT_NODE_KIND: NodeKind = { color: '#71717a', icon: 'Circle' }

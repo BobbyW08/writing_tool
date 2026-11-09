@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEntryByCode, getEntryBySlug, getSubItems, getRelationshipsByCode, getEventsInvolving, buildCodeMap, isUnk } from "@/lib/world/queries";
+import { getEntryByCode, getEntryBySlug, getSubItems, getRelationshipsByCode, getEventsInvolving, buildCodeMap, isUnk, getMapsForLocation, getMapByCode } from "@/lib/world/queries";
+import { MapCanvas, type MapData } from "@/components/map-canvas";
 import { StatusBadge } from "@/components/status-badge";
 import { CodeText } from "@/components/code-text";
 import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
@@ -83,11 +84,13 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
   const doc = entry as unknown as EntryDoc;
   const code = doc.code ?? "";
 
-  const [subItems, rels, linkedEvents] = await Promise.all([
+  const [subItems, rels, linkedEvents, locationMaps] = await Promise.all([
     getSubItems(entityType, doc.id),
     code ? getRelationshipsByCode(code) : Promise.resolve({ from: [], to: [] }),
     getEventsInvolving(entityType, doc.id),
+    entityType === "locations" ? getMapsForLocation(doc.id) : Promise.resolve([]),
   ]);
+  const firstLocationMap = locationMaps[0] ? await getMapByCode(locationMaps[0].code) : null;
 
   const allTexts = [doc.summary, doc.gapPrompt, ...(doc.details?.map(d => d.value) ?? [])];
   const codeMap = await buildCodeMap(allTexts);
@@ -278,6 +281,22 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {locationMaps.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">Maps</h2>
+          <ul className="flex flex-wrap gap-2">
+            {locationMaps.map(m => (
+              <li key={m.id}>
+                <Link href={`/maps/${m.code}`} className="rounded border px-2 py-1 text-sm hover:bg-accent">
+                  {m.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {firstLocationMap && <MapCanvas map={firstLocationMap as unknown as MapData} editable={false} />}
         </section>
       )}
 

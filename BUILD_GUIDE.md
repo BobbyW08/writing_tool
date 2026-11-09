@@ -9,12 +9,112 @@ end of every session.
 
 ## Current state (as of 2026-11-09)
 
-**Phase 3, G1 (the link index) and Phase 4 (the continuity check port) are all closed. Phase 5
-(views) is done per the plan's checklist — eras/lanes/era-bands, the multi-select filter and
-convergence view, node map and relationship view, story board, and the timeline's W2 polish
-(search/filter, time gaps, mini-map, two-tier header) are all built, verified live, and
-committed. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section
-before touching anything AI- or writing-related again.**
+**Phase 3, G1 (the link index), Phase 4 (the continuity check port) and Phase 5 (views) are all
+closed. Step W3 (maps) is also closed — see its section below. Build passes zero errors. See the
+gaps flagged at the end of the Phase 4 section before touching anything AI- or writing-related
+again. The Vercel AI Gateway billing block (Phase 4 gap #1) was re-checked twice this session
+after the user added a card and is still failing with the identical `customer_verification_required`
+error — needs resolving account-side before S4 can start; don't keep re-spiking it blindly.**
+
+### Step W3: maps
+
+Library spike, schema, full CRUD wiring, viewer/editor UI, Location-page embed, and live-browser
+verification of every interactive path (pin/circle create, drag, circle resize, links editor,
+behavior select, delete with cascade cleanup). All test data created during verification was
+deleted afterward; `scripts/_tmp-check-pins.mjs` (a scratch DB-check script) was deleted too.
+
+- **Library choice** (recorded in `CLAUDE.md`'s stack table): `leaflet@1.9.4` + `react-leaflet@5.0.0`
+  (confirmed React 19 peer-dep support) with `CRS.Simple` for pixel-based, non-geographic image
+  maps. Drawing/editing toolbar: `@geoman-io/leaflet-geoman-free@2.20.6` (actively maintained,
+  unlike the stale `leaflet-draw`).
+- **Schema**: `maps` (M) and `map_pins` (P) tables plus a `map_pin_links` many-to-many join table
+  (a pin's popup/links list references any number of entries across collections). Migration
+  `0005_shiny_jocasta.sql` (additive, both tables + 7 indexes), applied to `APP_DATABASE_URL`.
+  A follow-up migration `0006_neat_nighthawk.sql` dropped `map_pins.geometry`'s `NOT NULL`
+  constraint (see the bug below) — also applied.
+- **Pixel-coordinate discipline** (hard rule 16): `lib/maps/coords.ts` centralizes every
+  conversion between the app's true pixel geometry (origin top-left, y-down, plain
+  `{x,y}`/`{x,y,radius}`/`{points:[[x,y],...]}`  — the only thing ever persisted) and Leaflet's
+  internal lat/lng (y-up under `CRS.Simple`). Nothing Leaflet-specific (a LatLng, a zoom level) is
+  ever written to the database.
+- **Full data-layer wiring**, following the same pattern established for `eras`: `maps`/`map-pins`
+  added to `WORLD_TABLE_MAP` in `lib/world/actions.ts` and `lib/world/queries.ts`; code assignment
+  (M, P prefixes) in `lib/codes.ts`; text-mention scanning in `lib/graph/extract.ts`; link-index
+  sync in `lib/graph/sync.ts` (including a dedicated `extractMapPinLinksLinks` for the
+  `map_pin_links` join table, since it's a separate table from the generic field-link pattern);
+  route mapping in `lib/graph/href.ts` (`/maps/:code`, pins redirect through `/pins/:code` →
+  `/maps/:mapCode?pin=:code` since a pin has no page of its own); node styling in
+  `lib/nodeKinds.ts`; nav entry in `app/(app)/layout.tsx`.
+- **Bespoke pin actions** (`lib/world/actions.ts`): `createMapPinAction` (two-step — the generic
+  `createEntityAction` strips non-primitive fields on insert, so it creates the row first, then
+  sets `geometry` via `updateFieldAction` immediately after), `updateMapPinGeometryAction`
+  (drag/resize/reshape), `resolveEntryForLinkAction` (code/name → entry for the links editor),
+  `updateMapPinLinksAction` (replaces a pin's `map_pin_links` rows).
+- **UI**: `components/map-canvas-inner.tsx` (the full Leaflet/geoman viewer+editor — pan/zoom,
+  base image + layer overlays with visibility toggles, pin-group visibility toggles, pin/circle/
+  polygon/line rendering, click-to-select with popups, a draw toolbar, drag-to-move, an "Edit
+  shape" mode for circles/polygons/lines, a links editor, a behavior selector, delete), wrapped by
+  `components/map-canvas.tsx` (`next/dynamic(..., {ssr:false})`, same pattern as
+  `components/timeline-view.tsx`). `components/map-base-image-upload.tsx` (upload flow, adapted
+  from `infobox.tsx`). `app/(app)/maps/page.tsx` (list) + `components/new-map-form.tsx`.
+  `app/(app)/maps/[code]/page.tsx` (detail/editor, accepts `?pin=` for deep-linking).
+  `app/(app)/pins/[code]/page.tsx` (thin redirect to the owning map). Embedded read-only
+  (`editable={false}`) on the Location read page (`app/(app)/[entityType]/[slug]/page.tsx`) when a
+  location has one or more linked maps.
+- **Three real bugs found and fixed via live-browser testing** (type-check and build alone would
+  not have caught any of these):
+  1. **Geoman's `window.L` race** (`ReferenceError: L is not defined`) — a static top-level
+     `import` of the plugin ran before Leaflet was attached to `window`. Fixed with a
+     `loadGeoman()` dynamic-import singleton that sets `window.L = L` first.
+  2. **Geoman's init-hook never fires on React-constructed objects** (`TypeError: Cannot read
+     properties of undefined (reading 'addControls')`) — react-leaflet constructs the Map/shape
+     instances before geoman's async import resolves, so its `addInitHook`-based `.pm` attachment
+     misses them. Fixed by reading geoman's own source
+     (`node_modules/@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.js`) and writing
+     `ensureMapPm`/`ensureLayerPm` to manually replicate the exact constructions
+     (`new L.PM.Map(this)`, `new L.PM.Edit.Circle/Polygon/Line(this)`) it would have run.
+  3. **`map_pins.geometry` NOT NULL violated by the two-step create, silently.**
+     `createEntityAction`'s generic insert strips non-primitive fields, so `createMapPinAction`'s
+     first INSERT (no `geometry` yet) always failed the NOT NULL constraint — caught by
+     `createEntityAction`'s own try/catch (`return {id:0, error:...}`, no throw), and the client
+     (`DraftPinForm.handleSave()`) never checked the result for `.error`, so the UI just closed the
+     draft form as if it had succeeded. Confirmed via a direct DB query showing the pins table
+     empty after an apparently-successful create. Fixed three ways: `geometry` is now nullable
+     (migration `0006`, with an explanatory comment in `db/schema.ts`), `getMapByCode` filters out
+     any pin with a null `geometry` as defense-in-depth, and `DraftPinForm.handleSave()` now checks
+     `result.error` and surfaces it in the form. **Lesson for future work on this codebase**: a
+     client component that calls a server action and discards its return value without checking
+     `.error` can hide a real server-side failure behind an apparently-successful UI transition —
+     always check the result.
+- **A fourth real bug, found during this session's final cleanup pass**: deleting a map or a pin
+  left orphaned rows in `map_pin_links` — no DB-level cascade is defined on
+  `map_pins.mapId`/`map_pin_links.mapPinId`, and the generic `deleteEntityAction` only ever
+  deleted the one row plus that record's own link-index entries. Fixed in
+  `lib/world/actions.ts`: deleting a `map-pins` record now deletes its `map_pin_links` rows first;
+  deleting a `maps` record now deletes all of its pins' `map_pin_links` rows, then the pins
+  themselves (and removes each pin's own link-index entries), before deleting the map row.
+  Verified live: created a map with a linked pin, deleted the map through the UI, confirmed via
+  direct DB query that `maps`, `map_pins`, and `map_pin_links` were all empty afterward, and that
+  no stale entries for the deleted codes remained in the `links` index either.
+- **`scripts/rebuild-links.ts` was also missing `eras`, `maps`, and `map-pins`** from its
+  hardcoded `TABLES` map (a pre-existing gap for `eras`, from the Phase 5 session, that W3's dry
+  run run surfaced). Added all three — `eras` for the first time, matching the pattern this script
+  already uses for every other collection. Re-ran the dry run clean afterward (0 records for all
+  three, since no eras/maps/pins exist right now; the point was confirming the script no longer
+  silently skips them).
+- **Verified live, in order**: pin creation (marker shape, code `P3`) and persistence; circle
+  creation (code `P4`), drag-to-move, and "Edit shape" resize, each confirmed via direct DB query
+  of the stored pixel geometry; the links editor (added a real culture entry, Caeldrath Culture/U3,
+  to a pin's links, confirmed in `map_pin_links`); the behavior select (`open_entry`) — clicking
+  the pin navigated straight to `/cultures/U3` instead of showing the popup; the per-pin Delete
+  button (removed the pin, its popup, and its "What links here" listing, and — after the fix above
+  — its `map_pin_links` row); the page-level map Delete button, with an in-page (not native)
+  confirm step, cascading correctly to its pins and their links; the Location-page embed, by
+  linking a throwaway map to a real location (L1, CALDOR) and confirming it rendered with no
+  console errors, then deleting that map too. Polygon and line drawing were not separately
+  clicked through — they share the identical `pm:create` → draft-form → save path already proven
+  for pin and circle, so this was judged a reasonable scope cut for this pass; worth a quick spot
+  check before W4 (chronicles) leans on pins more heavily.
 
 ### Phase 5: views
 
@@ -364,9 +464,13 @@ Active routes under `app/(app)/`:
 - `/stories`, `/stories/new`, `/stories/[code]`
 - `/write`, `/write/[code]`
 - `/timeline`
+- `/node-map`
+- `/story-board`
 - `/continuity`, `/continuity/[flagCode]`
 - `/snippets`, `/snippets/new`, `/snippets/[id]` (stubbed)
 - `/link-health`
+- `/maps`, `/maps/[code]` (W3)
+- `/pins/[code]` (thin redirect to its owning map, W3)
 
 Active routes under `app/api/`:
 - `/api/media`, `/api/uploads/[...path]`
@@ -429,18 +533,20 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
-1. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board,
-   eras, lanes. (The link index and node/edge shape it depends on are done — G1.)
-2. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
+1. **W4: chronicles.** Needs W2 + W3, both now closed. `chronicles` (H), the event `pins` field,
+   the paired timeline + map view with map switching by pin and by period.
+2. **W5: boards.** React Flow is already installed (Phase 5). Spike a whiteboard library first.
+3. **W6: interactive tables.** Spike a grid library first.
+4. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
    (S7 is also where Phase 4's documented "Draft never spreads" gap gets closed, via the claims
-   ledger — see the Phase 4 section above).
-3. **W3 to W6.** Maps, chronicles, boards, interactive tables.
-4. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
+   ledger — see the Phase 4 section above). **Blocked** on the Vercel AI Gateway billing issue
+   (`customer_verification_required`, re-confirmed twice this session even after a card was added
+   — looks like an account/team-scoping issue, not something retrying from here can fix). Re-spike
+   once the user confirms it's genuinely resolved account-side, then resume.
+5. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
 
-Before any of that: add a credit card to the Vercel account's AI Gateway billing (Phase 4 gap
-#1 above) and look at the pre-existing Lexical #173 / React #418 crash on `/write/[code]`
-(Phase 4 gap #2) — neither blocks Phase 5, but both block actually using the continuity check or
-the Writing Studio day to day.
+Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
+#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it for W4+.
 
 ---
 

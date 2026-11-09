@@ -8,6 +8,8 @@ const COLLECTION_HREF: Record<string, (code: string) => string> = {
   stories: (code) => `/stories/${code}`,
   writing: (code) => `/write/${code}`,
   eras: (code) => `/timeline?era=${code}`, // eras have no read page; they live on the timeline
+  maps: (code) => `/maps/${code}`,
+  'map-pins': (code) => `/pins/${code}`, // pins have no read page of their own; redirects into their map
 }
 
 export function hrefForNode(collection: string, code: string): string {

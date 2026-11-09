@@ -1,0 +1,1 @@
+ALTER TABLE "map_pins" ALTER COLUMN "geometry" DROP NOT NULL;

@@ -425,6 +425,67 @@ export const continuityConfirmations = pgTable('continuity_confirmations', {
   index('continuity_confirmations_writing_idx').on(t.writingId),
 ])
 
+// ─── Maps and pins (step W3) ──────────────────────────────────────────────────
+// Coordinates on a pin are pixels on the map's baseImage, origin at the top left (hard rule 16).
+// Never screen positions or zoom-dependent values.
+
+export const maps = pgTable('maps', {
+  ...worldSharedCols(),
+  kind: text('kind').notNull().default('world'), // world | region | city | building | diagram | other
+  baseImageId: integer('base_image_id'),
+  imageWidth: integer('image_width'),
+  imageHeight: integer('image_height'),
+  layers: jsonb('layers')
+    .$type<{ name: string; imageId: number; opacity: number; defaultVisible: boolean; order: number }[]>()
+    .default(sql`'[]'::jsonb`),
+  pinGroups: jsonb('pin_groups')
+    .$type<{ name: string; color: string; defaultVisible: boolean }[]>()
+    .default(sql`'[]'::jsonb`),
+  minZoom: integer('min_zoom'),
+  maxZoom: integer('max_zoom'),
+  startView: jsonb('start_view').$type<{ x: number; y: number; zoom: number } | null>(),
+  locationId: integer('location_id'),
+  yearFrom: integer('year_from'),
+  yearTo: integer('year_to'),
+}, (t) => [
+  index('maps_code_idx').on(t.code),
+  index('maps_parent_idx').on(t.parentId),
+  index('maps_location_idx').on(t.locationId),
+])
+
+export const mapPins = pgTable('map_pins', {
+  ...sharedCols(),
+  mapId: integer('map_id').notNull(),
+  shape: text('shape').notNull().default('pin'), // pin | label | line | circle | polygon
+  // Nullable, not NOT NULL: createMapPinAction (lib/world/actions.ts) creates the row first via
+  // the generic createEntityAction, which strips non-primitive fields, then sets geometry in an
+  // immediate follow-up call — so it is briefly absent between those two statements.
+  geometry: jsonb('geometry').$type<unknown>(),
+  icon: text('icon'),
+  color: text('color'),
+  group: text('group'), // a name in the owning map's pinGroups
+  layer: text('layer'), // a name in the owning map's layers; empty means all layers
+  behavior: text('behavior').notNull().default('popup'), // popup | open_entry | open_map | none
+  opensMapId: integer('opens_map_id'),
+  yearFrom: integer('year_from'),
+  yearTo: integer('year_to'),
+}, (t) => [
+  index('map_pins_code_idx').on(t.code),
+  index('map_pins_map_idx').on(t.mapId),
+])
+
+// Many-to-many: a pin's popup lists any number of entries.
+export const mapPinLinks = pgTable('map_pin_links', {
+  id: serial('id').primaryKey(),
+  mapPinId: integer('map_pin_id').notNull(),
+  entryCollection: text('entry_collection').notNull(),
+  entryId: integer('entry_id').notNull(),
+}, (t) => [
+  unique().on(t.mapPinId, t.entryCollection, t.entryId),
+  index('map_pin_links_pin_idx').on(t.mapPinId),
+  index('map_pin_links_entry_idx').on(t.entryCollection, t.entryId),
+])
+
 // ─── Cultures join tables (kept as denorm columns in world tables, not separate) ─
 
 // cultures.homelands and cultures.languages are many-to-many.

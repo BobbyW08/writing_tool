@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq, desc, inArray, like, or, isNotNull } from 'drizzle-orm'
+import { eq, and, desc, inArray, like, or, isNotNull } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { CODE_REGEX, CODE_PREFIX_CHARS, ENTITY_SLUGS, PREFIX_TO_SLUG } from '@/lib/codes'
@@ -41,6 +41,8 @@ const WORLD_TABLE_MAP: Record<string, AnyWorldTable> = {
   languages: schema.languages as unknown as AnyWorldTable,
   lore: schema.lore as unknown as AnyWorldTable,
   eras: schema.eras as unknown as AnyWorldTable,
+  maps: schema.maps as unknown as AnyWorldTable,
+  'map-pins': schema.mapPins as unknown as AnyWorldTable,
 }
 
 function getWorldTable(collection: string) {
@@ -278,15 +280,17 @@ export async function getConvergenceCandidates(): Promise<{ code: string; name: 
 // Every coded entry the node map can center on: the 8 world collections plus events and
 // stories (writing and eras are graph-addressable too but rarely useful as a search target).
 export async function getGraphCandidates(): Promise<{ code: string; name: string; collection: string }[]> {
-  const [world, events, stories] = await Promise.all([
+  const [world, events, stories, maps] = await Promise.all([
     getConvergenceCandidates(),
     appDb.select({ code: schema.events.code, name: schema.events.name }).from(schema.events),
     appDb.select({ code: schema.stories.code, name: schema.stories.name }).from(schema.stories),
+    appDb.select({ code: schema.maps.code, name: schema.maps.name }).from(schema.maps),
   ])
   return [
     ...world,
     ...events.map(r => ({ ...r, collection: 'events' })),
     ...stories.map(r => ({ ...r, collection: 'stories' })),
+    ...maps.map(r => ({ ...r, collection: 'maps' })),
   ]
 }
 
@@ -350,6 +354,108 @@ export async function getTimelineSettings() {
     id: 1, scaleMode: 'to_scale' as const, gaps: [] as { fromYear: number; toYear: number; collapsedTo: number; label: string }[],
     defaultZoomStart: null, defaultZoomEnd: null, updatedAt: new Date(),
   }
+}
+
+// ─── Maps (step W3) ────────────────────────────────────────────────────────────
+export async function getMapsList() {
+  await getAllTags()
+  const docs = await appDb.select().from(schema.maps).orderBy(schema.maps.name)
+  return {
+    docs: docs.map(d => ({ ...d, tags: resolveTagIds((d.tagIds ?? []) as number[]) })),
+    totalDocs: docs.length,
+  }
+}
+
+export type ResolvedLinkEntry = { collection: string; id: number; code: string; name: string }
+
+async function resolveLinkEntries(
+  rows: { entryCollection: string; entryId: number }[]
+): Promise<ResolvedLinkEntry[]> {
+  const out: ResolvedLinkEntry[] = []
+  for (const r of rows) {
+    const table = r.entryCollection === 'events' ? schema.events
+      : r.entryCollection === 'stories' ? schema.stories
+      : getWorldTable(r.entryCollection)
+    if (!table) continue
+    const found = await appDb.select({ id: table.id, code: table.code, name: table.name })
+      .from(table as never).where(eq(table.id, r.entryId)).limit(1) as { id: number; code: string; name: string }[]
+    if (found[0]) out.push({ collection: r.entryCollection, id: found[0].id, code: found[0].code, name: found[0].name })
+  }
+  return out
+}
+
+export async function getMapByCode(code: string) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.maps).where(eq(schema.maps.code, code.toUpperCase())).limit(1)
+  const map = rows[0]
+  if (!map) return null
+
+  const [baseImage, location, allPinRows] = await Promise.all([
+    resolveMedia(map.baseImageId),
+    getLocationRef(map.locationId),
+    appDb.select().from(schema.mapPins).where(eq(schema.mapPins.mapId, map.id)),
+  ])
+  // geometry is nullable only for the instant between createMapPinAction's two statements
+  // (lib/world/actions.ts) — filter out the rare row read in that window rather than render it.
+  const pinRows = allPinRows.filter(p => p.geometry != null)
+
+  const layers = (map.layers ?? []) as { name: string; imageId: number; opacity: number; defaultVisible: boolean; order: number }[]
+  const resolvedLayers = await Promise.all(
+    layers.map(async l => ({ ...l, image: await resolveMedia(l.imageId) }))
+  )
+
+  const pins = await Promise.all(
+    pinRows.map(async p => {
+      const linkRows = await appDb.select({
+        entryCollection: schema.mapPinLinks.entryCollection, entryId: schema.mapPinLinks.entryId,
+      }).from(schema.mapPinLinks).where(eq(schema.mapPinLinks.mapPinId, p.id))
+      const opensMap = p.opensMapId
+        ? (await appDb.select({ code: schema.maps.code, name: schema.maps.name })
+            .from(schema.maps).where(eq(schema.maps.id, p.opensMapId)).limit(1))[0] ?? null
+        : null
+      return { ...p, links: await resolveLinkEntries(linkRows), opensMap }
+    })
+  )
+
+  return {
+    ...map,
+    tags: resolveTagIds((map.tagIds ?? []) as number[]),
+    baseImage,
+    location,
+    layers: resolvedLayers,
+    pinGroups: (map.pinGroups ?? []) as { name: string; color: string; defaultVisible: boolean }[],
+    pins,
+  }
+}
+
+export async function getMapsForLocation(locationId: number) {
+  const docs = await appDb.select({ id: schema.maps.id, code: schema.maps.code, name: schema.maps.name })
+    .from(schema.maps).where(eq(schema.maps.locationId, locationId))
+  return docs
+}
+
+export async function getMapCodeById(id: number | null | undefined): Promise<string | null> {
+  if (!id) return null
+  const rows = await appDb.select({ code: schema.maps.code }).from(schema.maps).where(eq(schema.maps.id, id)).limit(1)
+  return rows[0]?.code ?? null
+}
+
+export async function getPinsForEntry(entryCollection: string, entryId: number) {
+  const rows = await appDb.select({ mapPinId: schema.mapPinLinks.mapPinId })
+    .from(schema.mapPinLinks)
+    .where(and(eq(schema.mapPinLinks.entryCollection, entryCollection), eq(schema.mapPinLinks.entryId, entryId)))
+  if (rows.length === 0) return []
+  const pinIds = rows.map(r => r.mapPinId)
+  const pins = await appDb.select({
+    id: schema.mapPins.id, code: schema.mapPins.code, name: schema.mapPins.name, mapId: schema.mapPins.mapId,
+  }).from(schema.mapPins).where(inArray(schema.mapPins.id, pinIds))
+  const mapIds = [...new Set(pins.map(p => p.mapId))]
+  const maps = mapIds.length > 0
+    ? await appDb.select({ id: schema.maps.id, code: schema.maps.code, name: schema.maps.name })
+        .from(schema.maps).where(inArray(schema.maps.id, mapIds))
+    : []
+  const mapById = new Map(maps.map(m => [m.id, m]))
+  return pins.map(p => ({ ...p, map: mapById.get(p.mapId) ?? null }))
 }
 
 // ─── getLocationRef ───────────────────────────────────────────────────────────

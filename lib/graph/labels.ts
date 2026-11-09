@@ -20,6 +20,9 @@ export const FIELD_LABELS: Record<string, FieldLabel> = {
   homeland: { label: 'Homeland', inverse: 'Homeland of' },
   language: { label: 'Speaks', inverse: 'Spoken by' },
   story: { label: 'Part of story', inverse: 'Has writing' },
+  onMap: { label: 'Pin on', inverse: 'Has pin' },
+  opensMap: { label: 'Opens map', inverse: 'Opened by pin' },
+  links: { label: 'Shown on pin', inverse: 'Pin shows' },
 }
 
 export function fieldLabel(type: string): FieldLabel {

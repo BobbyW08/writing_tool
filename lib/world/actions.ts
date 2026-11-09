@@ -21,6 +21,8 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   languages: schema.languages as unknown as AnyTable,
   lore: schema.lore as unknown as AnyTable,
   eras: schema.eras as unknown as AnyTable,
+  maps: schema.maps as unknown as AnyTable,
+  'map-pins': schema.mapPins as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -105,6 +107,68 @@ export async function updateEraAction(
 
 export async function deleteEraAction(id: number): Promise<{ ok: boolean; error?: string }> {
   return deleteEntityAction('eras', id)
+}
+
+// ─── Map pin actions ───────────────────────────────────────────────────────────
+// createEntityAction's generic insert drops any non-primitive field (so it never has to resolve
+// relationships at create time) — geometry is JSON, so it is always set in a follow-up call here.
+export async function createMapPinAction(data: {
+  mapId: number
+  name: string
+  shape: 'pin' | 'label' | 'line' | 'circle' | 'polygon'
+  geometry: unknown
+  icon?: string | null
+  color?: string | null
+  group?: string | null
+  layer?: string | null
+}): Promise<{ id: number; code?: string; error?: string }> {
+  const created = await createEntityAction('map-pins', {
+    mapId: data.mapId, name: data.name, shape: data.shape,
+    icon: data.icon ?? null, color: data.color ?? null, group: data.group ?? null, layer: data.layer ?? null,
+  })
+  if (created.error || !created.id) return created
+  const geomRes = await updateFieldAction('map-pins', created.id, 'geometry', data.geometry)
+  if (!geomRes.ok) return { id: created.id, code: created.code, error: geomRes.error }
+  revalidatePath('/maps')
+  return created
+}
+
+export async function updateMapPinGeometryAction(id: number, geometry: unknown): Promise<{ ok: boolean; error?: string }> {
+  const res = await updateFieldAction('map-pins', id, 'geometry', geometry)
+  revalidatePath('/maps')
+  return res
+}
+
+export async function resolveEntryForLinkAction(
+  code: string
+): Promise<{ collection: string; entryId: number; name: string } | null> {
+  const { resolveCodeLookup } = await import('@/lib/world/queries')
+  const result = await resolveCodeLookup(code)
+  if (!result) return null
+  const { getEntryByCode } = await import('@/lib/world/queries')
+  const entry = await getEntryByCode(result.collection, result.code) as { id: number } | null
+  if (!entry) return null
+  return { collection: result.collection, entryId: entry.id, name: result.name }
+}
+
+export async function updateMapPinLinksAction(
+  mapPinId: number,
+  links: { entryCollection: string; entryId: number }[]
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.delete(schema.mapPinLinks).where(eq(schema.mapPinLinks.mapPinId, mapPinId))
+    if (links.length > 0) {
+      await appDb.insert(schema.mapPinLinks).values(
+        links.map(l => ({ mapPinId, entryCollection: l.entryCollection, entryId: l.entryId }))
+      )
+    }
+    await appDb.update(schema.mapPins).set({ updatedAt: new Date() }).where(eq(schema.mapPins.id, mapPinId))
+    await syncLinksForRecord('map-pins', mapPinId)
+    revalidatePath('/maps')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
 }
 
 // ─── searchForEntry ───────────────────────────────────────────────────────────
@@ -280,6 +344,21 @@ export async function deleteEntityAction(
     const rows = await appDb.select({ code: (table as typeof schema.characters).code })
       .from(table as never).where(eq((table as typeof schema.characters).id, id)).limit(1)
     const code = (rows[0] as { code: string } | undefined)?.code
+
+    // No DB-level cascade is defined for map_pins/map_pin_links, so clean up children by hand.
+    if (collection === 'map-pins') {
+      await appDb.delete(schema.mapPinLinks).where(eq(schema.mapPinLinks.mapPinId, id))
+    } else if (collection === 'maps') {
+      const pins = await appDb.select({ id: schema.mapPins.id, code: schema.mapPins.code })
+        .from(schema.mapPins).where(eq(schema.mapPins.mapId, id))
+      for (const pin of pins) {
+        await appDb.delete(schema.mapPinLinks).where(eq(schema.mapPinLinks.mapPinId, pin.id))
+      }
+      if (pins.length) {
+        await appDb.delete(schema.mapPins).where(eq(schema.mapPins.mapId, id))
+        for (const pin of pins) await removeRecordLinks(pin.code)
+      }
+    }
 
     await (appDb.delete(table as never) as ReturnType<typeof appDb.delete>)
       .where(eq((table as typeof schema.characters).id, id))

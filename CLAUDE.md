@@ -40,7 +40,7 @@ them, not a replacement.
 | Timeline (single-line) | `react-calendar-timeline` pinned at `0.30.0-beta.19` |
 | Timeline (multi-lane convergence) | `i-storyline-js` for layout math, custom SVG render |
 | Node map, trees and relationship views | React Flow (`@xyflow/react`) |
-| Image maps with pins | One library, chosen by the step W3 spike and recorded in this row |
+| Image maps with pins | `leaflet` (`1.9.4`) + `react-leaflet` (`5.0.0`) with `CRS.Simple` for pixel-based, non-geographic maps. Drawing/editing toolbar: `@geoman-io/leaflet-geoman-free` (`2.20.6`) |
 | Whiteboards | One library, chosen by the step W5 spike and recorded in this row |
 | Table grid | One library, chosen by the step W6 spike and recorded in this row |
 | Sidebar multi-select | `shadcn-multi-select-component` (copy-paste shadcn) |
