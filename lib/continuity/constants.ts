@@ -1,6 +1,10 @@
 // Shared by server code and client components, so nothing here may import server-only modules.
 
-export const ENTITY_DB_TYPES = ["character", "location", "item", "culture", "race", "language", "artifact"] as const;
+import { WORLD_SLUGS } from "@/lib/codes";
+
+// The 8 world collections a continuity check compares writing against. Matches the
+// collection slugs used everywhere else in the app (table names, route segments).
+export const ENTITY_DB_TYPES = WORLD_SLUGS;
 export type EntityDbType = (typeof ENTITY_DB_TYPES)[number];
 
 export type FlagKind = "conflict" | "possible_change" | "new_record" | "new_detail";
@@ -32,11 +36,12 @@ export const KIND_LABELS: Record<string, string> = {
 // What each kind of entity usually needs described. Used only to word the gap prompt on
 // a record that was created automatically from a snippet.
 export const EXPECTED_LABELS: Record<EntityDbType, string[]> = {
-  character: ["Appearance", "Personality", "Origin", "Role", "Relationships"],
-  location: ["Appearance", "Layout", "Climate", "Population", "History", "Significance"],
-  item: ["Appearance", "Origin", "Purpose", "Current holder"],
-  culture: ["Government", "Beliefs", "Customs", "Relationships with other peoples"],
-  race: ["Appearance", "Origins", "Customs"],
-  language: ["Where it is spoken", "Writing", "Notable features"],
-  artifact: ["Appearance", "Origin", "Properties", "Current location"],
+  characters: ["Appearance", "Personality", "Origin", "Role", "Relationships"],
+  locations: ["Appearance", "Layout", "Climate", "Population", "History", "Significance"],
+  items: ["Appearance", "Origin", "Purpose", "Current holder"],
+  cultures: ["Government", "Beliefs", "Customs", "Relationships with other peoples"],
+  factions: ["Purpose", "Leadership", "Membership", "Relationships with other factions"],
+  races: ["Appearance", "Origins", "Customs"],
+  languages: ["Where it is spoken", "Writing", "Notable features"],
+  lore: ["What it is", "Origin", "Significance"],
 };

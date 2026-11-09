@@ -16,7 +16,7 @@ export function isUnk(tagIds: number[] | null | undefined): boolean {
   return tagIds.includes(UNK_TAG_ID_CACHE.id)
 }
 
-async function getUnkTagId(): Promise<number | null> {
+export async function getUnkTagId(): Promise<number | null> {
   if (UNK_TAG_ID_CACHE.id) return UNK_TAG_ID_CACHE.id
   const rows = await appDb.select({ id: schema.tags.id }).from(schema.tags)
     .where(eq(schema.tags.name, 'UNK')).limit(1)

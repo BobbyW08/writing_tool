@@ -611,9 +611,46 @@ Delivered together with step S2 and step W1.
       a resolved link. See `BUILD_GUIDE.md` for details.
 
 ### Phase 4: Continuity check port
-- [ ] Rewrite `run-check.ts`, actions and data queries on the data layer; keep the pure files.
-- [ ] Rewire the inbox, review screen, entry history and sidebar badge.
-- [ ] Run `npm run test:continuity`, then a first real writing check, then tune prompts.
+- [x] Rewrite `run-check.ts`, actions and data queries on the data layer; keep the pure files.
+      Done 2026-11-08. `lib/continuity/run-check.ts`, `lib/continuity/actions.ts`,
+      `lib/continuity/queries.ts` on `appDb`/Drizzle. Kept unchanged: `analyze.ts`, `plan.ts`,
+      `text.ts`, `types.ts`. Fixed `constants.ts`'s `ENTITY_DB_TYPES`/`EXPECTED_LABELS` to the 8
+      current world collections (was a stale 7-entry Payload-era list).
+- [x] Rewire the inbox, review screen, entry history and sidebar badge. Done 2026-11-08.
+      `app/(app)/continuity/page.tsx`, `app/(app)/continuity/[flagCode]/page.tsx` (route renamed
+      from `[flagId]` — flags are addressed by their Q-code, not a UUID),
+      `components/continuity-badge.tsx`, `components/continuity-review-form.tsx`,
+      `components/highlighted-text.tsx`, `components/undo-detail-button.tsx`. Also wired the
+      pre-existing, previously-unused `components/snippet-check-status.tsx` into the Writing
+      Studio editor with a manual "Check against canon" fallback action.
+- [x] Run `npm run test:continuity`, then a first real writing check, then tune prompts.
+      Done 2026-11-08. All 17 pure-logic tests pass. A real check against live writing W3 ran
+      the full pipeline (claimCheck → world index → AI Gateway → plan → apply) successfully and
+      failed only on an account-level block: "AI Gateway requires a valid credit card on file"
+      on this Vercel account. The error path worked as designed (`checkStatus` set to `failed`
+      with the message stored). **Prompts have not been tuned against a real successful run yet
+      — that needs the credit card added first.**
+
+**Schema added:** `writing.checkStartedAt/checkedAt/checkNotes/checkError`; `continuity` table
+expanded to the full flag shape (`writingId`, `fieldLabel`, `existingExcerpt`, `newQuote`,
+`explanation`, `status`, `choice`, `reason`, `context`, `resolvedAt`); two new tables,
+`continuity_history` and `continuity_confirmations`. Two-pass migration (additive, then
+drop/tighten) to avoid `drizzle-kit`'s non-interactive rename-ambiguity prompt. Both passes
+applied to live `APP_DATABASE_URL` with permission asked each time.
+
+**Known gaps to flag to Bobby, not fixed in this phase:**
+1. **AI Gateway needs a credit card on file** on the Vercel account before any continuity check
+   can actually complete (see link in the error message stored on a failed check).
+2. **Pre-existing Writing Studio bug, unrelated to this phase**: opening any `/write/[code]`
+   editor page throws a Lexical error #173 (cascading from a React #418 hydration mismatch) in
+   the browser console, reproducing on W1 and W3 alike — found while testing Phase 4's "Check
+   against canon" button, not caused by it. Not investigated or fixed here.
+3. **Draft vs. Canon "never spreads"** (`docs/PLAN_WRITING_AND_AI.md`, "Decisions already made"
+   #2-3) is not yet implemented: today the check auto-applies new records/details from Draft
+   writing exactly as it does from Canon writing, matching the pre-existing mechanism this phase
+   ported. Only "Set aside" is excluded from the check entirely. Properly gating Draft so it is
+   "checked and flagged but never spreads" needs the claims ledger, which `docs/PLAN_WRITING_AND_AI.md`
+   explicitly schedules as part of S7, after this phase.
 
 ### Phase 5: Views
 Delivered together with step S3 and step W2.
@@ -648,7 +685,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 2 | S1 | Writing Studio: `/write`, `canonState`, autosave, `@` mentions. Done 2026-10-20. |
 | 3 | Phase 3, S2, W1 | Frontend shell on the data layer, world tree, infobox, home hub, images. Old code retired |
 | 4 | G1 | Link index, sync hooks, graph endpoints, What links here. Done 2026-11-08. |
-| 5 | Phase 4 | Continuity check port |
+| 5 | Phase 4 | Continuity check port. Done 2026-11-08 (see gaps noted in Phase 4 above). |
 | 6 | Phase 5, S3, W2 | Filter, convergence, live node map, relationship view, story board, eras, lanes, time gaps |
 | 7 | S4 | AI foundation on Claude. The context builder reads the link index |
 | 8 | S5 | Story Builder and beats |

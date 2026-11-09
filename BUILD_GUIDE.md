@@ -9,7 +9,96 @@ end of every session.
 
 ## Current state (as of 2026-11-08)
 
-**Phase 3 and G1 (the link index) are both closed. Build passes zero errors. Phase 4 (continuity check port) is next.**
+**Phase 3, G1 (the link index) and Phase 4 (the continuity check port) are all closed. Build passes
+zero errors. Phase 5 (views) is next — see the gaps flagged at the end of the Phase 4 section below
+before touching anything AI- or writing-related again.**
+
+### Phase 4: the continuity check port
+
+Ported the whole continuity check from its pre-Payload-removal implementation (read from git
+history at `5bef6fc^`) onto `appDb`/Drizzle, following exactly the `lib/world/` /
+`lib/studio/` server-action conventions G1 already established. Full checklist and the schema
+change detail are in `traveler-wiki-build-plan.md`'s "Phase 4" section.
+
+What moved and what didn't:
+- **Unchanged (pure, no data access):** `lib/continuity/analyze.ts`, `plan.ts`, `text.ts`,
+  `types.ts` — all 17 of `scripts/test-continuity.ts`'s offline checks still pass verbatim.
+- **Fixed, not just carried over:** `lib/continuity/constants.ts`'s `ENTITY_DB_TYPES` was a stale
+  7-entry Payload-era list (singular `"character"`/`"location"`/... down to an `"artifact"` type
+  that doesn't exist in this schema, and missing `faction`/`lore` entirely). Replaced with
+  `WORLD_SLUGS` from `lib/codes.ts` — the current app's 8 real collection slugs — and fixed
+  `EXPECTED_LABELS` to match. `scripts/test-continuity.ts`'s fixtures were updated to the same
+  plural slugs so it still typechecks; the logic it tests didn't change.
+- **New:** `lib/continuity/run-check.ts` (`claimCheck`, `runContinuityCheck`, `loadPriorAges`,
+  `applyPlan`), `lib/continuity/actions.ts` (`resolveFlagAction`, `acknowledgeFlagAction`,
+  `acknowledgeAllUpdatesAction`, `undoNewDetailAction`, `triggerContinuityCheckAction`,
+  `recheckWritingAction`), `lib/continuity/queries.ts` (the read side, including a new
+  `getCheckSummary`).
+
+Key design decisions made while building it:
+- **Entities are addressed by code, not UUID.** The old Payload schema used a single `entities`
+  table with a UUID `id`; this app has 8 separate per-collection tables with integer ids. Rather
+  than invent a synthetic cross-collection id, `EntityForCheck.id` (and every id `plan.ts` passes
+  around) is the record's permanent **code** (e.g. `C7`). `run-check.ts` builds a local
+  `code -> {collection, dbId, details, tagIds}` map once per check (`loadWorldIndex()`) and
+  resolves through it — never a UUID anywhere in this port.
+- **Flags are addressed by their own `Q` code too**, not a numeric/UUID id — consistent with
+  "codes are permanent, codes are how things are referenced" (CLAUDE.md hard rule 6). The route
+  is `/continuity/[flagCode]` (renamed from the stubbed `[flagId]`).
+- **`entityHref()` bypasses `lib/data/entity-types.ts` entirely.** That file is a second, stale,
+  independent slug-mapping table (same staleness as the old `constants.ts`: missing
+  faction/lore, has a non-existent "artifact" type) used elsewhere only by the legacy
+  `[[Type#Name|Label]]` bracket-link renderer (`lib/wiki-resolve.ts` /
+  `components/wiki-text.tsx`), which is out of this phase's scope and was left untouched.
+  Continuity's `EntityDbType` values **are** the collection slugs already, and those slugs are
+  already identical to the route segments, so `entityHref(collection, slug)` is just
+  `` `/${collection}/${slug}` `` — no lookup table needed.
+- **New-entity creation and new-detail writes go through the real write functions, not raw
+  `appDb` calls** — `createEntityAction`, `updateDetailsAction`, `updateTagsAction` from
+  `lib/world/actions.ts` — specifically so the G1 link-index sync they already call
+  (`syncLinksForRecord`) fires automatically. This was the explicit Phase 4 checklist item in
+  `next.md` and was verified: creating a stub record or appending a detail through the
+  continuity check re-syncs that record's links the same as any other write.
+- **UNK tagging only on automatic writes, never on an explicit decision.** A `new_record` or
+  `new_detail` automatic write gets the `UNK` tag (hard rule 13: "whenever the data layer...
+  fills something in on a best guess"). `resolveFlagAction`'s `update_canon`/`both_true`/
+  `changed_over_time` paths are choices Bobby made himself and are never tagged `UNK`.
+- **The two-pass migration.** `drizzle-kit generate` requires an interactive terminal to resolve
+  "did you rename column X, or drop+add" ambiguity, which this harness can't supply
+  non-interactively. Splitting the `continuity` table change into pass 1 (purely additive: new
+  nullable columns, two new tables) and pass 2 (set `NOT NULL`, drop the two old stub columns —
+  the table was confirmed empty first) avoided the prompt entirely in both generations. Worth
+  reusing this split any time a future migration both drops and adds columns on the same table.
+- **`SnippetCheckStatus` already existed, unwired.** `components/snippet-check-status.tsx` was
+  sitting in the repo as a complete, correct, generic status component (checking/failed/
+  unchecked/checked states, polling via `router.refresh()` while checking, a toast on
+  completion) with zero references anywhere — evidently written ahead of this phase in an
+  earlier session. Wired it into `app/(app)/write/[code]/editor.tsx` and `page.tsx` rather than
+  rebuilding it. Added `router.refresh()` after every successful save in the editor so the
+  "checking" state (set synchronously by `claimCheck` inside the save's `after()` hook) actually
+  becomes visible without a manual page reload.
+
+**Known gaps, not fixed in this phase — see also `traveler-wiki-build-plan.md`'s Phase 4 section:**
+1. **The AI Gateway needs a credit card on file** on this Vercel account. A real check against
+   live writing (`W3`) ran the entire pipeline correctly end to end and failed only at the
+   network call, with the exact Vercel URL to add a card captured in `writing.checkError`. No
+   continuity check will produce real findings until that's resolved account-side.
+2. **Pre-existing Writing Studio bug, found but not caused by this phase.** Opening any
+   `/write/[code]` editor (tried W1 and W3) throws a Lexical error #173 in the browser console,
+   immediately after a React #418 hydration-mismatch error — almost certainly the editor's
+   `editorState: () => $convertFromMarkdownString(...)` initializer producing a different tree
+   client-side than what SSR rendered. This blocked verifying the "Check against canon" button
+   end-to-end through the browser; verified instead via a direct script
+   (`claimCheck`+`runContinuityCheck` called directly) and via the Continuity inbox pages, which
+   don't use Lexical and rendered cleanly (checked via console-log inspection, not just visually).
+3. **Draft vs. Canon "never spreads" is not implemented.** `docs/PLAN_WRITING_AND_AI.md`
+   ("Decisions already made" #2-3, dated the same day as this session) says new facts should
+   only spread into canon from Canon-state writing, with Draft only "checked and flagged."
+   Today's port doesn't make that distinction — Draft and Canon both auto-apply identically,
+   same as the mechanism this phase ported. Only `set_aside` is excluded (from triggering the
+   check at all, per the same doc). That doc itself schedules the claims-ledger work needed to
+   do this properly as part of S7, explicitly *after* Phase 4 — so this is a known, documented
+   gap to close then, not an oversight to fix now.
 
 ### G1: the link index
 
@@ -96,8 +185,9 @@ Build state:
 - `npm run build` passes with zero TypeScript errors, all 27 routes rendered.
 - Lexical packages installed explicitly: `lexical@0.50.0`, `@lexical/react`, `@lexical/markdown`,
   `@lexical/rich-text`, `@lexical/list`, `@lexical/headless` (all at `0.50.0`).
-- Continuity pages (`/continuity`, `/continuity/[flagId]`), snippets pages, and
-  continuity-related components are stubbed ("returns in Phase 4").
+- Continuity pages and components are live (Phase 4, done 2026-11-08). Snippets pages
+  (`/snippets`, `/snippets/new`, `/snippets/[id]`) remain stubbed — they're a separate,
+  not-yet-scheduled piece, unrelated to the continuity check.
 
 Data layer files:
 - `lib/world/queries.ts` - all entity fetchers, using `appDb`
@@ -112,6 +202,10 @@ Data layer files:
 - `lib/graph/sync.ts` - the sync engine: `syncLinksForRecord`, `removeRecordLinks`, `computeOwnedLinks`, `isLinkRelevantField`
 - `lib/graph/queries.ts` - read side: `getLinksForCode`, `getGraphFromCode`, `getFilteredGraph`, `getOrphanCodes`, `getBrokenLinks`, `getShortestPath`
 - `scripts/rebuild-links.ts` - rebuild the whole index from the records (`--apply` to write)
+- `lib/continuity/run-check.ts` - orchestration: `claimCheck`, `runContinuityCheck`, `loadPriorAges`, `applyPlan` (Phase 4)
+- `lib/continuity/actions.ts` - server actions: resolve/acknowledge/undo/trigger-check (Phase 4)
+- `lib/continuity/queries.ts` - read side: open decisions/updates, decision log, one flag, entity history, check summary (Phase 4)
+- `lib/continuity/{analyze,plan,text,types,constants,links}.ts` - the pure/shared logic (constants.ts fixed in Phase 4, the rest unchanged)
 
 Active routes under `app/(app)/`:
 - `/` home hub
@@ -120,7 +214,7 @@ Active routes under `app/(app)/`:
 - `/stories`, `/stories/new`, `/stories/[code]`
 - `/write`, `/write/[code]`
 - `/timeline`
-- `/continuity`, `/continuity/[flagId]` (stubbed)
+- `/continuity`, `/continuity/[flagCode]`
 - `/snippets`, `/snippets/new`, `/snippets/[id]` (stubbed)
 - `/link-health`
 
@@ -164,7 +258,9 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 - Canon decisions from the earlier ingestion stand: the immortality ritual is permanent and cannot be
   transferred to anyone else; the empire's collapse and the fourth ruler's assassination are Age ~820.
 - Continuity check: the database is the only record of canon. Automatic writes are verbatim quotes
-  of Bobby's own words only, each with an Undo; conflicts need his explicit decision.
+  of Bobby's own words only, each with an Undo; conflicts need his explicit decision. Ported onto
+  `appDb` in Phase 4 — world entries and flags are both addressed by their permanent code, never
+  a UUID or bare numeric id, consistent with every other part of this app.
 - All AI runs on Claude, through the `ai` package and Vercel AI Gateway, behind `lib/ai/`.
 - Every connection between records lives in the derived `links` index (step G1). Views, trees and
   the AI read connections from it. It is rebuilt from the records and never edited by hand.
@@ -183,12 +279,18 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
-1. **Phase 4.** Port the continuity check, then run the first real writing check.
-2. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board,
+1. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board,
    eras, lanes. (The link index and node/edge shape it depends on are done — G1.)
-3. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions.
-4. **W3 to W6.** Maps, chronicles, boards, interactive tables.
-5. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
+2. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
+   (S7 is also where Phase 4's documented "Draft never spreads" gap gets closed, via the claims
+   ledger — see the Phase 4 section above).
+3. **W3 to W6.** Maps, chronicles, boards, interactive tables.
+4. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
+
+Before any of that: add a credit card to the Vercel account's AI Gateway billing (Phase 4 gap
+#1 above) and look at the pre-existing Lexical #173 / React #418 crash on `/write/[code]`
+(Phase 4 gap #2) — neither blocks Phase 5, but both block actually using the continuity check or
+the Writing Studio day to day.
 
 ---
 
@@ -218,6 +320,20 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 - Browser automation clicks intermittently miss. Retry, and check server logs for whether the
   action actually fired.
 - Lexical packages must all be pinned at the same minor version. The installed version is `0.50.0`.
+- `drizzle-kit generate` needs a real TTY whenever a table's diff both drops and adds columns in
+  the same run (it tries to prompt "did you rename X, or drop+add" and this harness can't answer
+  that prompt). Split the schema change into two migrations instead: pass 1 adds every new
+  column as nullable (plus any new tables) and leaves the old ones in place; pass 2 drops the old
+  columns and tightens `NOT NULL` once pass 1 is applied. Neither pass triggers the prompt.
+- `scripts/*.ts` run via plain `tsx` can't import anything that pulls in `import 'server-only'`
+  (see the G1 gotcha above) **or** anything that pulls in a `'use server'` file whose action
+  calls `revalidatePath`/`after()` — those need a real Next.js request context. For a one-off
+  check against live data outside the app (like Phase 4's first real check), call the
+  non-`'use server'` pieces directly (e.g. `lib/continuity/run-check.ts`'s `claimCheck`/
+  `runContinuityCheck`, which don't call `revalidatePath` themselves) rather than the `lib/world/
+  actions.ts`/`lib/studio/actions.ts` server actions, and stub `server-only` locally
+  (`node_modules/server-only/{package.json,index.js}` as a one-line no-op) for the duration —
+  delete the stub afterward, don't commit it.
 
 ---
 

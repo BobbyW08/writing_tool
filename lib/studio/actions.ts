@@ -1,4 +1,5 @@
 'use server'
+import { after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { eq, or, like } from 'drizzle-orm'
 import { appDb } from '@/db/index'
@@ -35,6 +36,9 @@ export async function saveWriting(
   },
 ): Promise<{ ok: boolean; error?: string }> {
   try {
+    const [before] = await appDb.select({ text: schema.writing.text, startYear: schema.writing.startYear })
+      .from(schema.writing).where(eq(schema.writing.id, id)).limit(1)
+
     const plain = data.text.replace(/[#*_~`>\[\]]/g, '').replace(/\s+/g, ' ').trim()
     await appDb.update(schema.writing).set({
       name: data.name,
@@ -56,6 +60,19 @@ export async function saveWriting(
     }
 
     await syncLinksForRecord('writing', id)
+
+    // Continuity check (Phase 4): runs after the response, when the prose or the writing's
+    // timeline position changed. Draft and Canon are both checked; Set aside is excluded
+    // from every check (docs/PLAN_WRITING_AND_AI.md, "Decisions already made" #2).
+    const textChanged = before && before.text !== data.text
+    const yearChanged = before && before.startYear !== data.startYear
+    if (data.canonState !== 'set_aside' && (textChanged || yearChanged)) {
+      after(async () => {
+        const { claimCheck, runContinuityCheck } = await import('@/lib/continuity/run-check')
+        const claimed = await claimCheck(id)
+        if (claimed) await runContinuityCheck(id)
+      })
+    }
 
     revalidatePath('/write')
     return { ok: true }

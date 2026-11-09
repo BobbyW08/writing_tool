@@ -214,7 +214,12 @@ export const writing = pgTable('writing', {
   reviewNote: text('review_note'),
   sourceDocId: text('source_doc_id'),
   legacyId: text('legacy_id'),
+  // Continuity check status (step S7 / Phase 4). checkStatus: unchecked | checking | checked | failed.
   checkStatus: text('check_status').default('unchecked'),
+  checkStartedAt: timestamp('check_started_at', { withTimezone: true }),
+  checkedAt: timestamp('checked_at', { withTimezone: true }),
+  checkNotes: text('check_notes'),
+  checkError: text('check_error'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
@@ -325,19 +330,67 @@ export const counters = pgTable('counters', {
   next: integer('next').notNull().default(1),
 })
 
-// ─── Continuity (schema only, Phase 4) ───────────────────────────────────────
+// ─── Continuity (Phase 4, the continuity check port) ─────────────────────────
+// One flag per finding the continuity check raises, or per automatic change it already made.
+// kind: conflict | possible_change (decisions, wait for Bobby) | new_record | new_detail
+// (updates, already applied with his own words, shown with Undo). status: open | resolved.
+// choice (once resolved): keep_canon | update_canon | both_true | changed_over_time |
+// decide_later | acknowledged | undone. See traveler-wiki-build-plan.md / PLAN_WRITING_AND_AI.md S7
+// and CLAUDE.md hard rule 1.
 
 export const continuity = pgTable('continuity', {
   id: serial('id').primaryKey(),
   code: text('code').unique().notNull(),
-  entryCollection: text('entry_collection'),
-  entryId: integer('entry_id'),
-  kind: text('kind'),
-  note: text('note'),
-  resolved: boolean('resolved').default(false),
+  writingId: integer('writing_id').notNull(),
+  entryCollection: text('entry_collection').notNull(),
+  entryId: integer('entry_id').notNull(),
+  kind: text('kind').notNull(),
+  fieldLabel: text('field_label').notNull(),
+  existingExcerpt: text('existing_excerpt'),
+  newQuote: text('new_quote').notNull(),
+  explanation: text('explanation'),
+  status: text('status').notNull().default('open'),
+  choice: text('choice'),
+  reason: text('reason'),
+  context: text('context'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (t) => [
+  index('continuity_writing_idx').on(t.writingId),
+  index('continuity_entry_idx').on(t.entryCollection, t.entryId),
+  index('continuity_status_idx').on(t.status),
+])
+
+// Every change a piece of writing or a decision made to a world entry's field: where each
+// canon fact came from. action: created | added | updated | both_true | changed_over_time | undone.
+export const continuityHistory = pgTable('continuity_history', {
+  id: serial('id').primaryKey(),
+  entryCollection: text('entry_collection').notNull(),
+  entryId: integer('entry_id').notNull(),
+  fieldLabel: text('field_label').notNull(),
+  action: text('action').notNull(),
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  writingId: integer('writing_id'),
+  flagId: integer('flag_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('continuity_history_entry_idx').on(t.entryCollection, t.entryId),
+])
+
+// A detail in a piece of writing that already matches canon. Logged quietly, no notification.
+export const continuityConfirmations = pgTable('continuity_confirmations', {
+  id: serial('id').primaryKey(),
+  writingId: integer('writing_id').notNull(),
+  entryCollection: text('entry_collection').notNull(),
+  entryId: integer('entry_id').notNull(),
+  fieldLabel: text('field_label').notNull(),
+  quote: text('quote').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('continuity_confirmations_writing_idx').on(t.writingId),
+])
 
 // ─── Cultures join tables (kept as denorm columns in world tables, not separate) ─
 

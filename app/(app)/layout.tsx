@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
 import { CodeLookup } from "@/components/code-lookup";
 import { WorldTree } from "@/components/world-tree";
+import { ContinuityBadge } from "@/components/continuity-badge";
 import { getWorldTreeNodes } from "@/lib/world/queries";
 
 export const dynamic = "force-dynamic";
@@ -82,8 +83,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   </Link>
                 </li>
                 <li>
-                  <Link href="/continuity" className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                  <Link href="/continuity" className="flex items-center rounded px-2 py-1 text-xs hover:bg-accent">
                     Continuity
+                    <ContinuityBadge />
                   </Link>
                 </li>
                 <li>

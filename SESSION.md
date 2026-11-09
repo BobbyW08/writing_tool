@@ -2,7 +2,38 @@
 
 Paste this into a new session alongside CLAUDE.md to get a model up to speed.
 
-## Last session (2026-11-08c): G1, the link index
+## Last session (2026-11-08d): Phase 4, the continuity check port
+
+Ported the whole continuity check (`lib/continuity/run-check.ts`, `actions.ts`, `queries.ts`) from
+its pre-Payload-removal implementation onto `appDb`/Drizzle, following `lib/world/`'s server-action
+conventions so the G1 link-index sync fires automatically on every write it makes. Kept the pure
+logic (`analyze.ts`, `plan.ts`, `text.ts`, `types.ts`) unchanged; fixed `constants.ts`'s
+`ENTITY_DB_TYPES`/`EXPECTED_LABELS`, which were a stale 7-entry Payload-era list. Rewired the
+Continuity inbox, review screen (route renamed `[flagId]` → `[flagCode]`, since flags are
+addressed by their own code, not a UUID), sidebar badge, and three supporting components. Wired
+the pre-existing, previously-unused `SnippetCheckStatus` component into the Writing Studio editor
+with a manual "Check against canon" fallback, and the automatic save-time trigger via `after()`.
+
+Schema: expanded `writing` (check status/timestamps) and `continuity` (full flag shape), added
+`continuity_history` and `continuity_confirmations`. Two-pass migration to dodge `drizzle-kit`'s
+interactive rename-ambiguity prompt (see `BUILD_GUIDE.md` gotchas). Both passes applied to live
+`APP_DATABASE_URL` with permission asked each time.
+
+Verified: all 17 `test-continuity.ts` checks pass; `npm run build` zero errors, 29 routes; a real
+check against live writing (W3) ran the full pipeline correctly end to end and failed only at the
+AI Gateway call (this Vercel account has no credit card on file yet — the exact add-a-card link is
+captured in the stored error); the Continuity inbox's three tabs render cleanly in a real browser
+with no console errors. Found, but did not fix (out of scope, pre-existing): a Lexical #173 /
+React #418 crash opening any `/write/[code]` editor page, reproducing on W1 and W3 alike.
+
+One documented gap: `docs/PLAN_WRITING_AND_AI.md`'s "Draft writing is checked and flagged but never
+spreads" decision (written the same day) isn't implemented yet — today Draft and Canon both
+auto-apply identically, matching the mechanism as ported. That doc itself schedules the fix
+(the claims ledger) for S7, after Phase 4, so this is tracked, not missed.
+
+Committed: not yet — pending user review of this session's changes.
+
+## Previous session (2026-11-08c): G1, the link index
 
 Built the whole link index per `traveler-wiki-build-plan.md`'s "Link index" section and "Step G1"
 checklist (all boxes now checked there): new code prefixes, `hierarchy`/`follows`/`offsetYears`,
@@ -52,7 +83,11 @@ Committed: not yet — pending user review of this session's changes.
 
 See `next.md` for the full instructions. In short:
 
-1. **Phase 4, the continuity check port.** G1 is done, so the link index it depends on exists now.
+1. **Phase 5 (views): filter, convergence, node map, relationship view, story board.** Builds on
+   the G1 link index, which is done.
+2. Before that becomes the day-to-day focus: a credit card needs adding to the Vercel account's
+   AI Gateway billing, and the pre-existing `/write/[code]` Lexical crash (found during Phase 4,
+   not caused by it) is worth a look — see `BUILD_GUIDE.md`'s Phase 4 section for both.
 
 ## Stack reference (quick)
 

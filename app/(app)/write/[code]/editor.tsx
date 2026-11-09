@@ -37,6 +37,8 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { saveWriting, searchEntities, deleteWriting, type SearchResult } from '@/lib/studio/actions'
 import { type WritingRecord } from '@/lib/studio/queries'
+import { recheckWritingAction } from '@/lib/continuity/actions'
+import { SnippetCheckStatus, type CheckSummary } from '@/components/snippet-check-status'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -234,9 +236,11 @@ const STATE_OPTIONS = [
 export function WritingEditor({
   record,
   stories,
+  summary,
 }: {
   record: WritingRecord
   stories: { id: number; code: string; name: string }[]
+  summary: CheckSummary
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -273,9 +277,9 @@ export function WritingEditor({
         mentionIds: mentionIdsRef.current,
       })
       setSaveStatus(result.ok ? 'saved' : 'error')
-      if (result.ok) setSavedAt(new Date())
+      if (result.ok) { setSavedAt(new Date()); router.refresh() }
     }, 2000)
-  }, [record.id, name, kind, canonState, startYear, storyId])
+  }, [record.id, name, kind, canonState, startYear, storyId, router])
 
   // Save immediately when non-text fields change
   function saveImmediate(overrides: Partial<Parameters<typeof saveWriting>[1]> = {}) {
@@ -293,7 +297,7 @@ export function WritingEditor({
         ...overrides,
       })
       setSaveStatus(result.ok ? 'saved' : 'error')
-      if (result.ok) setSavedAt(new Date())
+      if (result.ok) { setSavedAt(new Date()); router.refresh() }
     })
   }
 
@@ -397,6 +401,16 @@ export function WritingEditor({
               <Button variant="ghost" size="sm" onClick={() => setFocusMode(true)}>Focus</Button>
             </div>
           </div>
+
+          {canonState !== 'set_aside' && (
+            <SnippetCheckStatus
+              status={record.checkStatus}
+              summary={summary}
+              error={record.checkError}
+              notes={record.checkNotes}
+              recheckAction={recheckWritingAction.bind(null, record.id)}
+            />
+          )}
         </div>
       )}
 

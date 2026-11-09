@@ -16,13 +16,13 @@ const renmark: EntityForCheck = {
   id: "e-renmark",
   slug: "renmark",
   name: "Renmark",
-  type: "location",
+  type: "locations",
   fields: {
     Description: "A coastal port city on the western edge of Caldor. **Mediterranean feel**, warm, busy, salt-aired.",
     Appearance: "White stone houses climb the hill above the harbor.",
   },
 };
-const sero: EntityForCheck = { id: "e-sero", slug: "sero", name: "Sero", type: "character", fields: { Personality: "Quiet and guarded. Slow to trust anyone." } };
+const sero: EntityForCheck = { id: "e-sero", slug: "sero", name: "Sero", type: "characters", fields: { Personality: "Quiet and guarded. Slow to trust anyone." } };
 
 const body = `Sero walked into Renmark at dawn.\n\nThe city was cold and silent, the harbor empty.   He   was “open” with everyone he met.\n\nHarrowmere lay beyond the ridge, a village of grey slate roofs and one crooked bell tower.`;
 
@@ -141,7 +141,7 @@ test("a new detail on an existing entity reuses its existing field name", () => 
 });
 
 test("an unlogged town gets a record built only from verified quotes", () => {
-  const detect = { mentioned: [{ slug: "renmark" }, { slug: "does-not-exist" }], newEntities: [{ name: "Harrowmere", type: "location" as const }] };
+  const detect = { mentioned: [{ slug: "renmark" }, { slug: "does-not-exist" }], newEntities: [{ name: "Harrowmere", type: "locations" as const }] };
   const { mentioned, candidates } = filterDetect(detect, [renmark, sero], body);
   assert.deepEqual(mentioned.map((m) => m.slug), ["renmark"]);
   assert.deepEqual(candidates.map((c) => c.name), ["Harrowmere"]);
@@ -169,7 +169,7 @@ test("an unlogged town gets a record built only from verified quotes", () => {
 });
 
 test("a new entry whose name is not in the writing, or is already recorded, is not created", () => {
-  const detect = { mentioned: [], newEntities: [{ name: "Ghostville", type: "location" as const }, { name: "RENMARK", type: "location" as const }, { name: "Sero", type: "character" as const }] };
+  const detect = { mentioned: [], newEntities: [{ name: "Ghostville", type: "locations" as const }, { name: "RENMARK", type: "locations" as const }, { name: "Sero", type: "characters" as const }] };
   assert.deepEqual(filterDetect(detect, [renmark, sero], body).candidates, []);
 });
 
@@ -189,7 +189,7 @@ test("a conflict about a new entry is discarded (nothing recorded to conflict wi
   const plan = buildPlan({
     snippet: { title: "t", label: null, body, sortOrder: null },
     mentioned: [],
-    candidates: [{ name: "Harrowmere", type: "location" }],
+    candidates: [{ name: "Harrowmere", type: "locations" }],
     compare: { findings: [finding({ entity: "Harrowmere", kind: "conflict", quote: "one crooked bell tower", canonExcerpt: "x" })] },
     priorAges: new Map(),
   });

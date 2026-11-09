@@ -15,6 +15,20 @@
       "when": 1794186614392,
       "tag": "0001_spotty_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794189461695,
+      "tag": "0002_great_kingpin",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794191410924,
+      "tag": "0003_abandoned_rockslide",
+      "breakpoints": true
     }
   ]
 }

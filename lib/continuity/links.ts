@@ -1,8 +1,7 @@
-import { entityTypeByDbType } from "@/lib/data/entity-types";
-
-export function entityHref(dbType: string, slug: string): string {
-  const type = entityTypeByDbType(dbType);
-  return type ? `/${type.urlSlug}/${slug}` : "/";
+// The continuity check's EntityDbType values are the world collection slugs themselves
+// (characters, locations, ...), which are also the route segments — no indirection needed.
+export function entityHref(collection: string, slug: string): string {
+  return `/${collection}/${slug}`;
 }
 
 export function shortDate(value: Date | string | null): string {

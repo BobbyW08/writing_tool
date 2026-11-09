@@ -29,6 +29,10 @@ export type WritingRecord = {
   text: string
   plainText: string
   updatedAt: Date
+  checkStatus: string
+  checkedAt: Date | null
+  checkNotes: string | null
+  checkError: string | null
 }
 
 export async function getWritingList(): Promise<WritingListItem[]> {
@@ -86,6 +90,10 @@ export async function getWritingByCode(code: string): Promise<WritingRecord | nu
     text: r.text ?? '',
     plainText: r.plainText ?? '',
     updatedAt: r.updatedAt,
+    checkStatus: r.checkStatus ?? 'unchecked',
+    checkedAt: r.checkedAt ?? null,
+    checkNotes: r.checkNotes ?? null,
+    checkError: r.checkError ?? null,
   }
 }
 
