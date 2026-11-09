@@ -35,6 +35,7 @@ const TABLES: Record<string, AnyTable> = {
   maps: schema.maps as unknown as AnyTable,
   'map-pins': schema.mapPins as unknown as AnyTable,
   chronicles: schema.chronicles as unknown as AnyTable,
+  boards: schema.boards as unknown as AnyTable,
 }
 
 const COLLECTIONS = Object.keys(TABLES)

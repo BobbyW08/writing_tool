@@ -17,6 +17,7 @@ export const ENTITY_PREFIXES = {
   maps: 'M', // image maps (step W3)
   'map-pins': 'P', // one marker/label/line/circle/polygon on a map (step W3)
   chronicles: 'H', // a timeline paired with maps (step W4)
+  boards: 'D', // saved node maps, trees, story maps, whiteboards (step W5)
 } as const
 
 export type EntitySlug = keyof typeof ENTITY_PREFIXES
@@ -35,7 +36,6 @@ export const UNK_TAG = 'UNK'
 // typed in text today (or a link index row added once the collection exists) never collides.
 export const COMPILATION_PREFIX = 'A' // compilations (chapters and ages assembled from events and entries)
 export const BEAT_PREFIX = 'B'        // planned story beats (step S5)
-export const BOARD_PREFIX = 'D'       // saved node maps, trees, story maps, whiteboards (step W5)
 export const TABLE_PREFIX = 'N'       // interactive tables (step W6)
 
 export const ENTITY_SLUGS = Object.keys(ENTITY_PREFIXES) as EntitySlug[]
@@ -50,7 +50,6 @@ export const PREFIX_TO_SLUG: Record<string, string> = {
   [TAG_PREFIX]: 'tags',
   [COMPILATION_PREFIX]: 'compilations',
   [BEAT_PREFIX]: 'beats',
-  [BOARD_PREFIX]: 'boards',
   [TABLE_PREFIX]: 'tables',
 }
 

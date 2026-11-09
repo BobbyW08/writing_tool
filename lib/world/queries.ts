@@ -44,6 +44,7 @@ const WORLD_TABLE_MAP: Record<string, AnyWorldTable> = {
   maps: schema.maps as unknown as AnyWorldTable,
   'map-pins': schema.mapPins as unknown as AnyWorldTable,
   chronicles: schema.chronicles as unknown as AnyWorldTable,
+  boards: schema.boards as unknown as AnyWorldTable,
 }
 
 function getWorldTable(collection: string) {
@@ -883,4 +884,40 @@ export async function getRecentEdits(limit = 10): Promise<{
   return results
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, limit)
+}
+
+// ─── Boards (step W5) ──────────────────────────────────────────────────────
+// A board never creates edges in the link index — it only draws them. See
+// traveler-wiki-build-plan.md "boards".
+
+export type BoardKind = 'node_map' | 'content_tree' | 'family_tree' | 'causal_tree' | 'story_map' | 'whiteboard'
+export type BoardQuery = {
+  collections: string[]; relationshipTypes: string[]; sources: string[]
+  direction: 'out' | 'in' | 'both'; depth: number
+  yearFrom: number | null; yearTo: number | null
+}
+export type BoardNodePositions = Record<string, { x: number; y: number; collapsed?: boolean; pinned?: boolean }>
+
+export async function getBoardsList() {
+  await getAllTags()
+  const docs = await appDb.select().from(schema.boards).orderBy(schema.boards.name)
+  return {
+    docs: docs.map(d => ({ ...d, tags: resolveTagIds((d.tagIds ?? []) as number[]) })),
+    totalDocs: docs.length,
+  }
+}
+
+export async function getBoardByCode(code: string) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.boards).where(eq(schema.boards.code, code.toUpperCase())).limit(1)
+  const board = rows[0]
+  if (!board) return null
+  return {
+    ...board,
+    tags: resolveTagIds((board.tagIds ?? []) as number[]),
+    kind: board.kind as BoardKind,
+    rootCodes: (board.rootCodes ?? []) as string[],
+    query: board.query as BoardQuery,
+    nodePositions: (board.nodePositions ?? {}) as BoardNodePositions,
+  }
 }

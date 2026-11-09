@@ -10,12 +10,78 @@ end of every session.
 ## Current state (as of 2026-11-09)
 
 **Phase 3, G1 (the link index), Phase 4 (the continuity check port) and Phase 5 (views) are all
-closed. Steps W3 (maps) and W4 (chronicles) are also closed — see their sections below. Build
-passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
-anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
-re-checked twice this session after the user added a card and is still failing with the identical
-`customer_verification_required` error — needs resolving account-side before S4 can start; don't
-keep re-spiking it blindly.**
+closed. Steps W3 (maps), W4 (chronicles) and W5 (boards) are also closed — see their sections
+below. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before
+touching anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap
+#1) was re-checked twice this session after the user added a card and is still failing with the
+identical `customer_verification_required` error — needs resolving account-side before S4 can
+start; don't keep re-spiking it blindly.**
+
+### Step W5: boards
+
+A board (code D) is either a saved, reusable graph view over the link index (node map, content
+tree, family tree, causal tree, story map — all one schema, distinguished only by `kind` and
+default query presets) or a free-form whiteboard. A board never creates edges in the link index —
+it only draws them.
+
+- **Library spike** (recorded in `CLAUDE.md`'s stack table): `tldraw@5.6.0`. React 19 SDK,
+  actively maintained, sticky notes/shapes/images/frames built in, and its own `editor.getSnapshot()`
+  / `editor.loadSnapshot()` persist the whole canvas as opaque JSON — a direct fit for the `scene`
+  column, so the board's own `notes`/`connectors` fields from the original plan spec were dropped
+  in favor of letting tldraw own the whole whiteboard data model (hard rule 10: off-the-shelf
+  before hand-rolling). Note: tldraw's free tier shows a small "Get a license for production"
+  watermark on the canvas — acceptable for a personal, non-commercial tool; flagged here in case
+  it ever matters later.
+- **Schema**: `boards` table (`worldSharedCols()` plus `kind`, `rootCodes` (code array), `query`
+  (collections/relationshipTypes/sources/direction/depth/yearFrom/yearTo), `layoutMode`
+  (`auto_tree`/`manual`), `nodePositions` (code → `{x,y,collapsed?,pinned?}`), `scene` (opaque,
+  whiteboard only), `viewport`). Migration `0008_secret_tempest.sql` (purely additive), applied to
+  `APP_DATABASE_URL`.
+- **Full data-layer wiring**, following the same pattern as `chronicles`: `boards` added to
+  `WORLD_TABLE_MAP` in `lib/world/actions.ts`, `lib/world/queries.ts`, `lib/graph/sync.ts`, and to
+  `scripts/rebuild-links.ts`'s `TABLES` map; code assignment (D prefix) in `lib/codes.ts`;
+  text-mention scanning in `lib/graph/extract.ts`; node styling in `lib/nodeKinds.ts`; nav entry in
+  `app/(app)/layout.tsx`. Deliberately **not** added to `ARRAY_FIELD_LINKS`/`SIMPLE_FIELD_LINKS` or
+  `isLinkRelevantField` — `rootCodes`/`query`/`nodePositions`/`scene` never produce link-index rows
+  (only the generic parent-field link and name/summary/body text mentions do, same as every other
+  collection), matching the spec's "a board never creates edges in the link index."
+- **No bespoke server actions needed**: the existing generic `createEntityAction`/`updateFieldAction`
+  cover boards entirely (array fields like `rootCodes` survive the generic create path's
+  non-primitive-field strip since arrays aren't stripped, only plain objects are; `query`/
+  `nodePositions`/`scene` default to the schema's jsonb defaults on create and are set afterward
+  via `updateFieldAction`) — another instance of the "try the off-the-shelf/existing path first"
+  rule, this time within the app's own code rather than a library.
+- **UI**: `app/(app)/boards/page.tsx` (list) + `components/new-board-form.tsx` (name + kind select).
+  `app/(app)/boards/[code]/page.tsx` (detail, kind-aware: whiteboard kind renders
+  `components/board-whiteboard.tsx`, every other kind renders `components/board-graph-view.tsx`).
+  `components/board-graph-view.tsx` reuses the exact same `/api/graph` and `/api/graph/:code`
+  routes and `layoutNodeMap` dagre layout already proven by `components/node-map-view.tsx` (step
+  Phase 5) — multi-root support fetches each root code's centered graph separately and merges
+  node/edge sets client-side, since the existing route is single-code-centered. Supports
+  `auto_tree` (dagre, recomputed live) and `manual` (drag any node to switch modes, position
+  persisted per-code in `nodePositions`) layout modes, with a "Reset to auto layout" and a "Save
+  view" button that persists `rootCodes`/`query`/`layoutMode`/`nodePositions` in one batch.
+  `components/board-whiteboard.tsx` (`next/dynamic(..., {ssr:false})`, same pattern as
+  `components/map-canvas.tsx`, since tldraw touches `window` at import time) wraps
+  `components/board-whiteboard-inner.tsx` — the tldraw canvas, a "Save board" button
+  (`editor.getSnapshot()` → `scene`), and a simple "Promote to relationship" bar (type a from-code,
+  pick a relationship type, type a to-code, Create link → `createRelationshipAction`). This is a
+  deliberate scope cut from the original plan's idea of parsing tldraw's internal arrow-binding
+  model to auto-detect connectors: typing two codes is simpler, more robust against tldraw's
+  internal shape model changing across versions, and still satisfies the spec's actual requirement
+  ("Promote to relationship creates an X record").
+- **Verified live**: created a node-map board (D1, kind `node_map`), confirmed the whole-graph
+  default view renders; selected a single root entry (Vashten/C3), confirmed the centered
+  `/api/graph/:code` fetch and dagre layout render real data with edges; dragged a node, confirmed
+  it switched to manual layout; clicked Save view, reloaded, confirmed `rootCodes`, `layoutMode`,
+  and the dragged node's exact saved position all persisted. Created a whiteboard board (D2, kind
+  `whiteboard`), placed a sticky note, clicked Save board, reloaded, confirmed the shape persisted
+  (tldraw's canvas doesn't reliably screenshot over CDP for an automated browser — a tooling
+  limitation, not a product bug — so this was confirmed via the DOM text "Note. 1 of 1" rather than
+  a screenshot); used the Promote-to-relationship bar to link C1 → C6, confirmed the `X` record and
+  its link-index row appeared correctly on C1's read page, then removed it the normal way through
+  the Relationships editor and confirmed it was gone cleanly on reload. All test boards and the
+  test relationship were deleted afterward.
 
 ### Step W4: chronicles
 
@@ -595,18 +661,17 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
-1. **W5: boards.** React Flow is already installed (Phase 5). Spike a whiteboard library first.
-2. **W6: interactive tables.** Spike a grid library first.
-3. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
+1. **W6: interactive tables.** Spike a grid library first.
+2. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
    (S7 is also where Phase 4's documented "Draft never spreads" gap gets closed, via the claims
    ledger — see the Phase 4 section above). **Blocked** on the Vercel AI Gateway billing issue
    (`customer_verification_required`, re-confirmed twice this session even after a card was added
    — looks like an account/team-scoping issue, not something retrying from here can fix). Re-spike
    once the user confirms it's genuinely resolved account-side, then resume.
-4. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
+3. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
 
 Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
-#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it for W5+.
+#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it for W6+.
 
 ---
 

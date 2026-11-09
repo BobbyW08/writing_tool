@@ -519,6 +519,27 @@ export const chronicles = pgTable('chronicles', {
   index('chronicles_parent_idx').on(t.parentId),
 ])
 
+// A board never creates edges in the link index — it only draws them (saved node maps, trees, the
+// story map, and whiteboards over the same canvas). See traveler-wiki-build-plan.md "boards".
+export const boards = pgTable('boards', {
+  ...worldSharedCols(),
+  kind: text('kind').notNull().default('node_map'), // node_map | content_tree | family_tree | causal_tree | story_map | whiteboard
+  rootCodes: jsonb('root_codes').$type<string[]>().default(sql`'[]'::jsonb`),
+  query: jsonb('query')
+    .$type<{ collections: string[]; relationshipTypes: string[]; sources: string[]; direction: 'out' | 'in' | 'both'; depth: number; yearFrom: number | null; yearTo: number | null }>()
+    .default(sql`'{"collections":[],"relationshipTypes":[],"sources":[],"direction":"both","depth":2,"yearFrom":null,"yearTo":null}'::jsonb`),
+  layoutMode: text('layout_mode').notNull().default('auto_tree'), // auto_tree | auto_force | manual
+  nodePositions: jsonb('node_positions')
+    .$type<Record<string, { x: number; y: number; collapsed?: boolean; pinned?: boolean }>>()
+    .default(sql`'{}'::jsonb`),
+  // Opaque JSON owned by the whiteboard library (tldraw's store snapshot). Only meaningful when kind = 'whiteboard'.
+  scene: jsonb('scene').$type<unknown>(),
+  viewport: jsonb('viewport').$type<{ x: number; y: number; zoom: number } | null>(),
+}, (t) => [
+  index('boards_code_idx').on(t.code),
+  index('boards_parent_idx').on(t.parentId),
+])
+
 // ─── Cultures join tables (kept as denorm columns in world tables, not separate) ─
 
 // cultures.homelands and cultures.languages are many-to-many.

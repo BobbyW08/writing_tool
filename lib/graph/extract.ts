@@ -35,4 +35,5 @@ export const TEXT_FIELDS: Record<string, TextFieldSource[]> = {
   maps: WORLD_TEXT_FIELDS,
   'map-pins': [{ kind: 'plain', field: 'summary' }],
   chronicles: WORLD_TEXT_FIELDS,
+  boards: WORLD_TEXT_FIELDS,
 }

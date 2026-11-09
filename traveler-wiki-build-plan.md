@@ -953,10 +953,17 @@ Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W4 section.
 
 ## Step W5: boards
 
-Needs G1.
-- [ ] `boards` (D). Saved node maps, content trees (family, causality, hierarchy), the story map for beats.
-- [ ] Spike first for whiteboards: pick one maintained whiteboard library and record the choice in the stack table.
-- [ ] Whiteboards with sticky notes, shapes, images and entry cards. Promote a connector to a relationship.
+Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W5 section.
+- [x] `boards` (D). Saved node maps, content trees (family, causality, hierarchy), the story map for beats.
+      All five graph-like kinds share one schema and view (`BoardGraphView`), distinguished by
+      `kind` and default query presets; beats themselves are not built yet (step S5), so the story
+      map kind is schema-ready but has nothing beat-specific to show until then.
+- [x] Spike first for whiteboards: pick one maintained whiteboard library and record the choice in
+      the stack table. Confirmed: `tldraw`.
+- [x] Whiteboards with sticky notes, shapes, images and entry cards (all native tldraw shapes —
+      see the library-choice note in `BUILD_GUIDE.md`). Promote to relationship: implemented as a
+      simple from-code/type/to-code bar rather than parsing tldraw's internal connector/arrow
+      bindings, verified live end to end.
 
 ## Step W6: interactive tables
 
@@ -987,7 +994,7 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 | Sidebar multi-select | **Available**, `shadcn-multi-select-component` | Copy-paste component |
 | List reordering | **Available**, `@dnd-kit/sortable` | For compilations |
 | Image maps | **Available**, library chosen by the W3 spike | Pins, shapes, layers |
-| Whiteboards | **Available**, library chosen by the W5 spike | Scene stored on the board |
+| Whiteboards | **Available**, `tldraw` | Scene stored on the board via `editor.getSnapshot()` |
 | Table grid | **Available**, library chosen by the W6 spike | Typed columns, CSV |
 | ID codes, code lookup endpoints | **Custom, small** | Written, in the starter |
 | Entity and relationship collections | **Custom** | Written, in the starter |
