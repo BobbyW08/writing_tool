@@ -41,9 +41,11 @@ function StoryCard({ s }: { s: BoardStory }) {
         <span {...listeners} {...attributes} className="cursor-grab font-mono text-[10px] text-muted-foreground" title="Drag to move">
           {s.code}
         </span>
-        <Link href={`/stories/${s.code ?? s.id}`} className="text-[10px] text-muted-foreground hover:underline">
-          Open
-        </Link>
+        {s.code && (
+          <Link href={`/view/stories/${s.code}`} className="text-[10px] text-muted-foreground hover:underline">
+            Open
+          </Link>
+        )}
         {s.unk && (
           <span className="rounded bg-amber-100 px-1 text-[9px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-400">
             UNK
@@ -139,7 +141,7 @@ export function StoryBoardClient({ stories: initialStories }: { stories: BoardSt
   }
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext id="story-board" sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="space-y-6">
         {floating.length > 0 && (
           <div className="space-y-2">

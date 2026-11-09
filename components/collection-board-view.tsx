@@ -103,7 +103,7 @@ export function CollectionBoardView({ collection, rows: initialRows, config }: C
   }
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext id={`board-${collection}`} sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-2">
         {config.statusOptions.map(opt => (
           <Column

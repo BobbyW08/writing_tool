@@ -37,7 +37,7 @@ const STORY_NAV = [
   { href: "/tables", label: "Tables" },
 ];
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const treeNodes = await getWorldTreeNodes();
 
   return (
@@ -127,6 +127,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* Main canvas */}
           <main className="min-w-0 flex-1 overflow-y-auto p-6">{children}</main>
         </div>
+        {modal}
         <Toaster />
       </body>
     </html>

@@ -14,7 +14,6 @@ import "@xyflow/react/dist/style.css";
 import { GRAPH_NODE_TYPES, type GraphNodeData } from "@/components/graph-node";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { layoutNodeMap } from "@/lib/graph/layout";
-import { hrefForNode } from "@/lib/graph/href";
 import type { Graph } from "@/lib/graph/types";
 
 export interface GraphCandidate {
@@ -127,7 +126,8 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
   const onNodeDoubleClick = useCallback((_: unknown, node: FlowNode) => {
     if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
     const data = node.data as unknown as GraphNodeData;
-    router.push(hrefForNode(graph?.nodes.find(n => n.code === data.code)?.collection ?? "characters", data.code));
+    const collection = graph?.nodes.find(n => n.code === data.code)?.collection ?? "characters";
+    router.push(`/view/${collection}/${data.code}`);
   }, [router, graph]);
 
   return (
@@ -173,7 +173,7 @@ export function NodeMapView({ candidates }: { candidates: GraphCandidate[] }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Click a node to center the map on it. Double-click to open its entry.
+        Click a node to center the map on it. Double-click to open its entry in a popup.
         {graph?.truncated && <span className="ml-1 font-medium text-amber-600">Truncated — too many nodes to show at once; narrow the filters.</span>}
       </p>
 

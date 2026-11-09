@@ -12,7 +12,6 @@ import {
 import "@xyflow/react/dist/style.css";
 import { GRAPH_NODE_TYPES, type GraphNodeData } from "@/components/graph-node";
 import { layoutRelationshipView, type RelatedNode } from "@/lib/graph/layout";
-import { hrefForNode } from "@/lib/graph/href";
 import type { Edge, Node } from "@/lib/graph/types";
 
 interface LinksResponse {
@@ -80,7 +79,7 @@ export function RelationshipView({ code, name, color, icon }: { code: string; na
   const onNodeDoubleClick = (_: unknown, flowNode: FlowNode) => {
     if (flowNode.id === code) return;
     const r = related.find(r => `${r.node.code}-${r.edge.id}` === flowNode.id);
-    if (r) router.push(hrefForNode(r.node.collection, r.node.code));
+    if (r) router.push(`/view/${r.node.collection}/${r.node.code}`);
   };
 
   if (data && related.length === 0) {
@@ -106,7 +105,6 @@ export function RelationshipView({ code, name, color, icon }: { code: string; na
             onNodeDoubleClick={onNodeDoubleClick}
             fitView
             minZoom={0.2}
-            nodesDraggable={false}
           >
             <Background />
             <Controls showInteractive={false} />

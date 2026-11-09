@@ -9,7 +9,7 @@ export default async function NodeMapPage() {
       <div>
         <h1 className="text-2xl font-semibold">Node map</h1>
         <p className="text-sm text-muted-foreground">
-          Every connection from the link index. Color by collection; click a node to center on it, double-click to open it.
+          Every connection from the link index. Color by collection; click a node to center on it, double-click to open it in a popup.
         </p>
       </div>
       <NodeMapView candidates={candidates} />

@@ -689,6 +689,9 @@ Detail is in "Steps U1 to U6: working surfaces" below.
       never registered a drag start under simulated pointer input); flagged for Bobby to confirm by
       hand. Everything else verified live. See `BUILD_GUIDE.md`'s U4 section.
 - [ ] U5: editing, movable nodes and large record popups in the relationship view and node map.
+      **Partially closed 2026-11-09** — record popups (parallel + intercepting routes) and movable
+      nodes are done and verified live. Edge editing and drag-to-create-relationship are not
+      started yet. See `BUILD_GUIDE.md`'s U5 section.
 - [x] U6: drag and drop on the story board. **Closed 2026-11-09.** Same drag-and-drop-gesture
       caveat as U4 (browser automation couldn't exercise it; flagged for Bobby to confirm by hand).
 
@@ -1078,16 +1081,19 @@ behave exactly as they do everywhere else. There is no second write path.
       (view switch, column grouping, "+" create, status mapping) verified live.
 - [x] This is a view over a collection. It is separate from the user-built grids of step W6.
 
-### Step U5: edit and explore from the relationship view and node map
-- [ ] Record popup: clicking a record name in the relationship view, the node map, a board or the
+### Step U5: edit and explore from the relationship view and node map — **Partially closed 2026-11-09**
+- [x] Record popup: clicking a record name in the relationship view, the node map, a board or the
       story board opens a large popup (about 80 percent of the window) showing that record's full
       read page: infobox, details, relationships, What links here, editable in place. It has
       "Open full page" and close. It is built with Next.js parallel and intercepting routes so the
       popup and the full page render the same read page components. Plain code links inside text
-      keep their normal behavior.
+      keep their normal behavior. Scoped to the 8 world collections, events and stories (the ones
+      the relationship view/node map/boards/story board actually link into); boards, chronicles,
+      maps and tables don't have a popup since nothing reaches them this way.
 - [ ] Edit from the views: select an edge to change its type, years and notes or delete it. Drag
       from one node to another to create a relationship. Both use the actions from step U2.
-- [ ] Movable nodes: any node can be dragged aside to read what is under it, and a dragged or
+      **Not started.**
+- [x] Movable nodes: any node can be dragged aside to read what is under it, and a dragged or
       selected node comes to the front. Positions are saved only on a board (hard rule 15). In an
       unsaved node map the move lasts for the session.
 - [ ] Phase 9's inspector panel is separate from this popup. The popup is for reading and editing a

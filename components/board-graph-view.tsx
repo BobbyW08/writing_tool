@@ -15,7 +15,6 @@ import "@xyflow/react/dist/style.css";
 import { GRAPH_NODE_TYPES, type GraphNodeData } from "@/components/graph-node";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { layoutNodeMap } from "@/lib/graph/layout";
-import { hrefForNode } from "@/lib/graph/href";
 import { updateFieldAction } from "@/lib/world/actions";
 import type { Graph } from "@/lib/graph/types";
 import type { BoardQuery, BoardNodePositions } from "@/lib/world/queries";
@@ -146,7 +145,8 @@ export function BoardGraphView({
 
   const onNodeDoubleClick = useCallback((_: React.MouseEvent, node: FlowNode) => {
     const data = node.data as unknown as GraphNodeData;
-    router.push(hrefForNode(graph?.nodes.find(n => n.code === data.code)?.collection ?? "characters", data.code));
+    const collection = graph?.nodes.find(n => n.code === data.code)?.collection ?? "characters";
+    router.push(`/view/${collection}/${data.code}`);
   }, [router, graph]);
 
   const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback((_, node) => {
@@ -215,7 +215,7 @@ export function BoardGraphView({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Drag a node to switch to manual layout. Double-click a node to open its entry.
+        Drag a node to switch to manual layout. Double-click a node to open its entry in a popup.
         {layoutMode === "manual" && <span className="ml-1 font-medium">Manual layout — drag freely, then Save view.</span>}
         {graph?.truncated && <span className="ml-1 font-medium text-amber-600">Truncated — too many nodes to show at once; narrow the filters.</span>}
       </p>

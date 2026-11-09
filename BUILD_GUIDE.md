@@ -18,7 +18,9 @@ items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked
 board views on every collection list page) and U6 (story board drag and drop) are also closed —
 see their sections below. U4 and U6's drag-and-drop gestures themselves are flagged for Bobby to
 confirm by hand (browser automation couldn't exercise either; the code review backing that call is
-in each step's section). Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+in each step's section). U5 is partially done this session: the record popup (parallel +
+intercepting routes) and movable nodes are built and verified live; edge editing and
+drag-to-create-relationship are not started yet — see U5's section. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
 anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
 re-checked a third time this session (Bobby said it was resolved; it was not — same
 `customer_verification_required` error, including after a 90s wait for propagation) — still
@@ -313,6 +315,100 @@ each page hand-rolled its own status select placement and its own bottom-of-page
   confirm by hand: drag a card between cells on `/story-board` (floating → a stage/era cell, an
   era cell → another era/stage, and into the floating lane) and confirm the card moves, the field
   values update, and the undo toast's Undo button puts it back.
+- **Real bug found and fixed via live testing of U5's popup** (below), not caught by `tsc` or
+  `npm run build`: both this board's `DndContext` and U4's `collection-board-view.tsx`'s omitted
+  the `id` prop, so dnd-kit fell back to its own auto-incrementing counter for the
+  `aria-describedby` ids it generates. That counter is a module-level value that keeps counting up
+  across client-side navigations within the same tab, so the *second* page in a session to mount a
+  `DndContext` gets client-side ids (`DndDescribedBy-2`) one higher than what a fresh server
+  render for that same page computes (`DndDescribedBy-0`) — a hydration mismatch, visible only
+  after actually navigating between two dnd-kit pages in one browser session, never in an isolated
+  page load. Fixed by giving each `DndContext` a stable, explicit `id` (`"story-board"` here,
+  `` `board-${collection}` `` in U4's) so server and client always agree regardless of navigation
+  order. **Lesson for future work with `@dnd-kit/core` in this codebase**: always pass `id` on
+  `DndContext` once there's more than one of them in the app.
+
+### Phase 5A, step U5: record popup (parallel + intercepting routes)
+
+- **Scope this session**: the record popup itself, wired into all four places the plan names
+  (relationship view, node map, boards, story board), plus movable nodes in the relationship view
+  and node map. **Not yet done**: edge editing (select an edge to change its type/years/notes or
+  delete it) and drag-from-node-to-node to create a relationship. Left for a follow-up pass under
+  this same step — the popup was the larger, foundational piece and is now solid; the docs below
+  flag exactly what's left.
+- **The mechanism**: Next's parallel + intercepting routes (`app/(app)/@modal/`), following the
+  pattern in Next's own docs almost exactly (`node_modules/next/dist/docs/01-app/03-api-reference/
+  03-file-conventions/{parallel,intercepting}-routes.md` — read in full before writing any of this,
+  per this repo's "not the Next.js you know" warning). `app/(app)/layout.tsx` now takes a `modal`
+  slot prop rendered once, after the main `<div>`, alongside `{children}`.
+  - `app/(app)/view/[collection]/[code]/page.tsx`: the real route behind the popup. On a hard
+    navigation, refresh, or shared link (no modal to intercept into), it just `redirect()`s to the
+    record's own canonical page via the existing `hrefForNode()` helper — no duplicated rendering.
+  - `app/(app)/@modal/(.)view/[collection]/[code]/page.tsx`: the intercepted version. `(.)` matches
+    `view` as a sibling segment of the slot, per convention.
+  - `app/(app)/@modal/default.tsx` (returns `null`, the slot's fallback on a hard navigation/
+    refresh) and `app/(app)/@modal/[...catchAll]/page.tsx` (also returns `null`) — both needed per
+    Next's own "Closing the modal" section: without the catch-all, a soft client-side navigation
+    to any route that doesn't match the intercepted path (for example the modal's own "Open full
+    page" link) leaves the slot showing its last matched content instead of collapsing.
+- **`components/record-view-dispatch.tsx`** (new, server component): given just a `collection` and
+  `code`, renders that record's real read page by importing and directly invoking the existing
+  page components as plain functions — `EntityReadPage` from `app/(app)/[entityType]/[slug]/
+  page.tsx`, `EventReadPage`, `StoryReadPage` — constructing their `params` promise by hand. This
+  is the literal mechanism behind "the popup and the full page render the same read page
+  components" (the plan's own wording): no refactor of those three files, no second copy of their
+  rendering logic anywhere. Scoped to the 8 world collections (via the existing `WORLD_SLUGS` from
+  `lib/codes.ts`, not re-hardcoded) plus `events` and `stories` — the collections the relationship
+  view, node map, boards and story board actually link into. Boards/chronicles/maps/tables popups
+  are out of scope (not reachable from any of the four sources the plan names).
+- **`components/record-modal.tsx`** (new): the popup chrome — centered panel, ~80% of the window
+  (`h-[85vh] w-[80vw] max-w-5xl`), a header with "Open full page" (`Link` to the record's real
+  canonical URL via `hrefForNode`) and Close, click-outside-to-close, Escape-to-close. Close and
+  click-outside both call `router.back()` rather than navigating to a fixed URL, per Next's
+  documented pattern, so the browser's back/forward history and the `@modal` slot's state always
+  agree.
+- **Trigger points updated to open the popup instead of navigating away** — each is a one-line
+  change from `router.push(hrefForNode(...))` to `router.push(\`/view/${collection}/${code}\`)`,
+  which Next's client-side router intercepts into the modal:
+  - `components/node-map-view.tsx` — double-click (single click still re-centers the map, unchanged).
+  - `components/relationship-view.tsx` — double-click (the center node, already excluded, still is).
+  - `components/board-graph-view.tsx` — double-click (drag-to-reposition and board-saved positions
+    unchanged; this view already persists node positions on the board per hard rule 15).
+  - `components/story-board-client.tsx` — the card's "Open" link.
+  `lib/graph/href.ts`'s `hrefForNode()` is now used only for the real canonical link (the modal's
+  "Open full page" and the `/view/.../page.tsx` redirect target), not for in-view navigation
+  anymore; removed the now-unused import from the three view components above.
+- **Movable nodes**: `components/relationship-view.tsx` had `nodesDraggable={false}` — removed, so
+  every node in the relationship view (not just the node map, which was already draggable by
+  default) can now be dragged aside, matching the plan's "any node can be dragged aside." Neither
+  view persists positions anywhere (matches hard rule 15 — only a board's saved positions do, via
+  `board-graph-view.tsx`'s existing `onNodeDragStop`/`handleSave`), so a drag lasts for the browser
+  session only, exactly as the plan specifies for an unsaved node map. "Comes to the front" is
+  React Flow's own default (`elevateNodesOnSelect`, on unless explicitly disabled, and neither view
+  disables it) — not additional code.
+- **Typecheck and build**: `npx tsc --noEmit` and `npm run build` both zero errors. Note: the first
+  `tsc --noEmit` run after adding the `@modal` slot failed with a `LayoutConfig` type error from a
+  stale `.next/types/validator.ts` — Next's generated route-type file hadn't picked up the new
+  slot prop yet. Running `npm run build` once (which regenerates it) made `tsc --noEmit` pass
+  cleanly afterward; not a real type error.
+- **Verified live**: opened the popup from the node map (double-clicked a connected `locations`
+  node while centered on a character) — URL changed to `/view/locations/L2`, the node map stayed
+  visible and interactive behind the dimmed overlay, the popup showed the full read page including
+  its own nested `RelationshipView` (a second, independent React Flow instance) and `WhatLinksHere`
+  section, both loaded correctly. Close collapsed the modal via `router.back()` with the node map's
+  state (which node it was centered on) untouched. Reopened, clicked "Open full page" — landed on
+  the real `/locations/L2` page with no stray overlay (confirming the catch-all route works).
+  Directly navigated to `/view/locations/L2` (simulating a hard refresh/shared link) — correctly
+  redirected to `/locations/L2`. Opened the popup from the story board's "Open" link on a card —
+  same result, full story read page in the modal over the story board. Found and fixed the
+  dnd-kit `DndContext` id bug (above) via this testing.
+- **Not separately live-tested**: `relationship-view.tsx`'s and `board-graph-view.tsx`'s popup
+  triggers — same one-line `router.push` change as the two paths that were tested live, confirmed
+  correct by code review rather than re-driving the browser through two more views for an
+  identical mechanism already proven twice.
+- **Remaining for this step**: edge editing (select an edge in the relationship view or node map
+  to change its type/years/notes or delete it, reusing U2's `updateRelationshipAction`) and
+  drag-from-node-to-node to create a relationship (`createRelationshipAction`). Not started.
 
 ### Step W5: boards
 
@@ -966,15 +1062,14 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    a propagation delay) — looks like an account/team-scoping mismatch between where the card was
    added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
    Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
-2. **Phase 5A, steps U3, U5.** "Working surfaces" — new scope added mid-session (see the plan's
-   own section). U1 (header actions), U2 (edit relationships in place, place history), U4 (table
-   and board views on every collection list page) and U6 (story board drag and drop) are closed.
-   Remaining: U3 (a "Keep writing" section on story pages — **blocked** on the pre-existing
+2. **Phase 5A, steps U3, U5 (remainder).** "Working surfaces" — new scope added mid-session (see
+   the plan's own section). U1, U2, U4 and U6 are closed. U5 is partially done: the record popup
+   and movable nodes are built; remaining is edge editing (select an edge to change its type/
+   years/notes or delete it) and drag-from-node-to-node to create a relationship, both in the
+   relationship view and node map, reusing U2's `updateRelationshipAction`/`createRelationshipAction`.
+   U3 (a "Keep writing" section on story pages) stays **blocked** on the pre-existing
    `/write/[code]` Lexical #173 / React #418 crash, Phase 4 gap #2, since both pages share the
-   same editor component), U5 (record popups, editable relationship view/node map, movable nodes —
-   U5's relationship-view editing can now build on U2's `updateRelationshipAction`). The plan says
-   U1-U6 "can go anywhere after" Phase 5/item 6, so U5 is unblocked; U3 stays blocked on the
-   Lexical crash.
+   same editor component.
 3. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
    (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on
    S4-S6 above. Phases 7-8 are also unblocked while S4-S7 waits on the billing fix.
