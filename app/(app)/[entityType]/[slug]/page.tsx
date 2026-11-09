@@ -11,6 +11,7 @@ import { DeleteRecordButton } from "@/components/delete-record-button";
 import { COLLECTION_FIELDS } from "@/lib/world/fields";
 import { Infobox } from "@/components/infobox";
 import { INFOBOX_FIELDS } from "@/lib/infobox";
+import { WhatLinksHere } from "@/components/what-links-here";
 
 const WORLD_COLLECTIONS: Record<string, string> = {
   characters: "Characters",
@@ -278,9 +279,7 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </section>
       )}
 
-      <section className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        What links here — available after G1 (link index)
-      </section>
+      <WhatLinksHere code={code} />
 
       <div className="border-t pt-4">
         <DeleteRecordButton collection={entityType} id={doc.id} code={code} name={doc.name} />

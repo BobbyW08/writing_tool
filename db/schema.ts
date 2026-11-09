@@ -246,6 +246,8 @@ export const relationships = pgTable('relationships', {
   notes: text('notes'),
   startYear: integer('start_year'),
   endYear: integer('end_year'),
+  // Relative timing for a `follows` relationship: how many years after `toCode` that `fromCode` occurs.
+  offsetYears: integer('offset_years'),
   title: text('title'),
   tagIds: jsonb('tag_ids').$type<number[]>().default(sql`'[]'::jsonb`),
   reviewNote: text('review_note'),
@@ -255,6 +257,35 @@ export const relationships = pgTable('relationships', {
   index('relationships_from_code_idx').on(t.fromCode),
   index('relationships_to_code_idx').on(t.toCode),
   index('relationships_code_idx').on(t.code),
+])
+
+// ─── Link index (derived, step G1) ───────────────────────────────────────────
+// One row per connection between two coded records. Rebuilt from the records by
+// lib/graph/sync.ts on every write; never edited by hand and never canon itself.
+// `key` is deterministic (source:ownerCode:type:fieldName:fromCode:toCode) so a
+// resync of the same state is a no-op. See traveler-wiki-build-plan.md "Link index".
+
+export const links = pgTable('links', {
+  id: serial('id').primaryKey(),
+  key: text('key').unique().notNull(),
+  fromCode: text('from_code').notNull(),
+  fromCollection: text('from_collection').notNull(),
+  toCode: text('to_code').notNull(),
+  toCollection: text('to_collection').notNull(),
+  source: text('source').notNull(), // relationship | field | parent | text | pin
+  type: text('type').notNull(), // X relationship type value, or field name (involves, parent, mentions...)
+  fieldName: text('field_name'), // where inside the owner, e.g. details.Origin, text, whatHappened
+  ownerCode: text('owner_code').notNull(), // the record that holds the relationship/field/text
+  directed: boolean('directed').notNull().default(true),
+  startYear: integer('start_year'),
+  endYear: integer('end_year'),
+  broken: boolean('broken').notNull().default(false), // the target no longer exists
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('links_owner_idx').on(t.ownerCode),
+  index('links_from_idx').on(t.fromCode),
+  index('links_to_idx').on(t.toCode),
+  index('links_broken_idx').on(t.broken),
 ])
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────

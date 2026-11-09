@@ -28,6 +28,9 @@ export function AppSidebar() {
             <ContinuityBadge />
           </Suspense>
         </Link>
+        <Link href="/link-health" className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
+          Link health
+        </Link>
         {ENTITY_TYPES.map((t) => (
           <Link key={t.urlSlug} href={`/${t.urlSlug}`} className="block rounded-md px-2 py-1.5 text-sm hover:bg-accent">
             {t.pluralLabel}

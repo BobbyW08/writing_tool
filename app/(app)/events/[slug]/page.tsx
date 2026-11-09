@@ -5,6 +5,7 @@ import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
 import { DeleteRecordButton } from "@/components/delete-record-button";
+import { WhatLinksHere } from "@/components/what-links-here";
 
 const CODE_RE = /^E\d{1,6}$/i;
 
@@ -190,9 +191,7 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
 
       <RelationshipEditor myCode={code} initial={relEntries} />
 
-      <section className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        What links here — available after G1 (link index)
-      </section>
+      <WhatLinksHere code={code} />
 
       <div className="border-t pt-4">
         <DeleteRecordButton collection="events" id={doc.id} code={code} name={doc.name} />

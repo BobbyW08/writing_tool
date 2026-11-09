@@ -2,7 +2,7 @@ import 'server-only'
 import { eq, desc, inArray, like, or } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
-import { CODE_REGEX, ENTITY_SLUGS, PREFIX_TO_SLUG } from '@/lib/codes'
+import { CODE_REGEX, CODE_PREFIX_CHARS, ENTITY_SLUGS, PREFIX_TO_SLUG } from '@/lib/codes'
 import type {
   characters, locations, items, cultures, factions, races, languages,
   lore, events, stories,
@@ -140,6 +140,10 @@ export async function getCollectionList(collection: string) {
   }
   if (collection === 'stories') {
     const docs = await appDb.select().from(schema.stories)
+    return { docs: docs.map(d => ({ ...d, tags: resolveTagIds((d.tagIds ?? []) as number[]) })), totalDocs: docs.length }
+  }
+  if (collection === 'writing') {
+    const docs = await appDb.select().from(schema.writing)
     return { docs: docs.map(d => ({ ...d, tags: resolveTagIds((d.tagIds ?? []) as number[]) })), totalDocs: docs.length }
   }
   const table = getWorldTable(collection)
@@ -444,7 +448,8 @@ export async function getWorldTreeNodes() {
 // ─── resolveCodeLookup ────────────────────────────────────────────────────────
 export async function resolveCodeLookup(query: string): Promise<{ code: string; collection: string; name: string } | null> {
   const q = query.trim().toUpperCase()
-  const re = /^[CLEIFRGKSWXQTU]\d{1,6}$/
+  // Built from the same prefix chars as CODE_REGEX, so a new prefix only needs adding in one place.
+  const re = new RegExp(`^[${CODE_PREFIX_CHARS}]\\d{1,6}$`)
   if (re.test(q)) {
     const collection = PREFIX_TO_SLUG[q[0]]
     if (collection && ENTITY_SLUGS.includes(collection as never)) {

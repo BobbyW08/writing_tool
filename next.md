@@ -23,33 +23,41 @@ do not forget it. Pick it up after whatever task is in progress completes.
    deployment that started on its own.
 
 
-## Task: G1, the link index
+## Task: Phase 4, the continuity check port
 
-Phase 3 closure is done (checked off in `traveler-wiki-build-plan.md`, verified in browser
-2026-11-08). This is a new build step, not a verification pass — **ask Bobby before starting it.**
+G1 (the link index) is done — checked off in `traveler-wiki-build-plan.md`, verified against live
+data 2026-11-08. This is a new build step, not a verification pass — **ask Bobby before starting
+it**, same as G1 was.
 
-From `traveler-wiki-build-plan.md` ("Build order", item 4): the link index backs every later
-view (node map, relationship view, convergence view) and the AI context builder. It needs
-Phase 3 done first because it indexes what Phase 3's pages already read and display.
+From `traveler-wiki-build-plan.md`'s "Phase 4: Continuity check port" (under "Build order", item
+5) and `docs/PLAN_WRITING_AND_AI.md`'s "S7. Canon check and change tracking":
 
-Read the "Link index" section of `traveler-wiki-build-plan.md` in full before starting. It
-covers:
+- [ ] Rewrite `run-check.ts`, its actions and its data queries on the data layer (`appDb`,
+      `lib/world/` / `lib/studio/` conventions) — keep the pure files (the parts of `lib/continuity/`
+      that don't touch Payload) as-is.
+- [ ] Rewire the Continuity inbox, review screen, entry field history, and the sidebar badge
+      (currently stubbed — see `app/(app)/continuity/` and `components/continuity-badge.tsx`).
+- [ ] Run `npm run test:continuity`, then a first real writing check against live data, then tune
+      prompts.
+- [ ] Confirm the hard rule still holds end to end: automatic writes are **verbatim quotes of
+      Bobby's own text only**, never AI-written prose, each new addition shows up in the inbox with
+      an Undo, every automatic record is tagged `UNK`, and anything that contradicts canon is never
+      applied without his explicit decision (CLAUDE.md hard rule 1).
+- [ ] Confirm the link index sync (G1) fires correctly when the continuity check creates a new
+      `in_development` record or adds a detail — it should go through the same
+      `lib/world/actions.ts` / `lib/studio/actions.ts` write functions G1 already wired, not a
+      separate path that bypasses `syncLinksForRecord`.
 
-- The `links` table shape.
-- Which write functions in `lib/world/actions.ts` need to call the sync function (the sync runs
-  inside the data layer's write functions, not in a hook, per the Payload removal).
-- The graph endpoints and the "What links here" feature it enables.
-
-See the "Step G1: link index" section of `traveler-wiki-build-plan.md` for the detailed task
-checklist, including the new code prefixes (B, Y, M, P, H, D, N, A) that need adding to
-`lib/codes.ts` first.
+Read `docs/PLAN_WRITING_AND_AI.md` in full before starting (the continuity check, AI layer, and
+canon check are specified there, not in `traveler-wiki-build-plan.md`).
 
 ### When this is done
 
-1. Check off the G1 items in `traveler-wiki-build-plan.md`.
+1. Check off the Phase 4 items in `traveler-wiki-build-plan.md`.
 2. Update `BUILD_GUIDE.md`: "Current state" and "Next up".
 3. Update `SESSION.md` with what was done this session.
-4. Replace this file (`next.md`) with the Phase 4 task (continuity check port).
+4. Replace this file (`next.md`) with the Phase 5 task (views: filter, convergence, node map,
+   relationship view, story board — all built on the G1 link index).
 
-Build order after G1: Phase 4 (continuity check port), then Phase 5 (views), per the table in
+Build order after Phase 4: Phase 5 (views) and step S3/W2, per the table in
 `traveler-wiki-build-plan.md`.

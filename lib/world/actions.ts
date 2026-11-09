@@ -6,6 +6,7 @@ import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { assignNextCode, slugify } from '@/db/codes'
 import { PREFIX_TO_SLUG } from '@/lib/codes'
+import { syncLinksForRecord, removeRecordLinks, isLinkRelevantField } from '@/lib/graph/sync'
 
 // ─── Table map ───────────────────────────────────────────────────────────────
 type AnyTable = typeof schema.characters
@@ -74,9 +75,12 @@ export async function createEntityAction(
       .values(insertData as never)
       .returning({ id: (table as typeof schema.characters).id })
 
+    const newId = (row as { id: number }).id
+    await syncLinksForRecord(collection, newId)
+
     revalidatePath(`/${collection}`)
     revalidatePath('/')
-    return { id: (row as { id: number }).id, code, slug }
+    return { id: newId, code, slug }
   } catch (err) {
     return { id: 0, error: String(err) }
   }
@@ -96,6 +100,10 @@ export async function updateFieldAction(
     await (appDb.update(table as never) as ReturnType<typeof appDb.update>)
       .set({ [field]: value, updatedAt: new Date() } as never)
       .where(eq((table as typeof schema.characters).id, id))
+
+    if (isLinkRelevantField(collection, field)) {
+      await syncLinksForRecord(collection, id)
+    }
 
     revalidatePath(`/${collection}`)
     return { ok: true }
@@ -199,8 +207,14 @@ export async function deleteEntityAction(
   try {
     const table = getTable(collection)
     if (!table) return { ok: false, error: `No table for: ${collection}` }
+    const rows = await appDb.select({ code: (table as typeof schema.characters).code })
+      .from(table as never).where(eq((table as typeof schema.characters).id, id)).limit(1)
+    const code = (rows[0] as { code: string } | undefined)?.code
+
     await (appDb.delete(table as never) as ReturnType<typeof appDb.delete>)
       .where(eq((table as typeof schema.characters).id, id))
+    if (code) await removeRecordLinks(code)
+
     revalidatePath(`/${collection}`)
     revalidatePath('/')
     return { ok: true }
@@ -258,7 +272,10 @@ export async function createRelationshipAction(
       title,
     }).returning({ id: schema.relationships.id })
 
-    return { ok: true, id: (rel as { id: number }).id }
+    const relId = (rel as { id: number }).id
+    await syncLinksForRecord('relationships', relId)
+
+    return { ok: true, id: relId }
   } catch (err) {
     return { ok: false, error: String(err) }
   }
@@ -267,7 +284,13 @@ export async function createRelationshipAction(
 // ─── deleteRelationshipAction ─────────────────────────────────────────────────
 export async function deleteRelationshipAction(id: number): Promise<{ ok: boolean; error?: string }> {
   try {
+    const rows = await appDb.select({ code: schema.relationships.code })
+      .from(schema.relationships).where(eq(schema.relationships.id, id)).limit(1)
+    const code = rows[0]?.code
+
     await appDb.delete(schema.relationships).where(eq(schema.relationships.id, id))
+    if (code) await removeRecordLinks(code)
+
     return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }
@@ -325,6 +348,7 @@ export async function updateEventInvolvesAction(
       )
     }
     await appDb.update(schema.events).set({ updatedAt: new Date() }).where(eq(schema.events.id, eventId))
+    await syncLinksForRecord('events', eventId)
     revalidatePath('/events')
     return { ok: true }
   } catch (err) {

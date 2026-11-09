@@ -9,7 +9,44 @@ end of every session.
 
 ## Current state (as of 2026-11-08)
 
-**Phase 3 closed, verified in browser against a production build. Payload stripped. Build passes zero errors. G1 is next.**
+**Phase 3 and G1 (the link index) are both closed. Build passes zero errors. Phase 4 (continuity check port) is next.**
+
+### G1: the link index
+
+Delivered the `links` table and `lib/graph/` (`types.ts`, `labels.ts`, `extract.ts`, `sync.ts`,
+`queries.ts`), wired sync calls into every coded write path, the six `/api/graph*` and
+`/api/codes/:code/links` endpoints, a "What links here" component on all three read pages, and a
+`/link-health` page. Full checklist and verification detail in `traveler-wiki-build-plan.md`'s
+"Step G1" section.
+
+Key design decisions made while building it (not spelled out in the plan, recorded here so they
+aren't re-litigated):
+- The link row `key` is deterministic from `source:ownerCode:type:fromCode:toCode` — **not**
+  including `fieldName`, so the same code mentioned in two different text fields of one record
+  collapses to a single edge rather than two.
+- `writeOwnedLinks()` always deletes every row a given owner code currently owns, then inserts the
+  freshly computed set, via `appDb.batch([del, ins])` (one atomic round trip on the neon-http
+  driver, which has no interactive multi-statement transactions).
+- A relationship row's `ownerCode` is its own X code, not `fromCode` — it is the one record that
+  genuinely owns that connection and whose delete should remove it.
+- `isLinkRelevantField()` lives in `lib/graph/sync.ts`, next to the field maps it mirrors, so
+  `updateFieldAction`'s "should I resync" check can never drift out of sync with the extraction
+  logic itself.
+- `lib/graph/sync.ts` and `lib/graph/queries.ts` deliberately do **not** `import 'server-only'`
+  (unlike `lib/world/queries.ts`), because `sync.ts` is also imported directly by
+  `scripts/rebuild-links.ts`, a plain `tsx` script outside Next's bundler — `server-only` is not an
+  installed npm package, Next provides it only inside its own webpack/Turbopack build, and a bare
+  `tsx` run fails with `ERR_MODULE_NOT_FOUND` if anything in the import chain pulls it in.
+- The migration (`links` table + `relationships.offset_years`, both additive) needed explicit
+  approval to run against the live `APP_DATABASE_URL` (the harness flags `drizzle-kit migrate` as
+  a production-deploy action) — approved and applied 2026-11-08. `drizzle-kit`'s CLI does not load
+  `.env.local` itself (unlike Next or `tsx --env-file`); run it as
+  `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`.
+- `components/app-sidebar.tsx` is dead code (not imported anywhere) — the real nav lives inline in
+  `app/(app)/layout.tsx`. Discovered while adding the Link health nav entry; added it to both for
+  now rather than deleting the unused file, since that cleanup wasn't asked for.
+
+### Phase 3 closure
 
 Phase 3 closure browser check (production build on port 3001, since nothing was listening on 3000):
 - All 16 top-level/list routes return 200 and loaded cleanly.
@@ -52,10 +89,11 @@ The app now runs entirely on Drizzle ORM and Neon Postgres with no Payload depen
 code. `db/schema.ts` is the source of truth for the schema.
 
 Data counters (from migration): C=40, L=13, U=5, F=2, K=102, S=74, W=3. UNK queue: E2, E16,
-E36 to E39, X1 to X4.
+E36 to E39, X1 to X4. (C is now at 61 — two scratch records created and deleted during G1's
+scripted verification advanced it, by design: counters never roll back after a delete.)
 
 Build state:
-- `npm run build` passes with zero TypeScript errors, all 21 routes rendered.
+- `npm run build` passes with zero TypeScript errors, all 27 routes rendered.
 - Lexical packages installed explicitly: `lexical@0.50.0`, `@lexical/react`, `@lexical/markdown`,
   `@lexical/rich-text`, `@lexical/list`, `@lexical/headless` (all at `0.50.0`).
 - Continuity pages (`/continuity`, `/continuity/[flagId]`), snippets pages, and
@@ -63,11 +101,17 @@ Build state:
 
 Data layer files:
 - `lib/world/queries.ts` - all entity fetchers, using `appDb`
-- `lib/world/actions.ts` - CRUD server actions (create, updateField, updateDetails, delete, relationships, tags)
+- `lib/world/actions.ts` - CRUD server actions (create, updateField, updateDetails, delete, relationships, tags) — now also sync the link index after any link-relevant write
 - `lib/world/fields.ts` - field definitions per entity type driving create forms and edit UI
 - `lib/studio/queries.ts` - writing record fetchers
-- `lib/studio/actions.ts` - writing CRUD server actions
+- `lib/studio/actions.ts` - writing CRUD server actions — same link-sync wiring
 - `lib/studio/lexical.ts` - server-side Lexical to Markdown conversion (uses `@lexical/headless`)
+- `lib/graph/types.ts` - the one `Node`/`Edge`/`Graph` shape (`toNode`, `toEdge`)
+- `lib/graph/labels.ts` - fixed field labels/inverse labels for field- and text-sourced edges
+- `lib/graph/extract.ts` - per-collection registry of which text fields get scanned for codes
+- `lib/graph/sync.ts` - the sync engine: `syncLinksForRecord`, `removeRecordLinks`, `computeOwnedLinks`, `isLinkRelevantField`
+- `lib/graph/queries.ts` - read side: `getLinksForCode`, `getGraphFromCode`, `getFilteredGraph`, `getOrphanCodes`, `getBrokenLinks`, `getShortestPath`
+- `scripts/rebuild-links.ts` - rebuild the whole index from the records (`--apply` to write)
 
 Active routes under `app/(app)/`:
 - `/` home hub
@@ -78,6 +122,12 @@ Active routes under `app/(app)/`:
 - `/timeline`
 - `/continuity`, `/continuity/[flagId]` (stubbed)
 - `/snippets`, `/snippets/new`, `/snippets/[id]` (stubbed)
+- `/link-health`
+
+Active routes under `app/api/`:
+- `/api/media`, `/api/uploads/[...path]`
+- `/api/codes/[code]/links`
+- `/api/graph`, `/api/graph/[code]`, `/api/graph/orphans`, `/api/graph/broken`, `/api/graph/path`
 
 ---
 
@@ -133,14 +183,12 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
-1. **G1, the link index.** Needed by every later view and by the AI. Per `next.md`, this is a new
-   build step, not a verification pass — ask before starting it.
-2. **Phase 4.** Port the continuity check, then run the first real writing check.
-3. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board,
-   eras, lanes.
-4. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions.
-5. **W3 to W6.** Maps, chronicles, boards, interactive tables.
-6. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
+1. **Phase 4.** Port the continuity check, then run the first real writing check.
+2. **Phase 5, S3 and W2.** Filter, convergence view, node map, relationship view, story board,
+   eras, lanes. (The link index and node/edge shape it depends on are done — G1.)
+3. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions.
+4. **W3 to W6.** Maps, chronicles, boards, interactive tables.
+5. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy.
 
 ---
 
@@ -155,6 +203,16 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 - Ctrl or pinch zoom scrolled the page behind the timeline. Fixed with a native non-passive `wheel`
   listener on the container.
 - `tsx` does not load `.env` on its own. Run one-off scripts with `npx tsx --env-file=.env <file>`.
+- `import 'server-only'` breaks any plain `tsx` script that transitively imports the file it's in —
+  the package isn't actually installed; Next supplies it only inside its own webpack/Turbopack
+  build. Keep it out of any `lib/` file a `scripts/*.ts` might import (e.g. `lib/graph/sync.ts`,
+  `lib/graph/queries.ts`), even though `lib/world/queries.ts` still has it (nothing in `scripts/`
+  imports that one directly).
+- `drizzle-kit`'s CLI does not load `.env.local` the way `tsx --env-file` or Next does. Run
+  migrations as `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`.
+- Applying a schema migration (`drizzle-kit migrate`) against `APP_DATABASE_URL` is flagged by the
+  harness as a production-deploy action — ask before running it, same as any other hard-to-reverse
+  action against shared state.
 - shadcn popovers and dialogs rendered transparent until the theme variables were added to
   `globals.css`. If you add components, check they render opaque.
 - Browser automation clicks intermittently miss. Retry, and check server logs for whether the

@@ -4,13 +4,17 @@ import { eq, or, like } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { assignNextCode, slugify } from '@/db/codes'
+import { syncLinksForRecord, removeRecordLinks } from '@/lib/graph/sync'
 
 export async function createWriting(name: string): Promise<{ code: string; error?: string }> {
   try {
     const code = await assignNextCode('W')
     const base = slugify(name)
     const slug = base ? `${base}-${code.toLowerCase()}` : code.toLowerCase()
-    await appDb.insert(schema.writing).values({ code, slug, name, kind: 'snippet', canonState: 'draft', text: '' })
+    const [row] = await appDb.insert(schema.writing)
+      .values({ code, slug, name, kind: 'snippet', canonState: 'draft', text: '' })
+      .returning({ id: schema.writing.id })
+    await syncLinksForRecord('writing', row.id)
     revalidatePath('/write')
     return { code }
   } catch (e) {
@@ -51,6 +55,8 @@ export async function saveWriting(
       // the continuity layer (Phase 4) supplies collection context.
     }
 
+    await syncLinksForRecord('writing', id)
+
     revalidatePath('/write')
     return { ok: true }
   } catch (e) {
@@ -60,7 +66,13 @@ export async function saveWriting(
 
 export async function deleteWriting(id: number): Promise<{ ok: boolean }> {
   try {
+    const rows = await appDb.select({ code: schema.writing.code })
+      .from(schema.writing).where(eq(schema.writing.id, id)).limit(1)
+    const code = rows[0]?.code
+
     await appDb.delete(schema.writing).where(eq(schema.writing.id, id))
+    if (code) await removeRecordLinks(code)
+
     revalidatePath('/write')
     return { ok: true }
   } catch {

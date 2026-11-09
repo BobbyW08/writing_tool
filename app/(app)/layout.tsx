@@ -91,6 +91,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                     Review (UNK)
                   </Link>
                 </li>
+                <li>
+                  <Link href="/link-health" className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                    Link health
+                  </Link>
+                </li>
               </ul>
             </section>
 

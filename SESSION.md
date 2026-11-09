@@ -2,7 +2,29 @@
 
 Paste this into a new session alongside CLAUDE.md to get a model up to speed.
 
-## Last session (2026-11-08b): Phase 3 closure
+## Last session (2026-11-08c): G1, the link index
+
+Built the whole link index per `traveler-wiki-build-plan.md`'s "Link index" section and "Step G1"
+checklist (all boxes now checked there): new code prefixes, `hierarchy`/`follows`/`offsetYears`,
+the `links` table, `lib/graph/` (`types.ts`, `labels.ts`, `extract.ts`, `sync.ts`, `queries.ts`),
+sync calls wired into every coded write path in `lib/world/actions.ts` and `lib/studio/actions.ts`,
+`scripts/rebuild-links.ts`, the six graph/codes API endpoints, a "What links here" component on
+all three read pages, and a `/link-health` page.
+
+Verified against live data: `npm run build` passes zero errors (27 routes); `rebuild-links.ts`
+dry run matched `--apply`, and two consecutive `--apply` runs produced identical counts (field 51,
+relationship 6 — exactly matching the live X-record count, text 2, total 59 across 355 records);
+a scripted create/delete/resync test confirmed a text mention creates a row, deleting its target
+marks that row broken without touching anything else, and a resync clears a stale broken row
+rather than resurrecting it. Full design-decision list in `BUILD_GUIDE.md`'s "Current state" > "G1".
+
+One permission was asked and granted mid-session: applying the additive migration (`links` table
++ `relationships.offset_years`) to the live `APP_DATABASE_URL`, since the harness flags
+`drizzle-kit migrate` as a production-deploy action.
+
+Committed: not yet — pending user review of this session's changes.
+
+## Previous session (2026-11-08b): Phase 3 closure
 
 Ran the Phase 3 closure browser checklist against a production build (`npm run build` +
 `npm run start -p 3001`; nothing was listening on port 3000, so no dev server was touched).
@@ -30,8 +52,7 @@ Committed: not yet — pending user review of this session's changes.
 
 See `next.md` for the full instructions. In short:
 
-1. **G1, the link index.** Phase 3 closure is done. Per `next.md`, ask before starting G1 since
-   it's a new build step, not a verification pass.
+1. **Phase 4, the continuity check port.** G1 is done, so the link index it depends on exists now.
 
 ## Stack reference (quick)
 
@@ -40,6 +61,7 @@ See `next.md` for the full instructions. In short:
 | Active database | `APP_DATABASE_URL` on Neon, `appDb` from `db/index.ts` |
 | Schema | `db/schema.ts` |
 | Queries and actions | `lib/world/queries.ts`, `lib/world/actions.ts` |
+| Link index | `lib/graph/` (`sync.ts` writes, `queries.ts` reads), `scripts/rebuild-links.ts` |
 | Lexical packages | All at `0.50.0` |
 | Routes | All in `app/(app)/` |
 | No login, no admin | Anywhere in this codebase |

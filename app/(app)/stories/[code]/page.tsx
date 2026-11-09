@@ -5,6 +5,7 @@ import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
 import { DeleteRecordButton } from "@/components/delete-record-button";
+import { WhatLinksHere } from "@/components/what-links-here";
 
 type StoryDoc = {
   id: number;
@@ -183,9 +184,7 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
       <RelationshipEditor myCode={storyCode} initial={relEntries} />
 
       {/* What links here */}
-      <section className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        What links here — available after G1 (link index)
-      </section>
+      <WhatLinksHere code={storyCode} />
 
       {/* Delete */}
       <div className="border-t pt-4">

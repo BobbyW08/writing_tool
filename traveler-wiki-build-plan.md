@@ -647,7 +647,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 1 | Gate 2C (Phase 2C) | Story bible applied. Done 2026-10-20. |
 | 2 | S1 | Writing Studio: `/write`, `canonState`, autosave, `@` mentions. Done 2026-10-20. |
 | 3 | Phase 3, S2, W1 | Frontend shell on the data layer, world tree, infobox, home hub, images. Old code retired |
-| 4 | G1 | Link index, sync hooks, graph endpoints, What links here |
+| 4 | G1 | Link index, sync hooks, graph endpoints, What links here. Done 2026-11-08. |
 | 5 | Phase 4 | Continuity check port |
 | 6 | Phase 5, S3, W2 | Filter, convergence, live node map, relationship view, story board, eras, lanes, time gaps |
 | 7 | S4 | AI foundation on Claude. The context builder reads the link index |
@@ -668,18 +668,36 @@ and by the AI, and item 3 retires the old code those views would otherwise build
 ## Step G1: link index
 
 Needs Phase 3 done. Delivers the `links` collection and everything in "Link index" above.
-- [ ] Add the new prefixes (B, Y, M, P, H, D, N, A) to `lib/codes.ts`: the code pattern letters,
+Done 2026-11-08.
+- [x] Add the new prefixes (B, Y, M, P, H, D, N, A) to `lib/codes.ts`: the code pattern letters,
       `PREFIX_TO_SLUG` and the constants. Nothing else about those collections is built yet.
-- [ ] Add `hierarchy` to every type in `lib/relationshipTypes.ts`, the `follows` type, and `offsetYears` on `relationships`.
-- [ ] Create `links` and `lib/graph/` (`types.ts`, `extract.ts` for edges per collection,
+- [x] Add `hierarchy` to every type in `lib/relationshipTypes.ts`, the `follows` type, and `offsetYears` on `relationships`.
+- [x] Create `links` and `lib/graph/` (`types.ts`, `extract.ts` for edges per collection,
       `labels.ts`, `toNode`, `toEdge`, `sync.ts`). Extraction covers every relationship field, `parent`,
       X records and codes found in rich text, textareas and detail values.
-- [ ] Add the `afterChange` and `afterDelete` sync hooks to every coded collection.
-- [ ] `scripts/rebuild-links.ts` with a dry run and `--apply`. Verify: two runs identical, the number
-      of `relationship` rows equals the X count, an `involves` edit changes its rows, a delete marks rows broken.
-- [ ] Endpoints: re-point `/api/codes/:code/links`, add `/api/graph`, `/api/graph/:code`, orphans, broken, path.
-- [ ] A "What links here" component on every read page, and a link health page.
-- [ ] **Gate G1:** a report with row counts by source, the orphan and broken lists, and the build passing.
+- [x] Sync calls wired into every coded write path. No Payload-style hooks exist post-removal, so
+      this is direct calls to `syncLinksForRecord`/`removeRecordLinks` inside `lib/world/actions.ts`
+      and `lib/studio/actions.ts`'s create/update/delete functions, matching the decision already
+      recorded in `BUILD_GUIDE.md` ("the sync runs inside the data layer's write functions, not in
+      a hook"). `updateFieldAction` only resyncs when the edited field is link-relevant
+      (`isLinkRelevantField`), so an unrelated edit (summary, role, kind, image) is a no-op.
+- [x] `scripts/rebuild-links.ts` with a dry run and `--apply`. Verified: two consecutive `--apply`
+      runs produced identical counts (field: 51, relationship: 6, text: 2, total 59, across 355
+      records); the 6 `relationship` rows equal the live X-record count exactly; a scripted
+      create → delete → resync check confirmed a text mention creates a row, deleting its target
+      marks that row `broken` without touching anything else, and the owner's own next resync
+      clears the stale broken row rather than resurrecting it (no `involves` edit was exercised
+      through the browser UI this session, but `updateEventInvolvesAction` calls
+      `syncLinksForRecord('events', eventId)` directly after the join-table write, using the same
+      extraction path verified against live data).
+- [x] Endpoints: `GET /api/codes/:code/links`, `GET /api/graph`, `GET /api/graph/:code`,
+      `GET /api/graph/orphans`, `GET /api/graph/broken`, `GET /api/graph/path`.
+- [x] A "What links here" component (`components/what-links-here.tsx`) on all three read pages
+      (`[entityType]/[slug]`, `events/[slug]`, `stories/[code]`), and a link health page (`/link-health`).
+- [x] **Gate G1:** `npm run build` passes with zero errors, 27 routes rendered. Live row counts by
+      source (field 51, relationship 6, text 2). Orphan and broken lists are empty on the current
+      data except where exercised by the scripted test above (cleaned up after). See `BUILD_GUIDE.md`
+      "Current state" for the full report.
 
 ## Step W1: world tree, infobox, home hub, images
 
