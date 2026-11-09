@@ -14,8 +14,10 @@ closed. Steps W3 (maps), W4 (chronicles), W5 (boards) and W6 (interactive tables
 closed — see their sections below. That closes out the whole W1-W6 "Feature reference" block of
 Phase 5. The Gaps view (Phase 6) is also closed — see its section below; Phase 6's other two
 items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6. Phase
-5A steps U1 (header actions) and U2 (edit relationships in place, place history) are also closed —
-see their sections below. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+5A steps U1 (header actions), U2 (edit relationships in place, place history) and U4 (table and
+board views on every collection list page) are also closed — see their sections below. U4's
+drag-and-drop gesture itself is flagged for Bobby to confirm by hand (browser automation couldn't
+exercise it; the code review backing that call is in U4's section). Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
 anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
 re-checked a third time this session (Bobby said it was resolved; it was not — same
 `customer_verification_required` error, including after a 90s wait for propagation) — still
@@ -200,6 +202,80 @@ each page hand-rolled its own status select placement and its own bottom-of-page
   links here all went back to empty immediately, with no stale leftover rows anywhere. All test
   data cleaned up.
 - **Build**: `npm run build`, zero errors.
+
+### Phase 5A, step U4: table and board views on collection list pages
+
+- **`lib/world/listViews.ts`** (new): per-collection config (`ListViewConfig`: `statusField`,
+  `statusOptions`, `keyFields`) driving both new views. All 8 world collections use
+  `DEFAULT_CONFIG` (status field, no extra key columns). `events` adds `startYear` and `eventType`
+  as key columns. `stories` uses `stage` as its status/board field (not `status` — stories don't
+  have one) and adds `era`/`floating` as key columns. Deliberately kept local copies of
+  `EVENT_TYPE_OPTIONS`/`STAGE_OPTIONS`/`ERA_OPTIONS` here rather than deduplicating against the
+  existing copies on the detail pages — a scoped decision to limit churn in this step.
+- **`getTagsList()`** in `lib/world/queries.ts` (thin wrapper over the existing private
+  `getAllTags()`) so the table view can offer every tag as a bulk/per-row option.
+- **`bulkSetFieldAction`, `bulkSetTagAction`, `bulkDeleteAction`** in `lib/world/actions.ts`:
+  multi-id versions of the existing single-record field/tag/delete actions, used by the table
+  view's bulk-action bar. `bulkDeleteAction` reuses the existing delete path's
+  still-referenced-elsewhere guard per record and returns `{ deleted, skipped }` so the UI can
+  report "N not deleted — other records still reference them" instead of silently dropping them.
+- **`components/collection-table-view.tsx`** (new): filter box, click-to-sort columns
+  (code/name/status-or-stage/tags/+ per-collection key fields), row checkboxes with select-all, a
+  bulk-action bar (set status/stage, add/remove a tag, delete with an inline Yes/Cancel confirm —
+  not `window.confirm`, matching `DeleteRecordButton`'s existing pattern) that only appears once
+  something is selected. Every cell reuses existing building blocks rather than new ones:
+  `EditableField` for name/status/key fields, the existing `MultiSelect` for per-row tags (calling
+  `updateTagsAction` directly), `DeleteRecordButton` for the trailing per-row delete.
+- **`components/collection-board-view.tsx`** (new): a column per `config.statusOptions` value
+  (plus an "Other" column for any row whose current value doesn't match a known option, so nothing
+  silently disappears), `@dnd-kit/core`'s `DndContext`/`useDraggable`/`useDroppable` with a
+  `PointerSensor` 5px activation distance (so an ordinary click on a card's code link or its
+  editable name field doesn't get hijacked as a drag). `onDragEnd` calls `bulkSetFieldAction` with
+  the single moved id. Each column's "+" creates a new record already set to that column's value
+  via `createEntityAction({ name: 'New card', [statusField]: value })` client-side — chosen over
+  either a `window.prompt()` or linking out to the `/new` form (which has no field-prefill
+  mechanism) — and the card's name is immediately editable in place via the same `EditableField`
+  used everywhere else, so renaming it is just a click away, no extra dialog.
+- **`components/collection-view-switch.tsx`** (new): the List/Table/Board tab switcher. Renders
+  whichever view is active; the List view is passed in as a prop (the page's existing
+  server-rendered JSX, unchanged) rather than rebuilt. Active tab persisted per collection in
+  `localStorage` (`traveler:list-view:<collection>`), read in a `useEffect` after mount (so SSR and
+  first client render both default to List, avoiding a hydration mismatch) and written on every
+  tab click; wrapped in try/catch per the house pattern for browser-storage access.
+- **Wired into all three collection list pages** — `app/(app)/[entityType]/page.tsx`,
+  `app/(app)/events/page.tsx`, `app/(app)/stories/page.tsx` — each now calls
+  `getCollectionList(collection)` (already generic across all 10 relevant collections and already
+  resolving `tags`, unlike the narrower `getEventsList`/`getStoriesList`, which stay as they were
+  for the timeline and story-board pages that still use them) plus the new `getTagsList()`, builds
+  `TableRow[]` from the docs, and passes everything through `CollectionViewSwitch` alongside the
+  page's original List JSX.
+- **Typecheck and build**: `npx tsc --noEmit` and `npm run build` both zero errors.
+- **Verified live** on `/characters` (world collection, `DEFAULT_CONFIG`) and `/stories` (custom
+  `stage`-based config): List tab unchanged; Table tab's filter, status/stage `EditableField`
+  (showing the resolved label, e.g. "Placeholder (still to decide)"), and tag `MultiSelect`
+  (opened the dropdown, assigned a real tag, confirmed it persisted) all confirmed working; created
+  a throwaway card via the Board view's "+" button, confirmed it landed in the right column with
+  the right status, found it again via the Table filter, selected it with its row checkbox,
+  confirmed the bulk-action bar appears with the right controls, and deleted it via "Delete
+  selected" → inline "Delete 1? Yes/Cancel" → removed from the table. All test data cleaned up.
+- **Not verified**: the drag-and-drop gesture itself (dragging a card between board columns).
+  Browser automation could move the mouse from a card to another column but dnd-kit never
+  registered a drag start — a known limitation of simulating pointer-based drag libraries through
+  this kind of automation, not a sign the code is wrong. Checked by reading the implementation
+  instead (per the project's own rule for when live automation can't verify a stateful UI
+  gesture): `DndContext` wraps all columns, `useDraggable({ id: row.id })` on each card with its
+  listeners on a dedicated drag-handle span (not the whole card, so the code link and the name's
+  `EditableField` stay clickable), `useDroppable({ id: value })` on each column keyed by the exact
+  same status/stage value `onDragEnd` reads off `over.id`, and `onDragEnd` calls the same
+  `bulkSetFieldAction` the table view's bulk-status control already uses live — this is dnd-kit's
+  standard documented wiring. **Flagging for Bobby to confirm by hand**: drag a card between
+  columns on `/characters` (or any collection) in Board view and confirm the column counts and the
+  record's status update, since this is the one piece of U4 that live testing couldn't close the
+  loop on.
+- Not built as part of U4 (not in its spec): media/image thumbnails on board cards —
+  `getCollectionList()` never joins media, so `doc.image` is always empty already (a pre-existing,
+  unrelated dead code path in the old List view); skipped rather than adding a new join just for
+  this.
 
 ### Step W5: boards
 
@@ -853,25 +929,19 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    a propagation delay) — looks like an account/team-scoping mismatch between where the card was
    added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
    Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
-2. **Phase 5A, steps U3 to U6.** "Working surfaces" — new scope added mid-session (see the plan's
-   own section). U1 (header actions) and U2 (edit relationships in place, place history) are
-   closed. Remaining: U3 (a "Keep writing" section on story pages — **blocked** on the
-   pre-existing `/write/[code]` Lexical #173 / React #418 crash, Phase 4 gap #2, since both pages
-   share the same editor component), U4 (table and board views on every collection list page), U5
-   (record popups, editable relationship view/node map, movable nodes — U5's relationship-view
-   editing can now build on U2's `updateRelationshipAction`), U6 (story board drag and drop). The
-   plan says U1-U6 "can go anywhere after" Phase 5/item 6, so these are unblocked and can proceed
-   in any order except U3.
+2. **Phase 5A, steps U3, U5, U6.** "Working surfaces" — new scope added mid-session (see the
+   plan's own section). U1 (header actions), U2 (edit relationships in place, place history) and
+   U4 (table and board views on every collection list page) are closed. Remaining: U3 (a "Keep
+   writing" section on story pages — **blocked** on the pre-existing `/write/[code]` Lexical #173 /
+   React #418 crash, Phase 4 gap #2, since both pages share the same editor component), U5 (record
+   popups, editable relationship view/node map, movable nodes — U5's relationship-view editing can
+   now build on U2's `updateRelationshipAction`), U6 (story board drag and drop — can reuse U4's
+   `@dnd-kit/core` wiring as a reference). The plan says U1-U6 "can go anywhere after" Phase
+   5/item 6, so U5 and U6 are unblocked and can proceed in any order; U3 stays blocked on the
+   Lexical crash.
 3. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
    (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on
    S4-S6 above. Phases 7-8 are also unblocked while S4-S7 waits on the billing fix.
-
-3. **Phase 5A, steps U1 to U6 (working surfaces).** Header actions, editable relationships and
-   place history, a writing area on story pages, table and status board views on collection pages,
-   editing and record popups in the relationship view and node map, and drag and drop on the story
-   board. Detail is in `traveler-wiki-build-plan.md` ("Steps U1 to U6"). Not started. Step U3
-   depends on the Lexical crash below being fixed first. The order within 5A, and where it sits
-   against items 1 and 2, is the user's call.
 
 Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
 #2) — blocks using the Writing Studio day to day, worth fixing before leaning on it further.

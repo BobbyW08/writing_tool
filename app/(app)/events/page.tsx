@@ -1,22 +1,31 @@
 import Link from "next/link";
-import { getEventsList, isUnk } from "@/lib/world/queries";
+import { getCollectionList, getTagsList, isUnk } from "@/lib/world/queries";
+import { CollectionViewSwitch } from "@/components/collection-view-switch";
+import { listViewConfigFor } from "@/lib/world/listViews";
+import type { TableRow } from "@/components/collection-table-view";
 
 export default async function EventsPage() {
-  const { docs } = await getEventsList();
-  type Ev = { id: number; code?: string | null; name: string; yearLabel?: string | null; startYear?: number | null; tagIds?: number[] | null };
+  const { docs } = await getCollectionList('events');
+  const allTags = await getTagsList();
+  type Ev = { id: number; code?: string | null; name: string; yearLabel?: string | null; startYear?: number | null; eventType?: string | null; status?: string | null; tagIds?: number[] | null; tags?: { id: number; name: string }[] };
+  const typedDocs = docs as unknown as Ev[];
+  const config = listViewConfigFor('events');
+  const rows: TableRow[] = typedDocs.map((e) => ({
+    id: e.id,
+    code: e.code,
+    name: e.name,
+    status: e.status,
+    startYear: e.startYear,
+    eventType: e.eventType,
+    tagIds: e.tagIds ?? [],
+    tags: e.tags ?? [],
+  }));
 
-  const placed = (docs as Ev[]).filter(e => e.startYear != null).sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0));
-  const unplaced = (docs as Ev[]).filter(e => e.startYear == null);
+  const placed = typedDocs.filter(e => e.startYear != null).sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0));
+  const unplaced = typedDocs.filter(e => e.startYear == null);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Events</h1>
-        <Link href="/events/new" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">
-          + New
-        </Link>
-      </div>
-
+  const listView = (
+    <>
       <div className="divide-y rounded-md border">
         {placed.map(e => (
           <Link key={e.id} href={`/events/${e.code ?? e.id}`} className="flex items-center gap-3 p-3 hover:bg-accent">
@@ -47,6 +56,19 @@ export default async function EventsPage() {
           </div>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Events</h1>
+        <Link href="/events/new" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">
+          + New
+        </Link>
+      </div>
+
+      <CollectionViewSwitch collection="events" listView={listView} rows={rows} config={config} allTags={allTags} />
     </div>
   );
 }

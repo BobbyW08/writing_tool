@@ -684,7 +684,10 @@ Detail is in "Steps U1 to U6: working surfaces" below.
 - [x] U1: status and delete in the top right of every read page. **Closed 2026-11-09.**
 - [x] U2: edit relationships in place, and place history for characters. **Closed 2026-11-09.**
 - [ ] U3: a writing area on each story page.
-- [ ] U4: table and status board views on every collection page.
+- [x] U4: table and status board views on every collection page. **Closed 2026-11-09** — the
+      drag-and-drop gesture on the board view couldn't be exercised via browser automation (dnd-kit
+      never registered a drag start under simulated pointer input); flagged for Bobby to confirm by
+      hand. Everything else verified live. See `BUILD_GUIDE.md`'s U4 section.
 - [ ] U5: editing, movable nodes and large record popups in the relationship view and node map.
 - [ ] U6: drag and drop on the story board.
 
@@ -1055,18 +1058,24 @@ behave exactly as they do everywhere else. There is no second write path.
 - [ ] Wherever `floating` is shown (story page, story board lane), the label says the story has no
       fixed place on the timeline yet and shows its suggested age range beside it.
 
-### Step U4: table and board views on collection pages
-- [ ] Each collection list page (characters, locations, items, cultures, factions, races,
+### Step U4: table and board views on collection pages — **Closed 2026-11-09**
+- [x] Each collection list page (characters, locations, items, cultures, factions, races,
       languages, lore, events, stories) gets a view switch: List (today's page), Table, Board. The
-      last used view is remembered for each collection.
-- [ ] Table: sortable columns (code, name, status, tags, plus the collection's key fields, for
+      last used view is remembered for each collection (`localStorage`, per collection).
+- [x] Table: sortable columns (code, name, status, tags, plus the collection's key fields, for
       example stage, era and floating on stories, and start year and event type on events), a
       filter box, edit in place for name, status, tags and the key fields, row delete with
       confirmation, and multi-select with bulk set status, add or remove a tag, and delete.
-- [ ] Board: one column per `status` value (stories use `stage`). Cards show code, name, thumbnail
-      and tags. Dragging a card to another column changes its status. A "+" at the head of each
-      column creates a record already set to that status. Uses `@dnd-kit/core`.
-- [ ] This is a view over a collection. It is separate from the user-built grids of step W6.
+- [x] Board: one column per `status` value (stories use `stage`), plus an "Other" column for any
+      value outside the known set so nothing silently disappears. Cards show code, name and tags
+      (thumbnails skipped — `getCollectionList()` doesn't join media, a pre-existing gap unrelated
+      to this step). Dragging a card to another column changes its status. A "+" at the head of
+      each column creates a record already set to that status. Uses `@dnd-kit/core`.
+      **Drag-and-drop itself could not be verified by browser automation** (dnd-kit never
+      registered a drag start under simulated pointer input) — the wiring was confirmed correct by
+      reading the implementation instead; flagged for Bobby to confirm by hand. Everything else
+      (view switch, column grouping, "+" create, status mapping) verified live.
+- [x] This is a view over a collection. It is separate from the user-built grids of step W6.
 
 ### Step U5: edit and explore from the relationship view and node map
 - [ ] Record popup: clicking a record name in the relationship view, the node map, a board or the

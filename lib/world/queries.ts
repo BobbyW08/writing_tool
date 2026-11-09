@@ -68,6 +68,11 @@ async function getAllTags(): Promise<ResolvedTag[]> {
   return ALL_TAGS_CACHE
 }
 
+// Step U4: the table view's per-row tag editor needs every tag to offer as an option.
+export async function getTagsList(): Promise<ResolvedTag[]> {
+  return getAllTags()
+}
+
 function resolveTagIds(tagIds: number[] | null | undefined): ResolvedTag[] {
   const ids = tagIds ?? []
   if (!ids.length || !ALL_TAGS_CACHE) return []

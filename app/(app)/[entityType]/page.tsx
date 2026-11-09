@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCollectionList, isUnk } from "@/lib/world/queries";
+import { getCollectionList, getTagsList, isUnk } from "@/lib/world/queries";
 import { StatusBadge } from "@/components/status-badge";
+import { CollectionViewSwitch } from "@/components/collection-view-switch";
+import { listViewConfigFor } from "@/lib/world/listViews";
+import type { TableRow } from "@/components/collection-table-view";
 
 const WORLD_COLLECTIONS: Record<string, string> = {
   characters: "Characters",
@@ -20,22 +23,26 @@ export default async function CollectionListPage({ params }: { params: Promise<{
   if (!label) notFound();
 
   const { docs } = await getCollectionList(entityType);
-  type Doc = { id: number; code?: string | null; name: string; status?: string | null; tagIds?: number[] | null; image?: { url?: string; sizes?: { thumbnail?: { url?: string } } } | null };
+  const allTags = await getTagsList();
+  type Doc = { id: number; code?: string | null; name: string; status?: string | null; tagIds?: number[] | null; tags?: { id: number; name: string }[]; image?: { url?: string; sizes?: { thumbnail?: { url?: string } } } | null };
+  const typedDocs = docs as unknown as Doc[];
+  const config = listViewConfigFor(entityType);
+  const rows: TableRow[] = typedDocs.map((d) => ({
+    id: d.id,
+    code: d.code,
+    name: d.name,
+    status: d.status,
+    tagIds: d.tagIds ?? [],
+    tags: d.tags ?? [],
+  }));
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{label}</h1>
-        <Link href={`/${entityType}/new`} className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">
-          + New
-        </Link>
-      </div>
-
-      {docs.length === 0 ? (
+  const listView = (
+    <>
+      {typedDocs.length === 0 ? (
         <p className="text-sm text-muted-foreground">No {label.toLowerCase()} yet.</p>
       ) : (
         <div className="divide-y rounded-md border">
-          {(docs as unknown as Doc[]).map((doc) => (
+          {typedDocs.map((doc) => (
             <Link
               key={doc.id}
               href={`/${entityType}/${doc.code ?? doc.id}`}
@@ -58,6 +65,19 @@ export default async function CollectionListPage({ params }: { params: Promise<{
           ))}
         </div>
       )}
+    </>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">{label}</h1>
+        <Link href={`/${entityType}/new`} className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">
+          + New
+        </Link>
+      </div>
+
+      <CollectionViewSwitch collection={entityType} listView={listView} rows={rows} config={config} allTags={allTags} />
     </div>
   );
 }

@@ -549,6 +549,77 @@ export async function updateTagsAction(
   }
 }
 
+// ─── bulkSetFieldAction ────────────────────────────────────────────────────────
+// Step U4: the table and board views' multi-select bulk bar and the board's drag-to-change-column
+// both set one field on several records at once. Reuses updateFieldAction per id so link index
+// resync and revalidation stay exactly as they are for a single edit.
+export async function bulkSetFieldAction(
+  collection: string,
+  ids: number[],
+  field: string,
+  value: unknown
+): Promise<{ ok: boolean; error?: string }> {
+  for (const id of ids) {
+    const result = await updateFieldAction(collection, id, field, value)
+    if (!result.ok) return result
+  }
+  return { ok: true }
+}
+
+// ─── bulkSetTagAction ──────────────────────────────────────────────────────────
+export async function bulkSetTagAction(
+  collection: string,
+  ids: number[],
+  tagId: number,
+  add: boolean
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const table = getTable(collection)
+    if (!table) return { ok: false, error: `No table for: ${collection}` }
+    for (const id of ids) {
+      const rows = await appDb.select({ tagIds: (table as typeof schema.characters).tagIds })
+        .from(table as never).where(eq((table as typeof schema.characters).id, id)).limit(1)
+      const current = (rows[0] as { tagIds: number[] | null } | undefined)?.tagIds ?? []
+      const next = add ? Array.from(new Set([...current, tagId])) : current.filter(t => t !== tagId)
+      await updateTagsAction(collection, id, next)
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// ─── bulkDeleteAction ──────────────────────────────────────────────────────────
+// Skips any record with real conflicts (same check as the single-record delete flow) rather than
+// cascading through them, and reports what it skipped so the caller can show it.
+export async function bulkDeleteAction(
+  collection: string,
+  ids: number[]
+): Promise<{
+  ok: boolean
+  deleted: number[]
+  skipped: { id: number; conflicts: { collection: string; code: string; name: string }[] }[]
+}> {
+  const table = getTable(collection)
+  if (!table) return { ok: false, deleted: [], skipped: [] }
+
+  const deleted: number[] = []
+  const skipped: { id: number; conflicts: { collection: string; code: string; name: string }[] }[] = []
+  for (const id of ids) {
+    const rows = await appDb.select({ code: (table as typeof schema.characters).code })
+      .from(table as never).where(eq((table as typeof schema.characters).id, id)).limit(1)
+    const code = (rows[0] as { code: string } | undefined)?.code ?? ''
+    const { conflicts } = await checkDeleteConflictsAction(collection, id, code)
+    if (conflicts.length > 0) {
+      skipped.push({ id, conflicts })
+      continue
+    }
+    const result = await deleteEntityAction(collection, id)
+    if (result.ok) deleted.push(id)
+  }
+  return { ok: true, deleted, skipped }
+}
+
 // ─── attachImageAction ────────────────────────────────────────────────────────
 export async function attachImageAction(
   collection: string,
