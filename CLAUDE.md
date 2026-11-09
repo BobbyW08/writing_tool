@@ -44,14 +44,15 @@ them, not a replacement.
 | Whiteboards | `tldraw` (`tldraw@5.6.0`). React 19 SDK, infinite canvas, sticky notes/shapes/images/frames built in, scene persisted via `editor.getSnapshot()`/`loadSnapshot()` as opaque JSON in the board's `scene` column |
 | Table grid | `@tanstack/react-table` (`8.21.3` — pinned to the stable v8 line; v9 is a recent, differently-shaped rewrite), headless — custom cell rendering per column type (text/number/date/link/tag), own Tailwind styling. CSV import/export via `papaparse` (`5.7.0`) |
 | Sidebar multi-select | `shadcn-multi-select-component` (copy-paste shadcn) |
-| Compilation reordering | `dnd-kit` (`@dnd-kit/sortable`) |
+| List reordering and drag and drop | `dnd-kit` (`@dnd-kit/sortable` and `@dnd-kit/core`): compilations, status boards, the story board |
 | AI | All AI runs on Claude: the `ai` package through Vercel AI Gateway, plain `anthropic/...` model strings, behind one module (`lib/ai/`). Covers suggestions, the prompts menu and the continuity check |
 | Deployment | Vercel |
 
 ## Route layout
 - `app/(app)/` holds all frontend views: home, world tree and read pages for entries, the writing
   studio (`/write`), timeline, maps, chronicles, node map, trees, boards, tables, continuity inbox,
-  link health.
+  link health. Collection list pages have List, Table and Board views. A record can open as a
+  large popup over the page it was clicked from, rendering the same read page components.
 - There is no admin route and no login. All reads and writes go through server components and
   server actions using `appDb`.
 - Connections between records come from the link index.

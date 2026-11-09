@@ -211,6 +211,13 @@ New (step G1):
   relative rather than a year ("two years after the arrival").
 - `offsetYears` on the relationship record: an optional number, used with `follows`.
 
+New (step U2):
+- Relationships are edited in place, never deleted and recreated to change them. Type, the other
+  end, `startYear`, `endYear` and `notes` can all be changed on the existing record.
+- Place history is made of dated place relationships (`lives in`, `born in`, `visited`, `rules`).
+  A home that ended has an `endYear`. A home with no `endYear` is the current one. A home whose
+  `startYear` is later than the others is a planned future home. No new field or collection.
+
 ### tags
 `name` (unique) and `description`, with a `T` code. **UNK** is created automatically on startup and cannot
 be deleted. Any tag you create yourself works the same way. New (step S4): **AI suggested** is built in
@@ -486,6 +493,11 @@ its connections from the link index and its nodes and edges from the shared `Gra
   encyclopedia: image, the fixed fields for that collection, and any detail rows marked `inInfobox`.
   Below it: details, notes, linked events, relationships (read from both ends), sub-items, and
   **What links here** from the link index. ID codes in any text render as links showing the entry's name.
+- **Record actions.** Status and delete sit in the top right of every read page header, next to
+  the title (step U1).
+- **Collection list pages.** Each collection page has a List, Table and Board view. The table sorts,
+  filters and edits in place, with bulk actions. The board groups records into status columns and
+  cards drag between them (step U4).
 - **Code lookup.** A search box that takes a code (C10) or a name and jumps to the entry.
 - **Timeline.** Eras as colored bands, parallel lanes (0 to 10), event types and importance, a
   year ruler with optional time gaps, a mini-map, search and filter. Single-line view first
@@ -502,15 +514,18 @@ its connections from the link index and its nodes and edges from the shared `Gra
 - **Chronicles.** The timeline strip with a map beside it. Selecting an event zooms the map to its
   pin and switches maps when the pin is on a different one. Eras band the strip.
 - **Node map.** Nodes are entries, edges are connections from the link index. Color by collection,
-  filter by type, source or a starting entry plus N steps. Built on React Flow. Can be saved as a board.
+  filter by type, source or a starting entry plus N steps. Built on React Flow. Can be saved as a board. Nodes can be dragged, and relationships
+  edited from the map (step U5).
 - **Content trees.** Family trees, causality trees and hierarchy trees, drawn from a root code and a
   chosen set of relationship types, oriented by `hierarchy`. Can be saved as a board.
 - **Relationship view per entry.** The entry in the middle, grouped by relationship type, family
-  shown as a tree. Powered by `/api/codes/:code/links`.
+  shown as a tree. Powered by `/api/codes/:code/links`. Relationships are added, edited and removed here (step U5).
+  Clicking a name opens a large popup of that record's read page.
 - **Whiteboards.** Free-form boards with sticky notes, shapes, images and entry cards, saved as a board.
 - **Tables.** An editable grid with typed columns, CSV import and export, and codes that render as links.
 - **Writing Studio and Story Builder.** See `docs/PLAN_WRITING_AND_AI.md`.
-- **Story board.** Stories grouped by era and stage, with floating stories in their own lane.
+- **Story board.** Stories grouped by era and stage, with floating stories in their own lane. Cards drag between cells to
+  change stage, era or floating (step U6).
 - **Review queue.** Everything tagged UNK in one list, with its `reviewNote`, editable in place, and a link to the record.
 - **Link health.** Orphans (records with no connections) and broken links, from the link index.
 
@@ -664,10 +679,23 @@ along the way).
       needed in practice — the timeline reads fine with children shown at every zoom level; left
       as a possible future refinement, not a blocker.)
 
+### Phase 5A: Working surfaces (steps U1 to U6)
+Detail is in "Steps U1 to U6: working surfaces" below.
+- [ ] U1: status and delete in the top right of every read page.
+- [ ] U2: edit relationships in place, and place history for characters.
+- [ ] U3: a writing area on each story page.
+- [ ] U4: table and status board views on every collection page.
+- [ ] U5: editing, movable nodes and large record popups in the relationship view and node map.
+- [ ] U6: drag and drop on the story board.
+
 ### Phase 6: Creative assist
-- [ ] Gaps view.
-- [ ] Review queue (UNK) view, if not already built in Phase 3.
-- [ ] Suggestions: delivered by steps S4 to S6.
+- [x] Gaps view. **Closed 2026-11-09** — `/gaps` (`getGapRecords()` in `lib/world/queries.ts`,
+      modeled on `getUnkRecords()`). Lists every entry whose `status` is not `locked`, grouped by
+      collection, with its `gapPrompt` inline-editable alongside its status. See `BUILD_GUIDE.md`'s
+      Phase 6 section.
+- [x] Review queue (UNK) view, if not already built in Phase 3. Already built (`/review`, Phase 3).
+- [ ] Suggestions: delivered by steps S4 to S6. **Blocked** on the Vercel AI Gateway billing issue
+      — see `BUILD_GUIDE.md` "Next up".
 
 ### Phase 7: Export and compilations
 - [ ] Markdown export, `compilations` collection, ordered compile, combined export.
@@ -851,6 +879,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 4 | G1 | Link index, sync hooks, graph endpoints, What links here. Done 2026-11-08. |
 | 5 | Phase 4 | Continuity check port. Done 2026-11-08 (see gaps noted in Phase 4 above). |
 | 6 | Phase 5, S3, W2 | Filter, convergence, live node map, relationship view, story board, eras, lanes, time gaps. Done 2026-11-09. |
+| 6a | Phase 5A, U1 to U6 | Header actions, editable relationships and place history, story page writing, collection table and status board, relationship view editing and record popups, story board drag and drop |
 | 7 | S4 | AI foundation on Claude. The context builder reads the link index |
 | 8 | S5 | Story Builder and beats |
 | 9 | S6 | Ask AI and the prompts menu |
@@ -862,7 +891,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 15 | Phases 6 to 8 | Gaps view, export, compilations, search, deploy |
 | 16 | Phase 9 | Cartographer studio design: visual direction, layout, relationship visibility, optional Traveler sample content. Implemented only after every item above is closed |
 
-The user may reorder items 6 to 14. Items 1 to 5 stay first: item 4 is needed by every later view
+The user may reorder items 6 to 14, and item 6a can go anywhere after item 6. Items 1 to 5 stay first: item 4 is needed by every later view
 and by the AI, and item 3 retires the old code those views would otherwise build on. Item 16 stays
 last: it is a polish pass over the finished app, not a dependency for anything else.
 
@@ -974,6 +1003,88 @@ Delivered. **Closed 2026-11-09** — see `BUILD_GUIDE.md`'s W6 section.
       index. CSV import/export verified by code review, not live-clicked this pass (disclosed in
       `BUILD_GUIDE.md`); everything else verified live end to end, including a code typed into a
       cell showing up as a text mention in the link index.
+
+---
+
+## Steps U1 to U6: working surfaces
+
+These make the views that already exist usable for day to day work. They add no new collections.
+Every edit goes through the existing data layer write functions in `lib/world/actions.ts` (and
+`lib/studio/actions.ts` for writing), so codes, field history and the link index (hard rule 14)
+behave exactly as they do everywhere else. There is no second write path.
+
+### Step U1: header actions
+- [ ] One shared `RecordActions` component in the top right of every read page header: entries,
+      events, stories, boards, chronicles, maps and tables. It holds the status select (on
+      collections that have `status`) and the delete button, beside the page title.
+- [ ] Delete keeps its confirmation dialog and its existing cleanup of parent links, relationships
+      and link index rows. The delete button at the bottom of each page is removed.
+- [ ] A status change saves at once through the data layer and shows a short confirmation.
+
+### Step U2: edit relationships, keep place history
+- [ ] `updateRelationshipAction(id, patch)` in `lib/world/actions.ts`. It changes `type`, the other
+      end, `startYear`, `endYear` and `notes` on the existing relationship record, keeping its code.
+      It runs the link index sync for both ends (hard rule 14).
+- [ ] `RelationshipEditor` gets an Edit control on every row, editing in place. The add form gets
+      Start year and End year fields. The fields already exist on the record; the form does not
+      show them yet.
+- [ ] A "Places" section on character pages, built from the character's place relationships and
+      ordered by `startYear`. Each row shows the place, the type and the range ("Year 12 to 40",
+      "Year 40 on" when `endYear` is empty). Past, current and planned homes all appear here.
+- [ ] Moving a character is two edits: set `endYear` on the old `lives in` record, add a new one
+      with the new `startYear`.
+
+### Step U3: keep writing on the story page
+- [ ] A "Keep writing" section on `/stories/[code]` using the same Lexical editor and autosave as
+      the Writing Studio. It saves to a `writing` record whose `story` is this story.
+- [ ] It opens the story's most recently edited writing record. If there is none, it starts a new
+      `snippet` in `draft`. A picker switches between the story's writing records or starts a new
+      one, and the `canonState` switch (Draft, Canon, Set aside) is visible.
+- [ ] Below it, a list of the story's writing records with kind, state and last edited, each
+      linking to `/write/[code]`.
+- [ ] Saves go through `lib/studio/actions.ts`, so mentions, the continuity check and the link
+      index behave as they do in the Studio.
+- [ ] Depends on the open `/write/[code]` editor crash (Lexical #173 and React #418, see
+      `BUILD_GUIDE.md`) being fixed first, since both pages use the same editor component.
+- [ ] Wherever `floating` is shown (story page, story board lane), the label says the story has no
+      fixed place on the timeline yet and shows its suggested age range beside it.
+
+### Step U4: table and board views on collection pages
+- [ ] Each collection list page (characters, locations, items, cultures, factions, races,
+      languages, lore, events, stories) gets a view switch: List (today's page), Table, Board. The
+      last used view is remembered for each collection.
+- [ ] Table: sortable columns (code, name, status, tags, plus the collection's key fields, for
+      example stage, era and floating on stories, and start year and event type on events), a
+      filter box, edit in place for name, status, tags and the key fields, row delete with
+      confirmation, and multi-select with bulk set status, add or remove a tag, and delete.
+- [ ] Board: one column per `status` value (stories use `stage`). Cards show code, name, thumbnail
+      and tags. Dragging a card to another column changes its status. A "+" at the head of each
+      column creates a record already set to that status. Uses `@dnd-kit/core`.
+- [ ] This is a view over a collection. It is separate from the user-built grids of step W6.
+
+### Step U5: edit and explore from the relationship view and node map
+- [ ] Record popup: clicking a record name in the relationship view, the node map, a board or the
+      story board opens a large popup (about 80 percent of the window) showing that record's full
+      read page: infobox, details, relationships, What links here, editable in place. It has
+      "Open full page" and close. It is built with Next.js parallel and intercepting routes so the
+      popup and the full page render the same read page components. Plain code links inside text
+      keep their normal behavior.
+- [ ] Edit from the views: select an edge to change its type, years and notes or delete it. Drag
+      from one node to another to create a relationship. Both use the actions from step U2.
+- [ ] Movable nodes: any node can be dragged aside to read what is under it, and a dragged or
+      selected node comes to the front. Positions are saved only on a board (hard rule 15). In an
+      unsaved node map the move lasts for the session.
+- [ ] Phase 9's inspector panel is separate from this popup. The popup is for reading and editing a
+      whole record. The inspector is for quick facts about the current selection.
+
+### Step U6: story board drag and drop
+- [ ] The story board becomes a client component using `@dnd-kit/core` (already installed). Cards
+      drag between cells. Dropping in another stage column sets `stage`. Dropping in another era
+      row sets `era`. Dropping into the floating lane sets `floating` on, and dropping from the
+      floating lane into an era row sets it off and sets that era.
+- [ ] A drop never changes `startYear` or `yearLabel` (hard rule 3).
+- [ ] Changes save through the data layer at once, with an undo toast.
+- [ ] When beats exist (step S5), the story map board gets the same drag behavior for beat cards.
 
 ---
 

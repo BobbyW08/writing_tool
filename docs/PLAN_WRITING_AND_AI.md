@@ -77,6 +77,9 @@ a story and kind picker, autosave, and `@` to mention any record by name, alias 
 insert the name as plain text and fill the piece's `mentions` list. Focus mode hides everything
 except the page. It saves to `writing` records through the data layer.
 
+The same editor also appears as a "Keep writing" section on each story page, saving to a writing
+record for that story (step U3 in `traveler-wiki-build-plan.md`).
+
 ### Story Builder
 A vertical lane of beats with a side panel for the selected beat. Type a beat and three "what could
 happen next" cards appear. Pick one and it becomes the next beat and three new cards appear based

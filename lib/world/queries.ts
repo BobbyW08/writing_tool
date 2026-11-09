@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq, and, desc, inArray, like, or, isNotNull, gte, lte } from 'drizzle-orm'
+import { eq, and, desc, inArray, like, or, isNotNull, gte, lte, ne } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { CODE_REGEX, CODE_PREFIX_CHARS, ENTITY_SLUGS, PREFIX_TO_SLUG } from '@/lib/codes'
@@ -653,6 +653,38 @@ export async function getUnkRecords() {
       rows = (all as Record<string, unknown>[]).filter(r => ((r.tagIds as number[] | null) ?? []).includes(unkId))
     }
     if (rows.length > 0) {
+      results.push({ collection: col, docs: rows, totalDocs: rows.length })
+    }
+  }
+
+  return results
+}
+
+// ─── getGapRecords ────────────────────────────────────────────────────────────
+// Hard rule 4: any entry whose status is not 'locked' is a normal row, visually flagged, and
+// listed here with its gapPrompt so gaps can be resolved in a batch. `writing` has no `status`
+// column (it uses `canonState` instead) and `relationships` has no status concept at all, so
+// both are excluded here, unlike getUnkRecords above which checks tagIds on every collection.
+export async function getGapRecords() {
+  const allCollections = ENTITY_SLUGS.filter(s => s !== 'writing') as string[]
+  const results: { collection: string; docs: Record<string, unknown>[]; totalDocs: number }[] = []
+
+  for (const col of allCollections) {
+    let rows: Record<string, unknown>[] = []
+    if (col === 'events') {
+      rows = await appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name, status: schema.events.status, gapPrompt: schema.events.gapPrompt, updatedAt: schema.events.updatedAt })
+        .from(schema.events).where(ne(schema.events.status, 'locked'))
+    } else if (col === 'stories') {
+      rows = await appDb.select({ id: schema.stories.id, code: schema.stories.code, name: schema.stories.name, status: schema.stories.status, gapPrompt: schema.stories.gapPrompt, updatedAt: schema.stories.updatedAt })
+        .from(schema.stories).where(ne(schema.stories.status, 'locked'))
+    } else {
+      const table = getWorldTable(col)
+      if (!table) continue
+      rows = await appDb.select({ id: table.id, code: table.code, name: table.name, status: table.status, gapPrompt: table.gapPrompt, updatedAt: table.updatedAt })
+        .from(table as never).where(ne(table.status, 'locked'))
+    }
+    if (rows.length > 0) {
+      rows.sort((a, b) => new Date(b.updatedAt as string).getTime() - new Date(a.updatedAt as string).getTime())
       results.push({ collection: col, docs: rows, totalDocs: rows.length })
     }
   }

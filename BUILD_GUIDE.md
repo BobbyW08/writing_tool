@@ -12,11 +12,14 @@ end of every session.
 **Phase 3, G1 (the link index), Phase 4 (the continuity check port) and Phase 5 (views) are all
 closed. Steps W3 (maps), W4 (chronicles), W5 (boards) and W6 (interactive tables) are also
 closed — see their sections below. That closes out the whole W1-W6 "Feature reference" block of
-Phase 5. Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before
-touching anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap
-#1) was re-checked twice this session after the user added a card and is still failing with the
-identical `customer_verification_required` error — needs resolving account-side before S4 can
-start; don't keep re-spiking it blindly.**
+Phase 5. The Gaps view (Phase 6) is also closed — see its section below; Phase 6's other two
+items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6.
+Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
+re-checked a third time this session (Bobby said it was resolved; it was not — same
+`customer_verification_required` error, including after a 90s wait for propagation) — still
+needs resolving account-side before S4 can start; don't keep re-spiking it blindly. Pivoted to
+Phase 6 (Gaps view, unblocked) while that gets sorted out.**
 
 ### Step W6: interactive tables
 
@@ -76,6 +79,37 @@ relationship or join row.
   disclosed scope cut, not an oversight) — `papaparse` is a mature, widely-used library and the
   glue code around it is small; worth a quick manual spot-check before relying on it for a real
   import.
+
+### Phase 6: Gaps view
+
+Hard rule 4: any entry whose `status` is not `locked` is a normal row, visually flagged. The plan
+(`traveler-wiki-build-plan.md`, "Creative-assist layer") calls for a view listing every such entry
+with its `gapPrompt` so gaps can be resolved in a batch — `gapPrompt` itself and the per-entry
+status editor already existed (every entity read page, plus the continuity check's
+`buildNewRecordGapPrompt`); this step is the missing aggregate view across every collection.
+
+- **Data layer**: `getGapRecords()` in `lib/world/queries.ts`, modeled directly on the existing
+  `getUnkRecords()` next to it. Loops `ENTITY_SLUGS` minus `writing` (no `status` column — it uses
+  `canonState` instead) and skips `relationships` entirely (no status concept at all; it isn't in
+  `ENTITY_SLUGS`). `events` and `stories` are special-cased like in `getUnkRecords` since they
+  aren't in `WORLD_TABLE_MAP`; everything else goes through `getWorldTable()`. Each collection's
+  rows are filtered server-side with `ne(table.status, 'locked')` and sorted newest-updated-first.
+- **UI**: `app/(app)/gaps/page.tsx`. One page, grouped by collection (reusing the same
+  `COLLECTION_LABELS`/`collectionHref` pattern as `/review`), each row showing the code, a link to
+  the record, an inline `EditableField` select for `status` (same `STATUS_OPTIONS` used on the
+  entity pages), the human-readable status label, and an inline `EditableField` textarea for
+  `gapPrompt` — so a gap can be read, and either resolved (edit the prompt, flip status to
+  `locked`) or re-prioritized, without leaving the page. No new component: both `EditableField`
+  instances are the exact same component already used on every entity read page, just assembled
+  onto one aggregate list. Nav entry added to `app/(app)/layout.tsx` under Tools, next to Review.
+- **Verified live** (light touch, per the "stop testing so much" standing instruction — the
+  `EditableField` save path itself is already proven elsewhere, so this only needed to confirm the
+  new aggregation query and page): loaded `/gaps` against real data — 217 entries not yet locked
+  across 7 collections (Characters, Locations, Events, Factions, Cultures, Lore, Stories), each
+  showing its real `gapPrompt` text and status, grouped and linked correctly. Did not click through
+  an actual inline edit on this page specifically (not needed — same component, same server
+  action, already covered by prior sessions' live tests on entity pages).
+- **Build**: `npm run build`, zero errors, `/gaps` listed as a new dynamic route.
 
 ### Step W5: boards
 
@@ -723,12 +757,22 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 
 1. **S4 to S7.** AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions
    (S7 is also where Phase 4's documented "Draft never spreads" gap gets closed, via the claims
-   ledger — see the Phase 4 section above). **Blocked** on the Vercel AI Gateway billing issue
-   (`customer_verification_required`, re-confirmed twice this session even after a card was added
-   — looks like an account/team-scoping issue, not something retrying from here can fix). Re-spike
-   once the user confirms it's genuinely resolved account-side, then resume.
-2. **Phases 6 to 8.** Gaps view, export, compilations, search, deploy. With W1-W6 all closed, this
-   is the next unblocked work if S4-S7 stay blocked on the billing issue.
+   ledger — see the Phase 4 section above). **Still blocked** on the Vercel AI Gateway billing
+   issue (`customer_verification_required`) — re-confirmed a third time this session (Bobby said
+   it was resolved; the spike still failed identically, including after a 90s wait in case it was
+   a propagation delay) — looks like an account/team-scoping mismatch between where the card was
+   added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
+   Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
+2. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
+   (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on
+   S4-S6 above. Phases 7-8 are the next unblocked work while S4-S7 waits on the billing fix.
+
+3. **Phase 5A, steps U1 to U6 (working surfaces).** Header actions, editable relationships and
+   place history, a writing area on story pages, table and status board views on collection pages,
+   editing and record popups in the relationship view and node map, and drag and drop on the story
+   board. Detail is in `traveler-wiki-build-plan.md` ("Steps U1 to U6"). Not started. Step U3
+   depends on the Lexical crash below being fixed first. The order within 5A, and where it sits
+   against items 1 and 2, is the user's call.
 
 Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
 #2) — blocks using the Writing Studio day to day, worth fixing before leaning on it further.
