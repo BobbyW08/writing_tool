@@ -274,6 +274,22 @@ export async function getConvergenceCandidates(): Promise<{ code: string; name: 
   return results.flat()
 }
 
+// ─── getGraphCandidates ────────────────────────────────────────────────────────
+// Every coded entry the node map can center on: the 8 world collections plus events and
+// stories (writing and eras are graph-addressable too but rarely useful as a search target).
+export async function getGraphCandidates(): Promise<{ code: string; name: string; collection: string }[]> {
+  const [world, events, stories] = await Promise.all([
+    getConvergenceCandidates(),
+    appDb.select({ code: schema.events.code, name: schema.events.name }).from(schema.events),
+    appDb.select({ code: schema.stories.code, name: schema.stories.name }).from(schema.stories),
+  ])
+  return [
+    ...world,
+    ...events.map(r => ({ ...r, collection: 'events' })),
+    ...stories.map(r => ({ ...r, collection: 'stories' })),
+  ]
+}
+
 // ─── getEventsForConvergence ──────────────────────────────────────────────────
 // Every placed event with its `involves` list resolved to codes, for the multi-lane
 // convergence view (lib/convergence/). Not the generic event list — this exists only to

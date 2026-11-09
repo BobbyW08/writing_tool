@@ -1,17 +1,6 @@
 import Link from "next/link";
 import { getLinksForCode, type LinkEntry } from "@/lib/graph/queries";
-
-const COLLECTION_HREF: Record<string, (code: string) => string> = {
-  events: (code) => `/events/${code}`,
-  stories: (code) => `/stories/${code}`,
-  writing: (code) => `/write/${code}`,
-  eras: (code) => `/timeline?era=${code}`, // eras have no read page; they live on the timeline
-};
-
-function hrefFor(collection: string, code: string): string {
-  const build = COLLECTION_HREF[collection];
-  return build ? build(code) : `/${collection}/${code}`;
-}
+import { hrefForNode } from "@/lib/graph/href";
 
 const SOURCE_ORDER = ["relationship", "field", "parent", "text", "pin"] as const;
 const SOURCE_LABEL: Record<string, string> = {
@@ -55,7 +44,7 @@ export async function WhatLinksHere({ code }: { code: string }) {
               {bySource.get(source)!.map((entry) => (
                 <li key={entry.edge.id}>
                   <Link
-                    href={hrefFor(entry.other.collection, entry.other.code)}
+                    href={hrefForNode(entry.other.collection, entry.other.code)}
                     className="flex items-center justify-between gap-2 p-2.5 hover:bg-accent"
                   >
                     <span className="flex items-center gap-2 text-sm">

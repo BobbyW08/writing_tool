@@ -12,6 +12,8 @@ import { COLLECTION_FIELDS } from "@/lib/world/fields";
 import { Infobox } from "@/components/infobox";
 import { INFOBOX_FIELDS } from "@/lib/infobox";
 import { WhatLinksHere } from "@/components/what-links-here";
+import { RelationshipView } from "@/components/relationship-view";
+import { nodeKindFor } from "@/lib/nodeKinds";
 
 const WORLD_COLLECTIONS: Record<string, string> = {
   characters: "Characters",
@@ -278,6 +280,8 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
           </ul>
         </section>
       )}
+
+      <RelationshipView code={code} name={doc.name} color={nodeKindFor(entityType).color} icon={nodeKindFor(entityType).icon} />
 
       <WhatLinksHere code={code} />
 

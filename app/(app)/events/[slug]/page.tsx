@@ -6,6 +6,8 @@ import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
 import { DeleteRecordButton } from "@/components/delete-record-button";
 import { WhatLinksHere } from "@/components/what-links-here";
+import { RelationshipView } from "@/components/relationship-view";
+import { nodeKindFor } from "@/lib/nodeKinds";
 
 const CODE_RE = /^E\d{1,6}$/i;
 
@@ -222,6 +224,8 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
       )}
 
       <RelationshipEditor myCode={code} initial={relEntries} />
+
+      <RelationshipView code={code} name={doc.name} color={nodeKindFor("events").color} icon={nodeKindFor("events").icon} />
 
       <WhatLinksHere code={code} />
 

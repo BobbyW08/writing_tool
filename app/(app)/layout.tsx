@@ -29,6 +29,7 @@ const STORY_NAV = [
   { href: "/events", label: "Events" },
   { href: "/stories", label: "Stories" },
   { href: "/timeline", label: "Timeline" },
+  { href: "/node-map", label: "Node map" },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

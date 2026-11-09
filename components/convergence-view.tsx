@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
 import { getConvergenceGraphAction, type ConvergenceGraphResult } from "@/lib/convergence/actions";
+import { hrefForNode } from "@/lib/graph/href";
 
 export interface ConvergenceCandidate {
   code: string;
@@ -17,10 +18,6 @@ const COLLECTION_LABELS: Record<string, string> = {
 };
 
 const LINE_COLORS = ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#65a30d"];
-
-function hrefFor(collection: string, code: string): string {
-  return `/${collection}/${code}`;
-}
 
 export function ConvergenceView({ candidates }: { candidates: ConvergenceCandidate[] }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -74,7 +71,7 @@ export function ConvergenceView({ candidates }: { candidates: ConvergenceCandida
           </svg>
           <div className="flex flex-wrap gap-3 text-xs">
             {result.characters.map((code, i) => (
-              <Link key={code} href={hrefFor(collectionOf.get(code) ?? "characters", code)} className="flex items-center gap-1.5 hover:underline">
+              <Link key={code} href={hrefForNode(collectionOf.get(code) ?? "characters", code)} className="flex items-center gap-1.5 hover:underline">
                 <span className="inline-block size-2.5 rounded-full" style={{ backgroundColor: LINE_COLORS[i % LINE_COLORS.length] }} />
                 {nameOf.get(code) ?? code}
               </Link>

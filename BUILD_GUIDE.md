@@ -73,9 +73,40 @@ Done so far, committed:
   non-empty), the points list showed exactly the three events where both are in `involves` (Year
   7 — The Ritual, Year 10 — The Arrival of the Asharan Empire, Year 23 — Giana's Death), no console
   errors. No test-data cleanup needed — selecting entries in the UI doesn't mutate anything.
-- Not yet done: node map + per-entry relationship view (React Flow — not yet installed), story
-  board, and the rest of W2's polish (mini-map, search/filter, time gaps, two-tier header). See
-  `next.md`.
+- Node map + per-entry relationship view: installed `@xyflow/react` (React Flow, per the stack
+  table) and `dagre` (layered graph layout — not in the stack table since it's an internal layout
+  detail, not a user-facing feature choice; chosen because it's the standard, lightweight pairing
+  with React Flow for exactly this shape of problem). The backend (`/api/graph`, `/api/graph/:code`,
+  `/api/codes/:code/links`, `lib/graph/queries.ts`) already existed from G1 — this chunk is
+  frontend only. New: `lib/graph/layout.ts` (`layoutNodeMap()` — dagre, left-to-right, isolates
+  grid below; `layoutRelationshipView()` — entry-centered, columns by relationship `group` from
+  `lib/relationshipTypes.ts`, Family column ordered parents-above/children-below via `hierarchy`),
+  `components/graph-node.tsx` (one shared node renderer — icon + color from `lib/nodeKinds.ts`,
+  used by both views, per hard rule 15), `components/node-map-view.tsx` + `app/(app)/node-map/page.tsx`
+  (full map: filter by collection and connection type, search a starting entry + steps-out depth,
+  click a node to re-center, double-click to open it), `components/relationship-view.tsx` (embedded
+  per-entry, below `RelationshipEditor` and above `WhatLinksHere` on both the generic world-entity
+  page and the events page — `WhatLinksHere` stays as the plain text list, this is the visual
+  companion). Also added `getGraphCandidates()` (`lib/world/queries.ts`) for the node map's search,
+  and `lib/graph/href.ts` (`hrefForNode()`) — pulled the collection→route mapping that `code-text.tsx`,
+  `what-links-here.tsx` and `convergence-view.tsx` each had their own copy of into one shared
+  function, so it can't drift between views again the way `code-text.tsx`'s regex did.
+- Found and fixed a real bug during verification, not just a test artifact: clicking a node to
+  re-center the map runs `setStartCode` immediately, which re-fetches and re-lays-out the graph —
+  but that layout shift can displace the node out from under the second click of a genuine
+  double-click before it lands, so double-click-to-open silently degraded into two single
+  re-centers. Fixed by debouncing the center (250ms) and having `onNodeDoubleClick` cancel the
+  pending center before navigating, so a real double-click always wins the race.
+- Verified live: node map's whole-graph view rendered 349 nodes / 59 edges with correct DOM
+  positions and no console errors; clicking a node re-centered and re-fetched correctly (confirmed
+  via `/api/graph/:code` response reflected in the DOM — E94 centered showed its one real edge,
+  "Took place at" → MOSSEND L9); double-click navigated to `/events/E94` after the debounce fix
+  (it failed, silently re-centering instead, before the fix — this is what surfaced the bug above);
+  the embedded relationship view on `/events/E94` showed the same 2-node/1-edge graph; on
+  `/characters/C1` (SERO) it rendered 18 nodes / 17 edges, center fixed at (0,0), event nodes
+  correctly grouped in a single column. No test-data mutations were made (read-only verification).
+- Not yet done: story board, and the rest of W2's polish (mini-map, search/filter, time gaps,
+  two-tier header). See `next.md`.
 
 ### Phase 4: the continuity check port
 
