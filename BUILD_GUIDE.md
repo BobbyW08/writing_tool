@@ -14,10 +14,11 @@ closed. Steps W3 (maps), W4 (chronicles), W5 (boards) and W6 (interactive tables
 closed — see their sections below. That closes out the whole W1-W6 "Feature reference" block of
 Phase 5. The Gaps view (Phase 6) is also closed — see its section below; Phase 6's other two
 items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6. Phase
-5A steps U1 (header actions), U2 (edit relationships in place, place history) and U4 (table and
-board views on every collection list page) are also closed — see their sections below. U4's
-drag-and-drop gesture itself is flagged for Bobby to confirm by hand (browser automation couldn't
-exercise it; the code review backing that call is in U4's section). Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
+5A steps U1 (header actions), U2 (edit relationships in place, place history), U4 (table and
+board views on every collection list page) and U6 (story board drag and drop) are also closed —
+see their sections below. U4 and U6's drag-and-drop gestures themselves are flagged for Bobby to
+confirm by hand (browser automation couldn't exercise either; the code review backing that call is
+in each step's section). Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
 anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
 re-checked a third time this session (Bobby said it was resolved; it was not — same
 `customer_verification_required` error, including after a 90s wait for propagation) — still
@@ -276,6 +277,42 @@ each page hand-rolled its own status select placement and its own bottom-of-page
   `getCollectionList()` never joins media, so `doc.image` is always empty already (a pre-existing,
   unrelated dead code path in the old List view); skipped rather than adding a new join just for
   this.
+
+### Phase 5A, step U6: story board drag and drop
+
+- **`components/story-board-client.tsx`** (new): the story board's existing floating-lane +
+  era/stage grid layout moved into a client component, unchanged visually, now built with the same
+  `@dnd-kit/core` `DndContext`/`useDraggable`/`useDroppable`/`PointerSensor` pattern as U4's board
+  view. Each grid cell (and each floating-lane cell) is its own droppable, keyed by
+  `${lane}::${stage}` where `lane` is either an era value, the `__none__` sentinel for "no era
+  set", or `__floating__` for the floating lane — so a drop target is read directly off `over.id`
+  with no separate lookup table.
+- **Drop semantics match the plan's spec exactly**: dropping in the floating lane sets
+  `floating: true` and the dropped-on stage, leaving `era` untouched; dropping into an era row sets
+  `floating: false`, that row's era, and the dropped-on stage (clearing `stage`/`era` to `null` for
+  the "No stage"/"No era" cells). `startYear`/`yearLabel` are never touched (hard rule 3) — the
+  patch object only ever contains `stage`/`era`/`floating` keys, and a no-op drop (dropped back in
+  its own cell) produces an empty patch and skips the write entirely.
+- **Saves through the existing data layer**: each changed field goes through the same
+  `updateFieldAction('stories', id, field, value)` used everywhere else (confirmed `stage`/`era`/
+  `floating` aren't link-relevant fields for `stories`, so no unnecessary link sync runs on every
+  drag). No new server action needed.
+- **Undo toast**: a bottom-right toast on every successful drop ("Moved <name> to <stage/
+  Floating>") with an Undo button that reverts both the optimistic local state and the database
+  write by re-applying the pre-drop `{stage, era, floating}` snapshot; auto-dismisses after 6s.
+- **`isUnk()` can't be called from a client component** (`lib/world/queries.ts` starts with
+  `import 'server-only'`) — resolved server-side in `app/(app)/story-board/page.tsx` instead, which
+  now just maps each story to a flat `unk: boolean` before handing the array to
+  `StoryBoardClient`, rather than passing `tagIds` through and recomputing it client-side.
+- **Typecheck and build**: `npx tsc --noEmit` and `npm run build` both zero errors.
+- **Verified live** on `/story-board`: layout (floating lane + era/stage grid) renders identically
+  to the pre-U6 server-rendered version, across all era rows and stage columns, with no console
+  errors.
+- **Not verified**: the drag-and-drop gesture itself, for the same reason as U4 — browser
+  automation could not get dnd-kit to register a drag start. Flagging alongside U4's for Bobby to
+  confirm by hand: drag a card between cells on `/story-board` (floating → a stage/era cell, an
+  era cell → another era/stage, and into the floating lane) and confirm the card moves, the field
+  values update, and the undo toast's Undo button puts it back.
 
 ### Step W5: boards
 
@@ -929,15 +966,14 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    a propagation delay) — looks like an account/team-scoping mismatch between where the card was
    added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
    Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
-2. **Phase 5A, steps U3, U5, U6.** "Working surfaces" — new scope added mid-session (see the
-   plan's own section). U1 (header actions), U2 (edit relationships in place, place history) and
-   U4 (table and board views on every collection list page) are closed. Remaining: U3 (a "Keep
-   writing" section on story pages — **blocked** on the pre-existing `/write/[code]` Lexical #173 /
-   React #418 crash, Phase 4 gap #2, since both pages share the same editor component), U5 (record
-   popups, editable relationship view/node map, movable nodes — U5's relationship-view editing can
-   now build on U2's `updateRelationshipAction`), U6 (story board drag and drop — can reuse U4's
-   `@dnd-kit/core` wiring as a reference). The plan says U1-U6 "can go anywhere after" Phase
-   5/item 6, so U5 and U6 are unblocked and can proceed in any order; U3 stays blocked on the
+2. **Phase 5A, steps U3, U5.** "Working surfaces" — new scope added mid-session (see the plan's
+   own section). U1 (header actions), U2 (edit relationships in place, place history), U4 (table
+   and board views on every collection list page) and U6 (story board drag and drop) are closed.
+   Remaining: U3 (a "Keep writing" section on story pages — **blocked** on the pre-existing
+   `/write/[code]` Lexical #173 / React #418 crash, Phase 4 gap #2, since both pages share the
+   same editor component), U5 (record popups, editable relationship view/node map, movable nodes —
+   U5's relationship-view editing can now build on U2's `updateRelationshipAction`). The plan says
+   U1-U6 "can go anywhere after" Phase 5/item 6, so U5 is unblocked; U3 stays blocked on the
    Lexical crash.
 3. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
    (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on

@@ -689,7 +689,8 @@ Detail is in "Steps U1 to U6: working surfaces" below.
       never registered a drag start under simulated pointer input); flagged for Bobby to confirm by
       hand. Everything else verified live. See `BUILD_GUIDE.md`'s U4 section.
 - [ ] U5: editing, movable nodes and large record popups in the relationship view and node map.
-- [ ] U6: drag and drop on the story board.
+- [x] U6: drag and drop on the story board. **Closed 2026-11-09.** Same drag-and-drop-gesture
+      caveat as U4 (browser automation couldn't exercise it; flagged for Bobby to confirm by hand).
 
 ### Phase 6: Creative assist
 - [x] Gaps view. **Closed 2026-11-09** — `/gaps` (`getGapRecords()` in `lib/world/queries.ts`,
@@ -1092,14 +1093,18 @@ behave exactly as they do everywhere else. There is no second write path.
 - [ ] Phase 9's inspector panel is separate from this popup. The popup is for reading and editing a
       whole record. The inspector is for quick facts about the current selection.
 
-### Step U6: story board drag and drop
-- [ ] The story board becomes a client component using `@dnd-kit/core` (already installed). Cards
+### Step U6: story board drag and drop — **Closed 2026-11-09**
+- [x] The story board becomes a client component using `@dnd-kit/core` (already installed). Cards
       drag between cells. Dropping in another stage column sets `stage`. Dropping in another era
       row sets `era`. Dropping into the floating lane sets `floating` on, and dropping from the
       floating lane into an era row sets it off and sets that era.
-- [ ] A drop never changes `startYear` or `yearLabel` (hard rule 3).
-- [ ] Changes save through the data layer at once, with an undo toast.
+      **Drag-and-drop itself could not be verified by browser automation** (same dnd-kit
+      limitation as U4) — wiring confirmed correct by reading the implementation; flagged for
+      Bobby to confirm by hand. Layout and all non-drag behavior verified live.
+- [x] A drop never changes `startYear` or `yearLabel` (hard rule 3).
+- [x] Changes save through the data layer at once (`updateFieldAction`), with an undo toast.
 - [ ] When beats exist (step S5), the story map board gets the same drag behavior for beat cards.
+      Not built yet — beats (step S5) don't exist.
 
 ---
 
