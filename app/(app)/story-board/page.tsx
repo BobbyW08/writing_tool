@@ -8,6 +8,8 @@ type Story = {
   stage?: string | null;
   era?: string | null;
   floating?: boolean | null;
+  startYear?: number | null;
+  endYear?: number | null;
   tagIds?: number[] | null;
 };
 
@@ -23,6 +25,8 @@ export default async function StoryBoardPage() {
     stage: s.stage,
     era: s.era,
     floating: s.floating,
+    startYear: s.startYear,
+    endYear: s.endYear,
     unk: isUnk(s.tagIds ?? null),
   }));
 

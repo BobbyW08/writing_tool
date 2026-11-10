@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getStoryByCode, getRelationshipsByCode, buildCodeMap, isUnk } from "@/lib/world/queries";
+import { getWritingListByStory, getWritingByCode, getStoryList } from "@/lib/studio/queries";
+import { getCheckSummary } from "@/lib/continuity/queries";
+import { createWriting } from "@/lib/studio/actions";
+import { floatingRangeText } from "@/lib/stories";
 import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
 import { RelationshipEditor } from "@/components/relationship-editor";
 import { RecordActions } from "@/components/record-actions";
 import { WhatLinksHere } from "@/components/what-links-here";
+import { StoryKeepWriting } from "@/components/story-keep-writing";
 
 type StoryDoc = {
   id: number;
@@ -62,13 +67,20 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
   const codeMap = await buildCodeMap([doc.summary, doc.gapPrompt, ...(doc.beats?.map(b => b.beat) ?? [])]);
   const unkTagged = isUnk(doc.tagIds ?? null);
 
-  function yearText() {
-    if (doc.floating) return "Floating (no fixed position)";
-    if (doc.yearLabel) return doc.yearLabel;
-    if (doc.startYear != null && doc.endYear != null) return `Year ${doc.startYear} to ${doc.endYear}`;
-    if (doc.startYear != null) return `Year ${doc.startYear}`;
-    return null;
+  // Step U3: "keep writing" section. Opens the story's most recently edited writing record,
+  // or starts a new draft snippet for it if none exists yet (get-or-create, idempotent once
+  // the first record exists).
+  let writingList = await getWritingListByStory(doc.id);
+  if (writingList.length === 0) {
+    const created = await createWriting(`${doc.name} — untitled`, doc.id);
+    if (created.code) writingList = await getWritingListByStory(doc.id);
   }
+  const activeCode = writingList[0]?.code ?? null;
+  const [activeRecord, allStories] = await Promise.all([
+    activeCode ? getWritingByCode(activeCode) : Promise.resolve(null),
+    getStoryList(),
+  ]);
+  const activeSummary = activeRecord ? await getCheckSummary(activeRecord.id) : { decisions: 0, newRecords: 0, newDetails: 0, confirmed: 0 };
 
   type RelRow = { id: number; code: string; fromCollection: string; fromCode: string; toCollection: string; toCode: string; type?: string | null; startYear?: number | null; endYear?: number | null; notes?: string | null };
   type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: 'from' | 'to'; startYear: number | null; endYear: number | null; notes: string | null };
@@ -143,6 +155,12 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
           <p className="text-xs font-semibold text-muted-foreground">Floating</p>
           <EditableField collection="stories" docId={doc.id} fieldName="floating" value={doc.floating} kind="checkbox" />
         </div>
+        {doc.floating && (
+          <p className="col-span-2 text-xs text-muted-foreground">
+            No fixed place on the timeline yet.
+            {floatingRangeText(doc.startYear, doc.endYear) && ` ${floatingRangeText(doc.startYear, doc.endYear)}.`}
+          </p>
+        )}
       </div>
 
       {/* Gap prompt */}
@@ -165,6 +183,18 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
           </ol>
           <p className="mt-2 text-xs text-muted-foreground">Edit beats in admin.</p>
         </section>
+      )}
+
+      {/* Keep writing */}
+      {activeRecord && (
+        <StoryKeepWriting
+          storyId={doc.id}
+          storyName={doc.name}
+          allStories={allStories}
+          initialRecord={activeRecord}
+          initialSummary={activeSummary}
+          initialList={writingList}
+        />
       )}
 
       {/* Relationships */}

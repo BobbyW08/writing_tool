@@ -28,3 +28,12 @@ export const STORY_STAGES = [
 export const STORY_STAGE_LABELS: Record<string, string> = Object.fromEntries(
   STORY_STAGES.map(s => [s.value, s.label]),
 )
+
+// Year 0 is the year SERO is born (CLAUDE.md hard rule 3), so a story's startYear/endYear already
+// read as an in-universe age. A floating story (no fixed place on the timeline) still carries these
+// as its suggested range from the migration ("Floating, suggested Age 250-280").
+export function floatingRangeText(startYear?: number | null, endYear?: number | null): string | null {
+  if (startYear == null && endYear == null) return null
+  if (startYear != null && endYear != null) return `Suggested Age ${startYear}–${endYear}`
+  return `Suggested Age ${startYear ?? endYear}`
+}

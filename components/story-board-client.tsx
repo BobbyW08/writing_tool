@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { DndContext, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, type DragEndEvent } from '@dnd-kit/core'
 import { updateFieldAction } from '@/lib/world/actions'
-import { STORY_ERAS, STORY_STAGES, STORY_STAGE_LABELS } from '@/lib/stories'
+import { STORY_ERAS, STORY_STAGES, STORY_STAGE_LABELS, floatingRangeText } from '@/lib/stories'
 
 export type BoardStory = {
   id: number
@@ -13,6 +13,8 @@ export type BoardStory = {
   stage?: string | null
   era?: string | null
   floating?: boolean | null
+  startYear?: number | null
+  endYear?: number | null
   unk?: boolean
 }
 
@@ -53,6 +55,9 @@ function StoryCard({ s }: { s: BoardStory }) {
         )}
       </div>
       <p className="mt-0.5 font-medium leading-snug">{s.name}</p>
+      {s.floating && floatingRangeText(s.startYear, s.endYear) && (
+        <p className="mt-0.5 text-[10px] text-muted-foreground">{floatingRangeText(s.startYear, s.endYear)}</p>
+      )}
     </div>
   )
 }
@@ -145,7 +150,10 @@ export function StoryBoardClient({ stories: initialStories }: { stories: BoardSt
       <div className="space-y-6">
         {floating.length > 0 && (
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-muted-foreground">Floating ({floating.length})</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground">Floating ({floating.length})</h2>
+              <p className="text-xs text-muted-foreground">No fixed place on the timeline yet.</p>
+            </div>
             <div className="grid gap-2" style={{ gridTemplateColumns: gridCols }}>
               <div />
               {stageCols.map((stage) => (

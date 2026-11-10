@@ -13,21 +13,23 @@ end of every session.
 closed. Steps W3 (maps), W4 (chronicles), W5 (boards) and W6 (interactive tables) are also
 closed — see their sections below. That closes out the whole W1-W6 "Feature reference" block of
 Phase 5. The Gaps view (Phase 6) is also closed — see its section below; Phase 6's other two
-items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6. Phase
-5A steps U1 (header actions), U2 (edit relationships in place, place history), U4 (table and
-board views on every collection list page), U5 (record popup, movable nodes, edge editing and
-drag-to-create-relationship) and U6 (story board drag and drop) are also closed — see their
-sections below. U4 and U6's drag-and-drop gestures themselves are flagged for Bobby to confirm by
-hand (browser automation couldn't exercise either; the code review backing that call is in each
-step's section). Only U3 (a "Keep writing" section on story pages) remains in Phase 5A, blocked
-on the pre-existing `/write/[code]` crash (Phase 4 gap #2). **Phase 7 (export and compilations) and
-Phase 8's search are also closed this session — see their sections below. Phase 7 has one loose
-end: the new `compilations` table's migration is generated (`db/migrations/0010_spicy_talisman.sql`)
-but not applied — the harness denied running `drizzle-kit migrate` against `APP_DATABASE_URL`
-outright (a production-deploy action), so Bobby needs to run it by hand before `/compilations`
-works (see Phase 7's section for the exact command). Phase 8's other line ("deploy... with a real
-single-user login") was flagged, not built — it reads as conflicting with hard rule 12 (no auth
-code anywhere); needs Bobby's call before anyone touches it.** Build passes zero errors. See the
+items (Review/UNK queue, Suggestions) were already done (Phase 3) or are blocked on S4-S6. **Phase
+5A is now fully closed** — steps U1 (header actions), U2 (edit relationships in place, place
+history), U4 (table and board views on every collection list page), U5 (record popup, movable
+nodes, edge editing and drag-to-create-relationship), U6 (story board drag and drop) and, as of
+this session, **U3 (a "Keep writing" section on story pages)** are all closed — see their sections
+below. U3 was unblocked this session by fixing the pre-existing `/write/[code]` crash (Phase 4
+gap #2) — see U3's section for the real root cause, which earlier sessions had misdiagnosed. U4
+and U6's drag-and-drop gestures themselves are still flagged for Bobby to confirm by hand (browser
+automation couldn't exercise either; the code review backing that call is in each step's section).
+**Phase 7 (export and compilations) and Phase 8's search are also closed — see their sections
+below. Phase 7 has one loose end: the new `compilations` table's migration is generated
+(`db/migrations/0010_spicy_talisman.sql`) but not applied — the harness denied running
+`drizzle-kit migrate` against `APP_DATABASE_URL` outright (a production-deploy action), so Bobby
+needs to run it by hand before `/compilations` works (see Phase 7's section for the exact
+command). Phase 8's other line ("deploy... with a real single-user login") was flagged, not
+built — it reads as conflicting with hard rule 12 (no auth code anywhere); needs Bobby's call
+before anyone touches it.** Build passes zero errors. See the
 gaps flagged at the end of the Phase 4 section before touching anything AI- or writing-related
 again. The Vercel AI Gateway billing block (Phase 4 gap #1) was re-checked a third time this
 session (Bobby said it was resolved; it was not — same `customer_verification_required` error,
@@ -462,6 +464,78 @@ each page hand-rolled its own status select placement and its own bottom-of-page
   edge editor — both call the same pre-existing, already-tested U2 actions
   (`createRelationshipAction`, `deleteRelationshipAction`) with no new logic of their own beyond
   the args already shown correct in the panel.
+
+### Phase 5A, step U3: keep writing on the story page — closed 2026-11-09
+
+The last item in Phase 5A. Was blocked across several prior sessions on the `/write/[code]`
+Lexical crash (Phase 4 gap #2); that crash is now fixed (see below), which unblocked this step.
+
+**The real root cause of the Lexical crash (not what earlier sessions guessed).** Earlier
+sessions' notes guessed a generic hydration mismatch from the editor's `editorState` initializer.
+Live console inspection via Claude in Chrome this session showed the actual error:
+`"MarkdownShortcuts: missing dependency code for transformer. Ensure node dependency is included
+in editor initial config."` The default `TRANSFORMERS` array from `@lexical/markdown` (used by
+both `$convertFromMarkdownString`/`$convertToMarkdownString` and `MarkdownShortcutPlugin`)
+includes the CODE and LINK transformers, whose `dependencies` arrays name `CodeNode` and
+`LinkNode` respectively. Neither was registered in `initialConfig.nodes`
+(`[HeadingNode, QuoteNode, ListNode, ListItemNode, MentionNode]`), so Lexical's dependency check
+inside `registerMarkdownShortcuts` threw synchronously on mount — on every `/write/[code]` load,
+regardless of whether the content actually had code blocks or links. **Fix**: import `CodeNode`
+from `@lexical/code-core` (not `@lexical/code` — that package isn't part of this install) and
+`LinkNode` from `@lexical/link` (both already present transitively at the matching `0.50.0`, now
+declared as direct `package.json` dependencies) and add both to `nodes:` in the two places that
+construct a Lexical editor config: `app/(app)/write/[code]/editor.tsx` (client) and
+`lib/studio/lexical.ts` (server, the headless Markdown round-trip converter). Added matching
+`writing-code`/`writing-link` theme classes and CSS. **Verified live**: `npx tsc --noEmit` and
+`npm run build` both zero errors; navigated to `/write/W1` and `/write/W3` — both loaded real
+prose with no console exceptions; typed a character, undid with Ctrl+Z, confirmed autosave still
+worked. Committed separately from U3's own feature work (`646a9f6`).
+
+**The "Keep writing" section itself**, built per the plan's spec:
+- `lib/stories.ts`: added `floatingRangeText(startYear, endYear)` — year 0 is when SERO is born
+  (hard rule 3), so a story's existing `startYear`/`endYear` already read as an in-universe age;
+  no new column was needed to carry the migration's "suggested Age 250-280" text.
+- `lib/studio/queries.ts`: added `getWritingListByStory(storyId)`, same shape as `getWritingList`
+  but filtered to one story's records, sorted by `updatedAt` desc (so `[0]` is "most recently
+  edited").
+- `lib/studio/actions.ts`: `createWriting` now takes an optional `storyId`; added
+  `getWritingWithSummaryAction(code)` (wraps `getWritingByCode` + `getCheckSummary` together) so
+  the client-side picker can fetch a full record on demand without a page navigation.
+- `app/(app)/stories/[code]/page.tsx`: get-or-create on every render — fetches the story's writing
+  list; if empty, calls `createWriting` with that story's id (idempotent: the next render finds
+  the row and skips creation), then opens the most recently edited one. This is a real DB write
+  inside a server component render, which is unusual, but it's naturally idempotent (only fires
+  when the count is genuinely zero) and matches the plan's literal spec ("if there is none, it
+  starts a new snippet in draft").
+- `components/story-keep-writing.tsx` (new, client): wraps the **actual** `WritingEditor` from
+  `app/(app)/write/[code]/editor.tsx` (imported directly — same cross-route-group import pattern
+  `components/record-view-dispatch.tsx` already uses) rather than forking its Lexical setup, so
+  the story page's editor can never drift from the Writing Studio's. Adds the picker (switch
+  between the story's writing records, or "+ New writing for this story") above it and the record
+  list below it (kind, state, last edited, linking to `/write/[code]`). Switching records remounts
+  `<WritingEditor key={record.id} .../>` with a freshly fetched record so Lexical reinitializes
+  cleanly. A new optional `onFieldsSaved` callback was added to `WritingEditor` itself (called
+  after both its debounced and immediate save paths succeed) so this list stays in sync with
+  name/kind/canonState/word-count edits made inside the embedded editor, without a full
+  `router.refresh()`-driven reload.
+- **Floating label, wherever shown** (the plan's other U3 line): the story page's Floating field
+  now shows "No fixed place on the timeline yet." plus `floatingRangeText(...)` when set; the
+  story board's floating lane heading gained the same explanation, and each floating card shows
+  its own suggested range (`components/story-board-client.tsx`, `app/(app)/story-board/page.tsx`
+  — `BoardStory` gained `startYear`/`endYear`).
+- **Verified live** (Claude in Chrome, dev server): `/stories/S1` (already had writing records
+  W1/W2 from migration) — the section opened on W1 (most recently edited), full prose rendered,
+  picker listed both records with correct kind/state/dates; switched to W2 via the picker —
+  content swapped correctly (302w, different prose), no duplicate record created. `/stories/S3`
+  (a floating story, no writing yet) — get-or-create fired once (confirmed via a one-off debug
+  script against the live DB, then deleted), opened a fresh empty draft snippet; the "+ New"
+  option created a second record live and switched to it immediately (that throwaway test record
+  was deleted afterward to avoid leaving junk in Bobby's real data — the get-or-create one was
+  left in place, since that's the designed behavior for any story with no writing yet, not test
+  pollution). Floating label confirmed on both the story page ("No fixed place on the timeline
+  yet. Suggested Age 55–60.") and the story board (floating lane heading plus a per-card range on
+  S3's card). No new console errors beyond the pre-existing, unrelated ClickUp extension
+  hydration note seen throughout this project.
 
 ### Step W5: boards
 
@@ -907,14 +981,15 @@ Key design decisions made while building it:
    live writing (`W3`) ran the entire pipeline correctly end to end and failed only at the
    network call, with the exact Vercel URL to add a card captured in `writing.checkError`. No
    continuity check will produce real findings until that's resolved account-side.
-2. **Pre-existing Writing Studio bug, found but not caused by this phase.** Opening any
-   `/write/[code]` editor (tried W1 and W3) throws a Lexical error #173 in the browser console,
-   immediately after a React #418 hydration-mismatch error — almost certainly the editor's
-   `editorState: () => $convertFromMarkdownString(...)` initializer producing a different tree
-   client-side than what SSR rendered. This blocked verifying the "Check against canon" button
-   end-to-end through the browser; verified instead via a direct script
-   (`claimCheck`+`runContinuityCheck` called directly) and via the Continuity inbox pages, which
-   don't use Lexical and rendered cleanly (checked via console-log inspection, not just visually).
+2. **Pre-existing Writing Studio bug, found but not caused by this phase — FIXED 2026-11-09, see
+   Step U3's section below for the real root cause and the fix.** At the time this phase closed,
+   opening any `/write/[code]` editor (tried W1 and W3) threw a Lexical error #173 in the browser
+   console, immediately after a React #418 hydration-mismatch error. This blocked verifying the
+   "Check against canon" button end-to-end through the browser; verified instead via a direct
+   script (`claimCheck`+`runContinuityCheck` called directly) and via the Continuity inbox pages,
+   which don't use Lexical and rendered cleanly (checked via console-log inspection, not just
+   visually). The guess recorded here at the time — a hydration mismatch from the editor's
+   `editorState` initializer — turned out to be wrong; see Step U3 for the actual cause.
 3. **Draft vs. Canon "never spreads" is not implemented.** `docs/PLAN_WRITING_AND_AI.md`
    ("Decisions already made" #2-3, dated the same day as this session) says new facts should
    only spread into canon from Canon-state writing, with Draft only "checked and flagged."
@@ -1229,19 +1304,17 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    a propagation delay) — looks like an account/team-scoping mismatch between where the card was
    added and the team `AI_GATEWAY_API_KEY` belongs to, not something retrying from here can fix.
    Re-spike once Bobby confirms the team/key match in the Vercel dashboard, then resume.
-2. **Phase 5A, step U3.** "Working surfaces" — new scope added mid-session (see the plan's own
-   section). U1, U2, U4, U5 and U6 are all closed. U3 (a "Keep writing" section on story pages)
-   stays **blocked** on the pre-existing `/write/[code]` Lexical #173 / React #418 crash, Phase 4
-   gap #2, since both pages share the same editor component. This is the only Phase 5A item left.
-3. **Phase 7 and Phase 8's search are now closed** (see their sections above) — the only thing
-   left from that trio is **applying the `compilations` migration**
+2. **Phase 5A is fully closed**, including step U3 (a "Keep writing" section on story pages),
+   closed this session — see U3's section above. The `/write[code]` Lexical crash (Phase 4 gap #2)
+   that blocked it is fixed, not just worked around.
+3. **Phase 7 and Phase 8's search are closed** (see their sections above) — the only thing left
+   from that trio is **applying the `compilations` migration**
    (`db/migrations/0010_spicy_talisman.sql`, purely additive) by hand:
    `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
    — and **Phase 8's deploy line**, which stays unstarted pending Bobby's call on the hard-rule-12
    conflict (see Phase 8's section above for the exact wording).
-
-Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
-#2) — blocks using the Writing Studio day to day, worth fixing before leaning on it further.
+4. **Phase 9** (Cartographer Studio Design) is next once the two items above are cleared — the
+   plan scopes it to start "only after every phase above is closed."
 
 ---
 

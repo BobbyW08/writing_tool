@@ -239,10 +239,15 @@ export function WritingEditor({
   record,
   stories,
   summary,
+  onFieldsSaved,
 }: {
   record: WritingRecord
   stories: { id: number; code: string; name: string }[]
   summary: CheckSummary
+  // Called after a successful save with the fields that changed. Lets an embedding page (the
+  // story's "keep writing" section, step U3) keep its own list of this story's writing records
+  // in sync without a full page reload.
+  onFieldsSaved?: (patch: { name?: string; kind?: string; canonState?: string; wordCount?: number }) => void
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -279,9 +284,13 @@ export function WritingEditor({
         mentionIds: mentionIdsRef.current,
       })
       setSaveStatus(result.ok ? 'saved' : 'error')
-      if (result.ok) { setSavedAt(new Date()); router.refresh() }
+      if (result.ok) {
+        setSavedAt(new Date())
+        router.refresh()
+        onFieldsSaved?.({ name, kind, canonState, wordCount })
+      }
     }, 2000)
-  }, [record.id, name, kind, canonState, startYear, storyId, router])
+  }, [record.id, name, kind, canonState, startYear, storyId, router, wordCount, onFieldsSaved])
 
   // Save immediately when non-text fields change
   function saveImmediate(overrides: Partial<Parameters<typeof saveWriting>[1]> = {}) {
@@ -299,7 +308,16 @@ export function WritingEditor({
         ...overrides,
       })
       setSaveStatus(result.ok ? 'saved' : 'error')
-      if (result.ok) { setSavedAt(new Date()); router.refresh() }
+      if (result.ok) {
+        setSavedAt(new Date())
+        router.refresh()
+        onFieldsSaved?.({
+          name: overrides.name ?? name,
+          kind: overrides.kind ?? kind,
+          canonState: overrides.canonState ?? canonState,
+          wordCount,
+        })
+      }
     })
   }
 

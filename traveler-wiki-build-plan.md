@@ -679,11 +679,12 @@ along the way).
       needed in practice — the timeline reads fine with children shown at every zoom level; left
       as a possible future refinement, not a blocker.)
 
-### Phase 5A: Working surfaces (steps U1 to U6)
+### Phase 5A: Working surfaces (steps U1 to U6) — **Closed 2026-11-09**
 Detail is in "Steps U1 to U6: working surfaces" below.
 - [x] U1: status and delete in the top right of every read page. **Closed 2026-11-09.**
 - [x] U2: edit relationships in place, and place history for characters. **Closed 2026-11-09.**
-- [ ] U3: a writing area on each story page.
+- [x] U3: a writing area on each story page. **Closed 2026-11-09** — unblocked by fixing the
+      `/write/[code]` Lexical crash this session. See `BUILD_GUIDE.md`'s U3 section.
 - [x] U4: table and status board views on every collection page. **Closed 2026-11-09** — the
       drag-and-drop gesture on the board view couldn't be exercised via browser automation (dnd-kit
       never registered a drag start under simulated pointer input); flagged for Bobby to confirm by
@@ -1061,19 +1062,22 @@ behave exactly as they do everywhere else. There is no second write path.
       with the new `startYear`. No new code needed — both edits are now possible through the Edit
       control and the Start/End year fields on the add form.
 
-### Step U3: keep writing on the story page
-- [ ] A "Keep writing" section on `/stories/[code]` using the same Lexical editor and autosave as
-      the Writing Studio. It saves to a `writing` record whose `story` is this story.
-- [ ] It opens the story's most recently edited writing record. If there is none, it starts a new
-      `snippet` in `draft`. A picker switches between the story's writing records or starts a new
-      one, and the `canonState` switch (Draft, Canon, Set aside) is visible.
-- [ ] Below it, a list of the story's writing records with kind, state and last edited, each
+### Step U3: keep writing on the story page — **Closed 2026-11-09**
+- [x] A "Keep writing" section on `/stories/[code]` using the same Lexical editor and autosave as
+      the Writing Studio — reuses the actual `WritingEditor` component, not a fork of it. It saves
+      to a `writing` record whose `story` is this story.
+- [x] It opens the story's most recently edited writing record. If there is none, it starts a new
+      `snippet` in `draft` (get-or-create on page render, idempotent). A picker switches between
+      the story's writing records or starts a new one, and the `canonState` switch (Draft, Canon,
+      Set aside) is visible.
+- [x] Below it, a list of the story's writing records with kind, state and last edited, each
       linking to `/write/[code]`.
-- [ ] Saves go through `lib/studio/actions.ts`, so mentions, the continuity check and the link
+- [x] Saves go through `lib/studio/actions.ts`, so mentions, the continuity check and the link
       index behave as they do in the Studio.
-- [ ] Depends on the open `/write/[code]` editor crash (Lexical #173 and React #418, see
-      `BUILD_GUIDE.md`) being fixed first, since both pages use the same editor component.
-- [ ] Wherever `floating` is shown (story page, story board lane), the label says the story has no
+- [x] Depended on the `/write/[code]` editor crash being fixed first — fixed this session (real
+      cause was a missing Lexical transformer dependency, not the hydration mismatch earlier
+      sessions guessed; see `BUILD_GUIDE.md`'s U3 section).
+- [x] Wherever `floating` is shown (story page, story board lane), the label says the story has no
       fixed place on the timeline yet and shows its suggested age range beside it.
 
 ### Step U4: table and board views on collection pages — **Closed 2026-11-09**

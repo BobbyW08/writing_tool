@@ -6,21 +6,31 @@ import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { assignNextCode, slugify } from '@/db/codes'
 import { syncLinksForRecord, removeRecordLinks } from '@/lib/graph/sync'
+import { getWritingByCode, type WritingRecord } from '@/lib/studio/queries'
+import { getCheckSummary, type CheckSummary } from '@/lib/continuity/queries'
 
-export async function createWriting(name: string): Promise<{ code: string; error?: string }> {
+export async function createWriting(name: string, storyId?: number | null): Promise<{ code: string; error?: string }> {
   try {
     const code = await assignNextCode('W')
     const base = slugify(name)
     const slug = base ? `${base}-${code.toLowerCase()}` : code.toLowerCase()
     const [row] = await appDb.insert(schema.writing)
-      .values({ code, slug, name, kind: 'snippet', canonState: 'draft', text: '' })
+      .values({ code, slug, name, kind: 'snippet', canonState: 'draft', text: '', storyId: storyId ?? null })
       .returning({ id: schema.writing.id })
     await syncLinksForRecord('writing', row.id)
     revalidatePath('/write')
+    if (storyId != null) revalidatePath('/stories')
     return { code }
   } catch (e) {
     return { code: '', error: String(e) }
   }
+}
+
+export async function getWritingWithSummaryAction(code: string): Promise<{ record: WritingRecord; summary: CheckSummary } | null> {
+  const record = await getWritingByCode(code.toUpperCase())
+  if (!record) return null
+  const summary = await getCheckSummary(record.id)
+  return { record, summary }
 }
 
 export async function saveWriting(

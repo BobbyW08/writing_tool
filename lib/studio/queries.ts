@@ -97,6 +97,27 @@ export async function getWritingByCode(code: string): Promise<WritingRecord | nu
   }
 }
 
+export async function getWritingListByStory(storyId: number): Promise<WritingListItem[]> {
+  const rows = await appDb.select().from(schema.writing)
+    .where(eq(schema.writing.storyId, storyId))
+    .orderBy(desc(schema.writing.updatedAt))
+  return rows.map((r) => {
+    const plain = r.plainText ?? ''
+    return {
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      kind: r.kind ?? 'snippet',
+      canonState: r.canonState,
+      wordCount: plain.trim() ? plain.trim().split(/\s+/).length : 0,
+      storyId: r.storyId ?? null,
+      storyCode: null,
+      storyName: null,
+      updatedAt: r.updatedAt,
+    }
+  })
+}
+
 export async function getStoryList(): Promise<{ id: number; code: string; name: string }[]> {
   return appDb.select({ id: schema.stories.id, code: schema.stories.code, name: schema.stories.name })
     .from(schema.stories)
