@@ -16,9 +16,10 @@ The front end is where the work feels good.
 
 ## Decisions already made
 
-1. One surface, one database. All creating, editing and writing happens in the frontend. No admin,
-   no login. `app/(app)/` is the entire app. All reads and writes go through the data layer
-   (`lib/world/queries.ts`, `lib/world/actions.ts`).
+1. One surface, one database. All creating, editing and writing happens in the frontend. No admin
+   route, no per-user login — just one shared password gate at the edge (`CLAUDE.md` hard rule
+   12). `app/(app)/` is the whole authenticated app. All reads and writes go through the data
+   layer (`lib/world/queries.ts`, `lib/world/actions.ts`).
 2. Writing gets a state: **Draft** (the default), **Canon**, **Set aside for later**.
    - Draft and Canon are both included in continuity checks.
    - Set aside is excluded from every check and from AI context.

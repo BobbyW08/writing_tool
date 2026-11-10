@@ -2,6 +2,38 @@
 
 Paste this into a new session alongside CLAUDE.md to get a model up to speed.
 
+## Session (2026-11-10): compilations migration applied, password gate built and verified, Framework Preset bug found
+
+Bobby ran the `compilations` migration by hand (`drizzle-kit migrate`); `/compilations` confirmed
+live. Phase 8's deploy line ("a real single-user login") is built as a single shared password
+gate: `proxy.ts` checks a `session` cookie against `APP_SECRET`; `/api/login` checks the
+submitted password against `APP_PASSWORD` and sets that cookie. `CLAUDE.md` hard rule 12 updated
+to describe this as the one sanctioned exception to "no auth code" rather than real multi-user
+auth. `traveler-wiki-build-plan.md` and `BUILD_GUIDE.md` updated to match (all prior "conflicts
+with hard rule 12" notes closed out).
+
+Separately, while chasing the AI Gateway billing block, found the Vercel project's Framework
+Preset was set to "Other" instead of "Next.js" (likely a stale import setting), which was
+producing an unrelated `STATIC_BUILD_NO_OUT_DIR` build failure. Fixed by switching the preset to
+Next.js. Bobby also updated `AI_GATEWAY_API_KEY` (previously blank). Build now succeeds, but the
+Gateway call itself hasn't been retested since both fixes landed — `next.md` flags this as the one
+thing to confirm before starting S4.
+
+Phase 9 (Cartographer Studio Design) was discussed in a separate chat, surfaced from
+`traveler-wiki-build-plan.md`'s Phase 9 section. Confirmed it is item 16 of 16 in the build order,
+gated on S4 through S7 closing, not just the three items above — W3–W6 are done out of the
+table's listed order (allowed by the plan), but S4–S7 are not built yet.
+
+**Later the same day:** the password gate above was built but not yet verified — `/login` threw a
+Next.js 16 "strict route matching" build error (`app/(auth)/login/page.tsx` didn't match any
+complete route). Root cause: `(app)/layout.tsx`'s `@modal` parallel-route slot, combined with route
+groups being stripped before Next's slot-completeness check runs, so `/login` got swept into a
+slot requirement that has nothing to do with it. Fixed with Next's own documented escape hatch,
+`deprecated.looseRouteMatching: true` in `next.config.mjs`. `npm run build` now passes clean, and
+the full flow was verified: wrong password → 401 with an inline error in the UI; correct password
+→ 200 + session cookie → authenticated requests succeed; unauthenticated requests redirect to
+`/login?from=...`. The password gate is now genuinely done, not just written.
+
 ## Last session (2026-11-09, latest): Lexical crash fixed, Phase 5A closed
 
 This entry consolidates everything since 2026-11-08d below — several sessions' worth of progress
@@ -143,20 +175,19 @@ Committed: not yet — pending user review of this session's changes.
 
 ## What is next
 
-See `next.md` for the full instructions. In short, every base-build phase through Phase 5A is now
+See `next.md` for the full instructions. In short, every base-build phase through Phase 8 is now
 closed (Phase 5 views, Phase 5A U1-U6, Phase 6 Gaps view, Phase 7 export/compilations, Phase 8
-search), and the `/write/[code]` Lexical crash is fixed. Three items are left, all needing Bobby
-before anyone can go further — see the latest session entry above for the full detail:
+search and the password gate), the `/write/[code]` Lexical crash is fixed, the `compilations`
+migration is applied, and the Vercel Framework Preset build failure is fixed. One item is left:
 
-1. **Apply the `compilations` migration by hand** (the harness won't run it) —
-   `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`.
-2. **Decide the Phase 8 login question** — its plan line conflicts with `CLAUDE.md` hard rule 12.
-3. **Fix the Vercel AI Gateway billing block** (`customer_verification_required`) account-side —
+1. **Fix the Vercel AI Gateway billing block** (`customer_verification_required`) account-side —
    this is what S4-S7 (the AI foundation, Story Builder, Ask AI, canon check extensions) are
-   waiting on.
+   waiting on. `AI_GATEWAY_API_KEY` was updated and the Framework Preset fixed since the last
+   check, but the Gateway call itself hasn't been retested since — confirm the fix landed before
+   starting S4.
 
 Phase 9 (Cartographer Studio Design) is explicitly scoped to start only once every phase above is
-closed, so it's also waiting on items 1 and 2.
+closed — it's now waiting only on S4-S7, which are waiting on item 1.
 
 ## Stack reference (quick)
 
@@ -168,4 +199,4 @@ closed, so it's also waiting on items 1 and 2.
 | Link index | `lib/graph/` (`sync.ts` writes, `queries.ts` reads), `scripts/rebuild-links.ts` |
 | Lexical packages | All at `0.50.0` |
 | Routes | All in `app/(app)/` |
-| No login, no admin | Anywhere in this codebase |
+| Auth | One shared password gate (`proxy.ts` + `/api/login`), not real auth. No admin route. See `CLAUDE.md` hard rule 12 |

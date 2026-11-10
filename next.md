@@ -4,57 +4,61 @@ This file holds the instructions for the next phase/step/task in the build, in a
 with `traveler-wiki-build-plan.md` and the rules in `CLAUDE.md`. Update it at the end of every
 session: replace its contents with the instructions for whatever comes after.
 
-## Where things stand (2026-11-09)
+## Where things stand (2026-11-10)
 
-Every phase through Phase 5A is closed: Phase 5 (views), Phase 5A (steps U1-U6, working surfaces),
-Phase 6 (Gaps view), Phase 7 (export and compilations), and Phase 8's search. The pre-existing
-`/write/[code]` Lexical crash (Phase 4 gap #2) is fixed. Full detail for all of it is in
-`BUILD_GUIDE.md`'s "Current state" and each phase's own section.
+Every phase through Phase 8 is closed. Phase 7 (export and compilations) is fully closed: the
+`compilations` migration was applied by Bobby by hand and `/compilations` is confirmed live. Phase
+8's search and login lines are both closed: login is a single shared password gate (`proxy.ts` +
+`/api/login` against `APP_SECRET`/`APP_PASSWORD`), `CLAUDE.md` hard rule 12 updated to describe it
+as the one sanctioned exception to "no auth code." The gate hit one real bug — Next.js 16's strict
+route matching flagged `/login` over an unrelated `@modal` parallel-route slot in `(app)/layout.tsx`
+— fixed via `deprecated.looseRouteMatching: true` in `next.config.mjs` (Next's own documented
+escape hatch for this exact false positive). `npm run build` is clean and the full flow (wrong
+password, correct password, cookie, authenticated access, unauthenticated redirect) is verified
+working, not just written. Phase 8's *other* half (switching off dev auto-push to real migrations
+before deploy) is still open — see below.
 
-## Ask Bobby about these three before building anything else
+## Three loose ends, not blocking S4, don't lose track of these
 
-There is no unblocked build work left — the only remaining items in the plan each need something
-only Bobby can do. Don't work around any of these; raise them and wait.
+1. **Confirm U4/U6 drag-and-drop by hand.** The record-popup editing (U4) and story board (U6)
+   drag gestures were built and verified by reading the code, but browser automation couldn't
+   exercise dnd-kit's drag start under simulated pointer input, so neither has actually been
+   clicked and dragged by a human yet. Try both in the browser; if either doesn't work, flag it
+   here before building anything else on top of Phase 5A.
+2. **Switch from dev auto-push to real migrations before deploy.** Half of the old Phase 8 deploy
+   line. Still unstarted. Low priority, but shouldn't get lost now that the login half is done.
+3. **Suggestions (last open item in Phase 6)** is still blocked on the same AI Gateway question as
+   S4 below — once the Gateway is confirmed working, Suggestions and S4 unblock together.
 
-1. **Apply the `compilations` migration.** It's generated
-   (`db/migrations/0010_spicy_talisman.sql`, purely additive — a single `CREATE TABLE` plus two
-   `CREATE INDEX` statements) but not applied. The harness denies `drizzle-kit migrate` against
-   `APP_DATABASE_URL` outright as a production-deploy action — no approval prompt, unlike earlier
-   migrations in this project. Bobby needs to run it himself:
-   `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
-   `/compilations` 500s until this runs.
-2. **Decide the Phase 8 login question.** The plan's Phase 8 line ("deploy to Vercel with a real
-   single-user login") conflicts with `CLAUDE.md` hard rule 12 ("No login and no auth code,
-   anywhere in this codebase"). No auth code has been written — hard rules win on conflict. Bobby
-   needs to say which one is stale: either that plan line, or hard rule 12.
-3. **Fix the Vercel AI Gateway billing block.** Every attempt fails with
-   `customer_verification_required` even after Bobby said it was resolved (re-checked three times
-   across sessions, including after a 90s wait for propagation) — this looks like an
-   account/team-scoping mismatch between where a card was added and the team the
-   `AI_GATEWAY_API_KEY` belongs to, not something retryable from here. This blocks S4 through S7
-   (AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions) and
-   Suggestions (the last open item in Phase 6).
+## One thing to confirm before S4 can start
 
-## After those are resolved
+The Vercel AI Gateway billing block (`customer_verification_required`) was blocking S4 through
+S7. Since the last entry, Bobby found the project's Framework Preset was set to "Other" instead
+of "Next.js" (an unrelated misconfiguration causing a `STATIC_BUILD_NO_OUT_DIR` build failure),
+fixed that, and separately updated `AI_GATEWAY_API_KEY` (it had been blank). The build now
+succeeds. **Not yet confirmed: whether an actual Gateway call succeeds end to end** — the billing
+error was never directly retested after both fixes. Before starting S4, make one live call
+through `lib/ai/` (or the smallest thing that exercises the Gateway) and confirm it doesn't return
+`customer_verification_required`. If it still fails, stop and flag it. Don't build S4 against an
+unconfirmed Gateway.
 
-- Once item 1 is done: nothing else to build for Phase 7: it's fully closed.
-- Once item 2 is decided: either build the login (if hard rule 12 gets updated) or mark Phase 8
-  fully closed as-is (if the plan line was stale) and switch from dev auto-push to real migrations
-  for deploy, per that same Phase 8 line.
-- Once item 3 is fixed: S4 (AI foundation on Claude — `lib/ai/`, the context builder on the link
-  index, `ai_proposals`, `ai_settings`, the Accept/Reject inbox, the `AI suggested` tag) is next
-  in the build order, then S5/S6 (Story Builder, Ask AI anywhere), then S7 (claims ledger,
-  backward check, revert by source — also where Phase 4's documented "Draft never spreads into
-  canon" gap gets closed).
-- **Phase 9 (Cartographer Studio Design)** is explicitly scoped in the plan to start only once
-  every phase above it is closed — so it's gated behind items 1 and 2 above, not ready yet even
-  though it doesn't depend on the AI Gateway.
+## Next unblocked build step: S4
+
+Once the Gateway is confirmed, build S4 (AI foundation on Claude — `lib/ai/`, the context builder
+on the link index, `ai_proposals`, `ai_settings`, the Accept/Reject inbox, the `AI suggested`
+tag), then S5/S6 (Story Builder, Ask AI anywhere), then S7 (claims ledger, backward check, revert
+by source — also where Phase 4's documented "Draft never spreads into canon" gap gets closed).
+
+**Phase 9 (Cartographer Studio Design) is last in the build order (item 16 of 16)**, gated on
+every item above it closing, not just the login/migration/billing items. W3 through W6 (maps,
+chronicles, boards, tables) are already built out of the table's listed order, which the plan
+explicitly allows — but S4 through S7 are not built yet. Do not start Phase 9 before S4–S7 are
+done.
 
 ## Also still pending from before (not urgent, no new information)
 
 Bobby wants Vercel wired to deploy automatically on every push to GitHub. Pick it up whenever —
-it doesn't block anything above, and ties naturally into whatever Bobby decides for the Phase 8
-deploy line.
+it doesn't block anything above.
 
 1. Push this repo to GitHub (`origin` → `github.com/BobbyW08/writing_tool.git`, confirmed present
    in an earlier session via `git remote -v`) once Bobby has reviewed what's accumulated.
@@ -63,9 +67,9 @@ deploy line.
 3. Confirm by making a trivial commit and push, then checking the Deployments tab for a new
    deployment that started on its own.
 
-### When any of the three blockers above gets resolved
+### When the Gateway is confirmed and S4 is built
 
-1. Check off the relevant items in `traveler-wiki-build-plan.md`.
+1. Check off S4 in `traveler-wiki-build-plan.md`.
 2. Update `BUILD_GUIDE.md`: "Current state" and "Next up".
 3. Add a new entry at the top of `SESSION.md`.
-4. Replace this file (`next.md`) with the next task.
+4. Replace this file (`next.md`) with the next task (S5).

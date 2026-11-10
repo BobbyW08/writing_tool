@@ -20,7 +20,7 @@ placeholders for undecided worldbuilding, and checks new writing against canon.
 **This is not:**
 - A ghostwriter. It never generates narrative prose the user would paste into a draft.
 - A project/task manager.
-- A multi-user product. One user. No login.
+- A multi-user product. One user, one shared password gate, no per-user accounts.
 
 ## Editing model: the data layer holds everything, the frontend is where all the work happens
 
@@ -66,7 +66,9 @@ is in "Build order" below. Full history is in `BUILD_GUIDE.md`.
   backgrounds. It uses `sharp`, which is already installed.
 - **AI.** All AI runs on Claude through the `ai` package and Vercel AI Gateway, with plain
   `anthropic/...` model strings, behind one module (`lib/ai/`).
-- **No login and no auth code.** This is a personal single-user tool. No middleware, no session.
+- **One shared password gate, not real auth.** `proxy.ts` checks a session cookie against
+  `APP_SECRET`; `/api/login` checks the password against `APP_PASSWORD`. No user accounts, no
+  per-user sessions, no OAuth.
 - **Environment.** `APP_DATABASE_URL`, `AI_GATEWAY_API_KEY`, `CONTINUITY_MODEL` (optional).
   `DATABASE_URL` points at the old v1 database (read-only, used only by `scripts/copy-from-payload.ts`).
 - **Look and feel.** The frontend has its own visual style, built on the existing shadcn components
@@ -711,26 +713,27 @@ Detail is in "Steps U1 to U6: working surfaces" below.
 - [ ] Suggestions: delivered by steps S4 to S6. **Blocked** on the Vercel AI Gateway billing issue
       — see `BUILD_GUIDE.md` "Next up".
 
-### Phase 7: Export and compilations — **Closed 2026-11-09, migration pending**
+### Phase 7: Export and compilations — **Closed 2026-11-09, migration applied 2026-11-10**
 - [x] Markdown export, `compilations` collection, ordered compile, combined export. Code complete,
-      typechecked and built with zero errors. **The `compilations` table's migration
-      (`db/migrations/0010_spicy_talisman.sql`) is generated but not yet applied** — running
-      `drizzle-kit migrate` against `APP_DATABASE_URL` is flagged as a production-deploy action and
-      was denied by the harness's auto-mode classifier outright (no prompt to approve, unlike the
-      G1 migration earlier). Bobby needs to run it by hand:
-      `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`.
-      `/compilations` will 500 until that runs. See `BUILD_GUIDE.md`'s Phase 7 section.
+      typechecked and built with zero errors. The `compilations` table's migration
+      (`db/migrations/0010_spicy_talisman.sql`) was applied by Bobby by hand (the harness's
+      auto-mode classifier denies `drizzle-kit migrate` against `APP_DATABASE_URL` outright, no
+      prompt). `/compilations` confirmed live. See `BUILD_GUIDE.md`'s Phase 7 section.
 
 ### Phase 8: Polish and deploy
 - [x] Search across everything (by name, alias, or code). **Closed 2026-11-09.** See
       `BUILD_GUIDE.md`'s Phase 8 section.
-- [ ] Switch from dev auto-push to migrations, deploy to Vercel with a real single-user login.
-      **Not started — flagging a conflict, not proceeding without Bobby's say.** This line's "a real
-      single-user login" reads as being in tension with `CLAUDE.md` hard rule 12 ("No login and no
-      auth code, anywhere in this codebase... no login screen, no session, no middleware checking
-      auth"). Hard rules win on conflict, so no auth code was added. The migrations half of this
-      line (moving off dev auto-push) is also not started — worth doing together with whatever
-      Bobby decides about the login line, since both touch the same deploy step.
+- [x] Deploy to Vercel with a real single-user login. **Closed and verified 2026-11-10.** Resolved
+      as a single shared password gate: `proxy.ts` checks a `session` cookie against `APP_SECRET`,
+      `/api/login` checks the submitted password against `APP_PASSWORD`. `CLAUDE.md` hard rule 12
+      updated to describe this as the one sanctioned exception to "no auth code." Not real
+      multi-user auth, not meant to become any. Hit and fixed a Next.js 16 strict-route-matching
+      false positive on `/login` (unrelated `@modal` parallel-route slot on `(app)/layout.tsx`) via
+      `deprecated.looseRouteMatching: true` in `next.config.mjs` — Next's own documented escape
+      hatch for this case. `npm run build` clean; full login flow verified (wrong password, correct
+      password + cookie, authenticated access, unauthenticated redirect). See `BUILD_GUIDE.md`'s
+      Phase 8 section.
+- [ ] Switch from dev auto-push to real migrations before deploy. Still not started.
 
 ### Phase 9: Cartographer Studio Design
 A design system, interface polish, relationship visibility, and optional sample content pass.
@@ -916,7 +919,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 12 | W4 | Chronicles |
 | 13 | W5 | Boards: saved node maps, content trees, whiteboards, story map |
 | 14 | W6 | Interactive tables |
-| 15 | Phases 6 to 8 | Gaps view, export, compilations, search, deploy. Gaps view, export/compilations and search done 2026-11-09 (compilations' migration pending Bobby's approval); deploy's login line unstarted, in conflict with hard rule 12 (see Phase 8 section) |
+| 15 | Phases 6 to 8 | Gaps view, export, compilations, search, deploy. Gaps view, export/compilations and search done 2026-11-09; the compilations migration applied 2026-11-10. Deploy's login line closed 2026-11-10 as a single shared password gate (hard rule 12 updated); switching off dev auto-push to real migrations before deploy is still open |
 | 16 | Phase 9 | Cartographer studio design: visual direction, layout, relationship visibility, optional Traveler sample content. Implemented only after every item above is closed |
 
 The user may reorder items 6 to 14, and item 6a can go anywhere after item 6. Items 1 to 5 stay first: item 4 is needed by every later view

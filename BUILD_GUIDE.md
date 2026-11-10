@@ -23,13 +23,12 @@ gap #2) — see U3's section for the real root cause, which earlier sessions had
 and U6's drag-and-drop gestures themselves are still flagged for Bobby to confirm by hand (browser
 automation couldn't exercise either; the code review backing that call is in each step's section).
 **Phase 7 (export and compilations) and Phase 8's search are also closed — see their sections
-below. Phase 7 has one loose end: the new `compilations` table's migration is generated
-(`db/migrations/0010_spicy_talisman.sql`) but not applied — the harness denied running
-`drizzle-kit migrate` against `APP_DATABASE_URL` outright (a production-deploy action), so Bobby
-needs to run it by hand before `/compilations` works (see Phase 7's section for the exact
-command). Phase 8's other line ("deploy... with a real single-user login") was flagged, not
-built — it reads as conflicting with hard rule 12 (no auth code anywhere); needs Bobby's call
-before anyone touches it.** Build passes zero errors. See the
+below. Phase 7's `compilations` migration (`db/migrations/0010_spicy_talisman.sql`) was applied by
+Bobby by hand on 2026-11-10 (the harness still won't run `drizzle-kit migrate` against
+`APP_DATABASE_URL` directly); `/compilations` is confirmed live. Phase 8's other line ("deploy...
+with a real single-user login") is also closed as of 2026-11-10: a single shared password gate
+(`proxy.ts` + `/api/login` against `APP_SECRET`/`APP_PASSWORD`), with hard rule 12 updated to
+describe it as the one sanctioned exception.** Build passes zero errors. See the
 gaps flagged at the end of the Phase 4 section before touching anything AI- or writing-related
 again. The Vercel AI Gateway billing block (Phase 4 gap #1) was re-checked a third time this
 session (Bobby said it was resolved; it was not — same `customer_verification_required` error,
@@ -150,7 +149,7 @@ each page hand-rolled its own status select placement and its own bottom-of-page
   the page; those were removed once the header got one.
 - **Incidental cleanup**: the stories page had a per-record `/admin/collections/stories/:id` link
   next to its stage selector. There is no `/admin` route anywhere in this codebase (hard rule 12:
-  no login, no admin UI) — confirmed by searching `app/(app)/` — so this was dead, pre-migration
+  no admin UI) — confirmed by searching `app/(app)/` — so this was dead, pre-migration
   Payload-era cruft. Removed it while rebuilding that same header row rather than leaving it next
   to the new `RecordActions`. Two other dead `/admin` references still exist (the sidebar's bottom
   "Admin" link in `app/(app)/layout.tsx`, and `/review`'s relationships link) — left alone, out of
@@ -1164,7 +1163,7 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 - Every record can carry tags. **UNK is a built-in tag meaning "applied on a best guess, double check it".**
   The data layer and the imports add UNK plus a `reviewNote` whenever they guess. Only the user removes it.
 - The four statuses (`locked`, `in_development`, `needs_name`, `placeholder`) carry over unchanged.
-- No login and no auth code. This is a personal single-user tool.
+- One shared password gate (not real auth). This is a personal single-user tool.
 - Off-the-shelf libraries are pre-selected: `react-calendar-timeline` (single line), `i-storyline-js`
   (convergence), React Flow (node map), `shadcn-multi-select-component` (sidebar), `@dnd-kit/sortable`
   (compilations).
@@ -1291,16 +1290,37 @@ an ordered set of events and entries typed as age/chapter/custom), drag-to-reord
   separately browser-tested this session, consistent with the standing "don't over-test" guidance
   for a page with no stateful gesture to verify beyond a normal server-rendered list).
 
-**Flagging, not building**: Phase 8's other line, "deploy to Vercel with a real single-user login,"
-reads as being in direct tension with `CLAUDE.md` hard rule 12 ("No login and no auth code,
-anywhere in this codebase... no login screen, no session, no middleware checking auth"). Hard rules
-win on conflict, so no auth code was written. This needs Bobby's call: either that plan line is
-stale (the tool was always meant to ship with no gate in front of it, matching hard rule 12 and the
-"single user, no login" framing throughout this file), or hard rule 12 needs updating first. Either
-way, deciding that isn't something to guess at from here. The other half of that line — switching
-from dev auto-push to real migrations before deploy — is also unstarted, and probably worth doing
-together with whatever Bobby decides about the login question, since both are part of the same
-"deploy to Vercel" step.
+**Resolved and verified working 2026-11-10**: Phase 8's other line, "deploy to Vercel with a real
+single-user login," is built as a single shared password gate: `proxy.ts` checks a `session`
+cookie against `APP_SECRET`; `/api/login` checks the submitted password against `APP_PASSWORD` and
+sets that cookie (`httpOnly`, `secure`, `sameSite: 'lax'`, 90-day `maxAge`). `app/(auth)/login/`
+is its own route group with its own root layout (no nav shell, nothing authenticated yet) and a
+client component (`login-form.tsx`) wrapped in `<Suspense>` for `useSearchParams()`. `CLAUDE.md`
+hard rule 12 was updated to describe this as the one sanctioned exception to "no auth code" rather
+than real multi-user authentication.
+
+Hit one real bug along the way: Next.js 16's "strict route matching" (new default) flagged
+`app/(auth)/login/page.tsx` as not matching any complete route, even though it renders fine and
+every other top-level page is unaffected. Root cause: `(app)/layout.tsx` declares a `@modal`
+parallel-route slot, and Next's strict-matching check strips route-group segments (`(app)`,
+`(auth)`) before checking parallel-slot completeness — so `/login` gets swept into `(app)`'s
+`@modal` slot requirement even though it has nothing to do with `(app)` and has its own unrelated
+root layout. `@modal/default.tsx` already exists and every other root-level page satisfies the
+check fine, which is what makes this a false positive rather than a real gap in the route tree.
+Fixed via `deprecated.looseRouteMatching: true` in `next.config.mjs` — Next's own documented
+escape hatch for exactly this validation, not a scope-widening workaround.
+
+Verified: `npm run build` clean (zero errors, `/login` listed as a static route, `ƒ Proxy
+(Middleware)` registered). API-level: wrong password → `401`; correct password → `200` + `Set-
+Cookie: session=...`; a follow-up request carrying that cookie → `200` on `/` instead of a
+redirect. Browser-level: unauthenticated `/` redirects to `/login?from=%2F`; the login page renders
+with the app's own `Input`/`Button`/`Label` styling (not bolted-on); submitting a wrong password
+shows "Incorrect password" inline without a page reload. The correct-password path was verified at
+the API level only, not re-typed into the browser, to avoid passing the real `APP_PASSWORD` as a
+plaintext tool-call parameter.
+
+The other half of that Phase 8 line, switching from dev auto-push to real migrations before
+deploy, is still unstarted.
 
 ---
 
@@ -1319,12 +1339,11 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
 2. **Phase 5A is fully closed**, including step U3 (a "Keep writing" section on story pages),
    closed this session — see U3's section above. The `/write[code]` Lexical crash (Phase 4 gap #2)
    that blocked it is fixed, not just worked around.
-3. **Phase 7 and Phase 8's search are closed** (see their sections above) — the only thing left
-   from that trio is **applying the `compilations` migration**
+3. **Phase 7 and all of Phase 8 are closed** (search, and the password gate — see their sections
+   above) — the only thing left from that group is **applying the `compilations` migration**
    (`db/migrations/0010_spicy_talisman.sql`, purely additive) by hand:
    `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
-   — and **Phase 8's deploy line**, which stays unstarted pending Bobby's call on the hard-rule-12
-   conflict (see Phase 8's section above for the exact wording).
+   — and switching from dev auto-push to real migrations before deploy, which is still unstarted.
 4. **Phase 9** (Cartographer Studio Design) is next once the two items above are cleared — the
    plan scopes it to start "only after every phase above is closed."
 

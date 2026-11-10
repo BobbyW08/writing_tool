@@ -5,8 +5,9 @@ A personal, single-user writing tool for "The Traveler" story universe. Characte
 events, items, factions, cultures, races, languages, lore, story ideas, and the prose itself are
 all stored in a Neon Postgres database via Drizzle ORM. Every record has a permanent ID code
 (C10, L4, E27, S12) and those codes are how entries are referenced in text, notes and prompts.
-All creating, editing and writing happens in the frontend, in place, with no separate edit mode
-and no login screen. The frontend adds the views that are hard to do in a table: a world tree
+All creating, editing and writing happens in the frontend, in place, with no separate edit mode.
+A single shared password gates the whole app at the edge (hard rule 12) — there are no user
+accounts and no per-user login. The frontend adds the views that are hard to do in a table: a world tree
 with an infobox on every entry, a timeline with eras and lanes, image maps with pins, chronicles,
 node maps, family and causality trees, whiteboards, interactive tables, a writing studio, and
 relationship views. A backend link index records every connection between every record, and every
@@ -20,7 +21,8 @@ Full plan, table specs, link index spec, migration steps, phases and the master 
 before starting a phase or step. This file is the quick-reference and hard-rules layer on top of
 them, not a replacement.
 
-**This is not:** a ghostwriter, a project/task manager, or a multi-user product. One user. No login.
+**This is not:** a ghostwriter, a project/task manager, or a multi-user product. One user, no
+accounts, no per-user login — just one shared password gating the whole app (hard rule 12).
 
 ---
 
@@ -53,7 +55,8 @@ them, not a replacement.
   studio (`/write`), timeline, maps, chronicles, node map, trees, boards, tables, continuity inbox,
   link health. Collection list pages have List, Table and Board views. A record can open as a
   large popup over the page it was clicked from, rendering the same read page components.
-- There is no admin route and no login. All reads and writes go through server components and
+- There is no admin route. A single shared-password gate (`proxy.ts` + `/login`, hard rule 12) sits
+  in front of everything else; beyond that, all reads and writes go through server components and
   server actions using `appDb`.
 - Connections between records come from the link index.
 
@@ -128,8 +131,12 @@ letters to the code pattern. A code with no record renders as plain text, never 
 10. **Try the off-the-shelf library before hand-rolling.** The stack table above is the
     pre-selected list. Fall back to a custom build only if integration genuinely does not fit.
 11. **`npm run build` must pass with zero errors before every commit.**
-12. **No login and no auth code, anywhere in this codebase.** This is a personal single-user tool
-    running on Vercel. There is no login screen, no session, no middleware checking auth.
+12. **One shared password gate, nothing more.** This is a personal single-user tool running on
+    Vercel at a public URL, so it needs one lock on the front door, not real authentication.
+    `proxy.ts` checks a `session` cookie against `APP_SECRET`. `/api/login` checks a
+    submitted password against `APP_PASSWORD` and sets that cookie. No user accounts, no
+    per-user sessions, no OAuth, no password reset flow, no admin UI. Do not grow this into real
+    auth or reuse it for anything beyond gating the whole app at the edge.
 13. **UNK means "double check this".** Any record, link or piece of writing can carry tags.
     Whenever the data layer, an import, or the migration fills something in on a best guess (a
     matched name, a guessed era or format, a rewritten link, an auto-created record), it applies
@@ -180,8 +187,9 @@ from `db/index.ts`.
 
 ## When in doubt
 `traveler-wiki-build-plan.md` is the source of truth for tables, the data model, and phase scope.
-Do not invent a different data model, and do not add auth, login, or multi-user patterns.
-This app is intentionally single-user.
+Do not invent a different data model, and do not add real multi-user auth, user accounts, or
+per-user permissions. This app is intentionally single-user — the shared password gate (hard
+rule 12) is the full extent of auth here, nothing more.
 
 # This is NOT the Next.js you know
 
