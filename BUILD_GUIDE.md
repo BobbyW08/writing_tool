@@ -1301,23 +1301,52 @@ than real multi-user authentication.
 
 Hit one real bug along the way: Next.js 16's "strict route matching" (new default) flagged
 `app/(auth)/login/page.tsx` as not matching any complete route, even though it renders fine and
-every other top-level page is unaffected. Root cause: `(app)/layout.tsx` declares a `@modal`
-parallel-route slot, and Next's strict-matching check strips route-group segments (`(app)`,
-`(auth)`) before checking parallel-slot completeness — so `/login` gets swept into `(app)`'s
-`@modal` slot requirement even though it has nothing to do with `(app)` and has its own unrelated
-root layout. `@modal/default.tsx` already exists and every other root-level page satisfies the
-check fine, which is what makes this a false positive rather than a real gap in the route tree.
-Fixed via `deprecated.looseRouteMatching: true` in `next.config.mjs` — Next's own documented
-escape hatch for exactly this validation, not a scope-widening workaround.
+every other top-level page is unaffected.
+
+First hypothesis (wrong, but worth recording so it isn't re-tried): that `(app)/layout.tsx`'s
+`@modal` slot requirement applies globally once route groups are stripped, catching `/login` along
+with everything else. Disproved by reproducing Next's actual algorithm directly — required
+`next/dist/server/lib/router-utils/normalize-catchall-routes.js` in a throwaway script, built the
+same `appPathsPerRoute`/`defaultAppPaths` structures Next's own entrypoint collection builds from
+the real `app/` tree, and called its internal `normalizeCatchAllRoutes` with
+`strictRouteMatching: true` directly — the same function `next build`/`next dev` call, not a
+guess. Route-group segments are *not* stripped at this stage (only the separate `normalizeAppPath`
+step used to compute each page's *route key* strips them) — `collectParallelRouteLevels` walks the
+raw, group-including appPath strings, so `@modal`'s requirement is scoped to `parentSegments:
+['(app)']`, which never has `/login` (under `(auth)`) as a prefix. The two groups are correctly
+isolated from each other for slot-completeness purposes; that was never the bug.
+
+**Real root cause**, found by reproducing the exact failure (`unmatchedAppPages: ["/(auth)/login/page"]`)
+against the live route tree: `app/(app)/@modal/[...catchAll]/page.tsx` — the catch-all that closes
+the modal on any `(app)` route that isn't specifically opening one — gets its "base path" computed
+by `normalizeAppPath`, which strips *both* the `(app)` group *and* the `@modal` slot segment,
+collapsing its identity to the bare pattern `/[...catchAll]` with base path `/`. Since `/` prefixes
+every route in the app, Next's catch-all-propagation step pushes this `@modal` catch-all onto
+`/login`'s matched-appPaths list too, even though `/login` has nothing to do with `(app)` or its
+modal system. Once attached, Next checks whether `/login`'s (now-augmented) tree is complete at the
+`(app)` level — and it can't be, because `/login` has no `(app)`-level children page and
+`app/(app)/` had no bare `default.tsx` fallback for that slot — so `pruneUnrenderableCatchAllRoutes`
+deletes the entire `/login` route as unrenderable, which is what actually produced the error.
+
+**Structural fix**: added `app/(app)/default.tsx` (`export default function Default() { return
+null }`, matching the existing `@modal/default.tsx` convention) — this is precisely what Next's own
+error message asks for ("add... default files for the sibling parallel route slots"), just correctly
+scoped to the `(app)` level rather than `@modal`'s, which already existed and was never the actual
+gap. This file is never reached by real `(app)` navigation (every genuine `(app)` URL resolves its
+own `page.tsx` directly); it exists solely to satisfy the static completeness check for this
+cross-group catch-all-propagation edge case. Verified by rerunning the reproduction script with the
+new file in place: `unmatchedAppPages` comes back empty. `next.config.mjs` needs no flag —
+`deprecated.looseRouteMatching` was tried first and worked, but was a blunt workaround for a
+misdiagnosed cause; removed once the real fix was found, so strict route matching stays fully on.
 
 Verified: `npm run build` clean (zero errors, `/login` listed as a static route, `ƒ Proxy
-(Middleware)` registered). API-level: wrong password → `401`; correct password → `200` + `Set-
-Cookie: session=...`; a follow-up request carrying that cookie → `200` on `/` instead of a
-redirect. Browser-level: unauthenticated `/` redirects to `/login?from=%2F`; the login page renders
-with the app's own `Input`/`Button`/`Label` styling (not bolted-on); submitting a wrong password
-shows "Incorrect password" inline without a page reload. The correct-password path was verified at
-the API level only, not re-typed into the browser, to avoid passing the real `APP_PASSWORD` as a
-plaintext tool-call parameter.
+(Middleware)` registered, no `looseRouteMatching` flag). API-level: wrong password → `401`; correct
+password → `200` + `Set-Cookie: session=...`; a follow-up request carrying that cookie → `200` on
+`/` instead of a redirect. Browser-level: unauthenticated `/` redirects to `/login?from=%2F`; the
+login page renders with the app's own `Input`/`Button`/`Label` styling (not bolted-on); submitting a
+wrong password shows "Incorrect password" inline without a page reload. The correct-password path
+was verified at the API level only, not re-typed into the browser, to avoid passing the real
+`APP_PASSWORD` as a plaintext tool-call parameter.
 
 The other half of that Phase 8 line, switching from dev auto-push to real migrations before
 deploy, is still unstarted.

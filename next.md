@@ -11,11 +11,13 @@ Every phase through Phase 8 is closed. Phase 7 (export and compilations) is full
 8's search and login lines are both closed: login is a single shared password gate (`proxy.ts` +
 `/api/login` against `APP_SECRET`/`APP_PASSWORD`), `CLAUDE.md` hard rule 12 updated to describe it
 as the one sanctioned exception to "no auth code." The gate hit one real bug — Next.js 16's strict
-route matching flagged `/login` over an unrelated `@modal` parallel-route slot in `(app)/layout.tsx`
-— fixed via `deprecated.looseRouteMatching: true` in `next.config.mjs` (Next's own documented
-escape hatch for this exact false positive). `npm run build` is clean and the full flow (wrong
-password, correct password, cookie, authenticated access, unauthenticated redirect) is verified
-working, not just written. Phase 8's *other* half (switching off dev auto-push to real migrations
+route matching flagged `/login`, root-caused by reproducing Next's actual matching algorithm
+directly: `(app)/@modal/[...catchAll]/page.tsx`'s catch-all collapses to a global base path and
+gets spuriously attached to `/login`, which then fails a slot-completeness check for `(app)` that
+`/login` has nothing to do with. Fixed structurally with `app/(app)/default.tsx` (the real missing
+fallback), not a config flag — strict route matching stays fully on. `npm run build` is clean and
+the full flow (wrong password, correct password, cookie, authenticated access, unauthenticated
+redirect) is verified working, not just written. Phase 8's *other* half (switching off dev auto-push to real migrations
 before deploy) is still open — see below.
 
 ## Three loose ends, not blocking S4, don't lose track of these

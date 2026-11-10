@@ -26,13 +26,17 @@ table's listed order (allowed by the plan), but S4–S7 are not built yet.
 
 **Later the same day:** the password gate above was built but not yet verified — `/login` threw a
 Next.js 16 "strict route matching" build error (`app/(auth)/login/page.tsx` didn't match any
-complete route). Root cause: `(app)/layout.tsx`'s `@modal` parallel-route slot, combined with route
-groups being stripped before Next's slot-completeness check runs, so `/login` got swept into a
-slot requirement that has nothing to do with it. Fixed with Next's own documented escape hatch,
-`deprecated.looseRouteMatching: true` in `next.config.mjs`. `npm run build` now passes clean, and
-the full flow was verified: wrong password → 401 with an inline error in the UI; correct password
-→ 200 + session cookie → authenticated requests succeed; unauthenticated requests redirect to
-`/login?from=...`. The password gate is now genuinely done, not just written.
+complete route). Diagnosed by reproducing Next's actual matching algorithm directly against the
+real route tree (see `BUILD_GUIDE.md`'s Phase 8 section for the full trace) rather than guessing:
+the real cause is `(app)/@modal/[...catchAll]/page.tsx`'s catch-all identity collapsing to a global
+base path once `normalizeAppPath` strips both the `(app)` group and the `@modal` slot, so it gets
+spuriously attached to `/login` and then fails a slot-completeness check that has nothing to do
+with `/login`. Fixed structurally by adding `app/(app)/default.tsx` (the actual missing fallback
+Next's error was asking for, just correctly scoped) — no config flag needed, strict route matching
+stays fully on. `npm run build` passes clean, and the full flow was verified: wrong password → 401
+with an inline error in the UI; correct password → 200 + session cookie → authenticated requests
+succeed; unauthenticated requests redirect to `/login?from=...`. The password gate is now genuinely
+done, not just written.
 
 ## Last session (2026-11-09, latest): Lexical crash fixed, Phase 5A closed
 

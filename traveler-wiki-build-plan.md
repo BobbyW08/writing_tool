@@ -728,11 +728,13 @@ Detail is in "Steps U1 to U6: working surfaces" below.
       `/api/login` checks the submitted password against `APP_PASSWORD`. `CLAUDE.md` hard rule 12
       updated to describe this as the one sanctioned exception to "no auth code." Not real
       multi-user auth, not meant to become any. Hit and fixed a Next.js 16 strict-route-matching
-      false positive on `/login` (unrelated `@modal` parallel-route slot on `(app)/layout.tsx`) via
-      `deprecated.looseRouteMatching: true` in `next.config.mjs` — Next's own documented escape
-      hatch for this case. `npm run build` clean; full login flow verified (wrong password, correct
-      password + cookie, authenticated access, unauthenticated redirect). See `BUILD_GUIDE.md`'s
-      Phase 8 section.
+      false positive on `/login`, root-caused by reproducing Next's own matching algorithm directly
+      against the route tree: `(app)/@modal/[...catchAll]/page.tsx`'s catch-all collapses to a
+      global base path and gets spuriously attached to `/login`, which then fails an unrelated
+      `(app)`-level slot-completeness check. Fixed structurally with `app/(app)/default.tsx` (the
+      actual missing fallback), not a config flag — strict route matching stays fully on. `npm run
+      build` clean; full login flow verified (wrong password, correct password + cookie,
+      authenticated access, unauthenticated redirect). See `BUILD_GUIDE.md`'s Phase 8 section.
 - [ ] Switch from dev auto-push to real migrations before deploy. Still not started.
 
 ### Phase 9: Cartographer Studio Design
