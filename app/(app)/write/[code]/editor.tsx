@@ -35,6 +35,8 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $convertFromMarkdownString, $convertToMarkdownString, TRANSFORMERS } from '@lexical/markdown'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
+import { CodeNode } from '@lexical/code-core'
+import { LinkNode } from '@lexical/link'
 import { saveWriting, searchEntities, deleteWriting, type SearchResult } from '@/lib/studio/actions'
 import { type WritingRecord } from '@/lib/studio/queries'
 import { recheckWritingAction } from '@/lib/continuity/actions'
@@ -315,13 +317,22 @@ export function WritingEditor({
       paragraph: 'writing-p',
       heading: { h1: 'writing-h1', h2: 'writing-h2', h3: 'writing-h3' },
       quote: 'writing-quote',
+      code: 'writing-code',
+      link: 'writing-link',
       text: {
         bold: 'font-bold',
         italic: 'italic',
         underline: 'underline',
       },
     },
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, MentionNode],
+    // CodeNode and LinkNode are required here even though this surface has no code/link toolbar
+    // button: the default TRANSFORMERS set (used by both $convertFromMarkdownString below and
+    // MarkdownShortcutPlugin) includes the CODE and LINK transformers, and each declares the node
+    // type it produces as a `dependencies` entry. Lexical checks those dependencies against
+    // initialConfig.nodes at registration time and throws "missing dependency ... for transformer"
+    // if a referenced node type isn't registered -- which crashed every /write/[code] page (the
+    // pre-existing Lexical #173 / React #418 bug, Phase 4 gap #2) before these two were added.
+    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode, LinkNode, MentionNode],
     onError: (err: Error) => console.error('[Writing Editor]', err),
     editorState: () => {
       $convertFromMarkdownString(record.text ?? '', TRANSFORMERS)
@@ -493,6 +504,20 @@ export function WritingEditor({
           color: hsl(var(--muted-foreground));
           font-style: italic;
           margin: 1em 0;
+        }
+        .writing-surface .writing-code {
+          display: block;
+          font-family: ui-monospace, monospace;
+          font-size: 0.9em;
+          background: hsl(var(--muted));
+          border-radius: 0.375rem;
+          padding: 0.75rem 1rem;
+          margin: 1em 0;
+          white-space: pre-wrap;
+        }
+        .writing-surface .writing-link {
+          color: hsl(var(--primary));
+          text-decoration: underline;
         }
       `}</style>
     </div>

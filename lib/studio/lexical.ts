@@ -9,12 +9,18 @@ async function getHeadlessConverter() {
   const { createHeadlessEditor } = await import('@lexical/headless')
   const { HeadingNode, QuoteNode } = await import('@lexical/rich-text')
   const { ListNode, ListItemNode } = await import('@lexical/list')
+  const { CodeNode } = await import('@lexical/code-core')
+  const { LinkNode } = await import('@lexical/link')
   const { $convertToMarkdownString, $convertFromMarkdownString, TRANSFORMERS } =
     await import('@lexical/markdown')
 
   function makeEditor() {
+    // CodeNode and LinkNode are required even though nothing here uses code blocks or links
+    // directly: the default TRANSFORMERS set's CODE and LINK transformers declare them as
+    // dependencies, and $convertFromMarkdownString validates that every transformer's dependency
+    // is registered. Same bug and same fix as app/(app)/write/[code]/editor.tsx -- see its comment.
     return createHeadlessEditor({
-      nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode],
+      nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode, LinkNode],
       onError: () => {},
     })
   }
