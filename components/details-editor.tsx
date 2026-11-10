@@ -173,7 +173,7 @@ export function DetailsEditor({ collection, docId, initial }: DetailsEditorProps
         </div>
       </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext id={`details-${collection}-${docId}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={rows.map(r => r.uid)} strategy={verticalListSortingStrategy}>
           <div className="space-y-1.5">
             {rows.map((row, i) => (

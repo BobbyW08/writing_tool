@@ -704,12 +704,26 @@ Detail is in "Steps U1 to U6: working surfaces" below.
 - [ ] Suggestions: delivered by steps S4 to S6. **Blocked** on the Vercel AI Gateway billing issue
       — see `BUILD_GUIDE.md` "Next up".
 
-### Phase 7: Export and compilations
-- [ ] Markdown export, `compilations` collection, ordered compile, combined export.
+### Phase 7: Export and compilations — **Closed 2026-11-09, migration pending**
+- [x] Markdown export, `compilations` collection, ordered compile, combined export. Code complete,
+      typechecked and built with zero errors. **The `compilations` table's migration
+      (`db/migrations/0010_spicy_talisman.sql`) is generated but not yet applied** — running
+      `drizzle-kit migrate` against `APP_DATABASE_URL` is flagged as a production-deploy action and
+      was denied by the harness's auto-mode classifier outright (no prompt to approve, unlike the
+      G1 migration earlier). Bobby needs to run it by hand:
+      `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`.
+      `/compilations` will 500 until that runs. See `BUILD_GUIDE.md`'s Phase 7 section.
 
 ### Phase 8: Polish and deploy
-- [ ] Search across everything (by name, alias, or code).
+- [x] Search across everything (by name, alias, or code). **Closed 2026-11-09.** See
+      `BUILD_GUIDE.md`'s Phase 8 section.
 - [ ] Switch from dev auto-push to migrations, deploy to Vercel with a real single-user login.
+      **Not started — flagging a conflict, not proceeding without Bobby's say.** This line's "a real
+      single-user login" reads as being in tension with `CLAUDE.md` hard rule 12 ("No login and no
+      auth code, anywhere in this codebase... no login screen, no session, no middleware checking
+      auth"). Hard rules win on conflict, so no auth code was added. The migrations half of this
+      line (moving off dev auto-push) is also not started — worth doing together with whatever
+      Bobby decides about the login line, since both touch the same deploy step.
 
 ### Phase 9: Cartographer Studio Design
 A design system, interface polish, relationship visibility, and optional sample content pass.
@@ -895,7 +909,7 @@ One list, in the order to build. Each item says where its detail lives. Steps ma
 | 12 | W4 | Chronicles |
 | 13 | W5 | Boards: saved node maps, content trees, whiteboards, story map |
 | 14 | W6 | Interactive tables |
-| 15 | Phases 6 to 8 | Gaps view, export, compilations, search, deploy |
+| 15 | Phases 6 to 8 | Gaps view, export, compilations, search, deploy. Gaps view, export/compilations and search done 2026-11-09 (compilations' migration pending Bobby's approval); deploy's login line unstarted, in conflict with hard rule 12 (see Phase 8 section) |
 | 16 | Phase 9 | Cartographer studio design: visual direction, layout, relationship visibility, optional Traveler sample content. Implemented only after every item above is closed |
 
 The user may reorder items 6 to 14, and item 6a can go anywhere after item 6. Items 1 to 5 stay first: item 4 is needed by every later view

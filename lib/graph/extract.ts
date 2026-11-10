@@ -38,4 +38,8 @@ export const TEXT_FIELDS: Record<string, TextFieldSource[]> = {
   chronicles: WORLD_TEXT_FIELDS,
   boards: WORLD_TEXT_FIELDS,
   tables: [...WORLD_TEXT_FIELDS, { kind: 'rows' }],
+  // compilations.items (the ordered code list) is never indexed here -- same as a board's query,
+  // it orders existing records rather than asserting a relationship (see db/schema.ts). Only a
+  // code mentioned in its own summary/body free text gets indexed, same as every other collection.
+  compilations: WORLD_TEXT_FIELDS,
 }

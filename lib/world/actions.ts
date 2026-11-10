@@ -26,6 +26,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   chronicles: schema.chronicles as unknown as AnyTable,
   boards: schema.boards as unknown as AnyTable,
   tables: schema.tables as unknown as AnyTable,
+  compilations: schema.compilations as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -674,6 +675,42 @@ export async function updateEventPinsAction(
     return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }
+  }
+}
+
+// ─── generateAgeCompilationsAction ────────────────────────────────────────────
+// Phase 7: "one compilation per age can be generated automatically as a starting point." Idempotent
+// per hard rule 8 -- skips an age that already has a compilation of the same name, so re-running
+// after creating more ages only fills in the new ones.
+export async function generateAgeCompilationsAction(): Promise<{ created: number; skipped: number; error?: string }> {
+  try {
+    const ages = await appDb.select().from(schema.eras).where(eq(schema.eras.kind, 'age'))
+    if (!ages.length) return { created: 0, skipped: 0 }
+
+    const existing = await appDb.select({ name: schema.compilations.name }).from(schema.compilations).where(eq(schema.compilations.kind, 'age'))
+    const existingNames = new Set(existing.map(e => e.name))
+
+    const events = await appDb.select({ code: schema.events.code, startYear: schema.events.startYear }).from(schema.events)
+
+    let created = 0
+    let skipped = 0
+    for (const age of ages) {
+      if (existingNames.has(age.name)) { skipped++; continue }
+      const items = events
+        .filter(e => e.startYear != null && age.startYear != null && age.endYear != null && e.startYear >= age.startYear && e.startYear <= age.endYear)
+        .sort((a, b) => (a.startYear ?? 0) - (b.startYear ?? 0))
+        .map(e => e.code)
+
+      const code = await assignNextCode('A')
+      const baseSlug = slugify(age.name)
+      const slug = baseSlug ? `${baseSlug}-${code.toLowerCase()}` : code.toLowerCase()
+      await appDb.insert(schema.compilations).values({ code, slug, name: age.name, kind: 'age', items })
+      created++
+    }
+    revalidatePath('/compilations')
+    return { created, skipped }
+  } catch (err) {
+    return { created: 0, skipped: 0, error: String(err) }
   }
 }
 

@@ -35,6 +35,7 @@ const STORY_NAV = [
   { href: "/chronicles", label: "Chronicles" },
   { href: "/boards", label: "Boards" },
   { href: "/tables", label: "Tables" },
+  { href: "/compilations", label: "Compilations" },
 ];
 
 export default async function AppLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {

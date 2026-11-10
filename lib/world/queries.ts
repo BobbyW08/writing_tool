@@ -46,6 +46,7 @@ const WORLD_TABLE_MAP: Record<string, AnyWorldTable> = {
   chronicles: schema.chronicles as unknown as AnyWorldTable,
   boards: schema.boards as unknown as AnyWorldTable,
   tables: schema.tables as unknown as AnyWorldTable,
+  compilations: schema.compilations as unknown as AnyWorldTable,
 }
 
 function getWorldTable(collection: string) {
@@ -865,6 +866,52 @@ export async function resolveCodeLookup(query: string): Promise<{ code: string; 
   return null
 }
 
+// ─── Search across everything (Phase 8) ───────────────────────────────────────
+// By name, alias, or code, across every coded collection. `resolveCodeLookup` above answers "jump
+// to the single best match" for the sidebar box; this answers "show me everything that matches"
+// for the /search page. A full per-collection table scan (same approach as getUnkRecords and
+// getGapRecords above) -- fine at this app's personal, single-user scale.
+export type SearchResult = { code: string; collection: string; name: string; status: string }
+
+export async function searchAcrossAll(query: string): Promise<SearchResult[]> {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const upper = query.trim().toUpperCase()
+
+  const results: SearchResult[] = []
+  for (const collection of ENTITY_SLUGS) {
+    let rows: { code: string; name: string; status: string | null; aliases: unknown }[]
+    if (collection === 'events') {
+      rows = await appDb.select({ code: schema.events.code, name: schema.events.name, status: schema.events.status, aliases: schema.events.aliases }).from(schema.events)
+    } else if (collection === 'stories') {
+      rows = await appDb.select({ code: schema.stories.code, name: schema.stories.name, status: schema.stories.status, aliases: schema.stories.aliases }).from(schema.stories)
+    } else if (collection === 'writing') {
+      // `writing` has no `status`/`aliases` columns (it uses `canonState` instead) -- code/name
+      // match only.
+      const writingRows = await appDb.select({ code: schema.writing.code, name: schema.writing.name }).from(schema.writing)
+      rows = writingRows.map(r => ({ ...r, status: null, aliases: [] }))
+    } else {
+      const table = getWorldTable(collection)
+      if (!table) continue
+      rows = await appDb.select({ code: table.code, name: table.name, status: table.status, aliases: table.aliases }).from(table as never) as typeof rows
+    }
+    for (const r of rows) {
+      const aliases = (r.aliases ?? []) as { alias: string }[]
+      const matches = r.code === upper
+        || r.name.toLowerCase().includes(q)
+        || aliases.some(a => a.alias.toLowerCase().includes(q))
+      if (matches) results.push({ code: r.code, collection, name: r.name, status: r.status ?? 'in_development' })
+    }
+  }
+
+  results.sort((a, b) => {
+    if (a.code === upper && b.code !== upper) return -1
+    if (b.code === upper && a.code !== upper) return 1
+    return a.name.localeCompare(b.name)
+  })
+  return results
+}
+
 // ─── Home hub helpers ─────────────────────────────────────────────────────────
 export async function getCollectionCount(collection: string): Promise<number> {
   if (collection === 'events') {
@@ -994,5 +1041,46 @@ export async function getTableByCode(code: string) {
     tags: resolveTagIds((table.tagIds ?? []) as number[]),
     columns: (table.columns ?? []) as TableColumn[],
     rows: (table.rows ?? []) as TableRow[],
+  }
+}
+
+// ─── Compilations (Phase 7) ────────────────────────────────────────────────────
+// An ordered set of events and entries. `items` on the row is just an array of codes (order =
+// compile order, same spirit as tables.rows); this resolves each one to a display-ready row and
+// silently drops a code whose record was since deleted rather than erroring the whole page.
+export type CompilationKind = 'age' | 'chapter' | 'custom'
+export type CompilationItem = { code: string; collection: string; name: string; status: string }
+
+export async function getCompilationsList() {
+  await getAllTags()
+  const docs = await appDb.select().from(schema.compilations).orderBy(schema.compilations.name)
+  return {
+    docs: docs.map(d => ({ ...d, tags: resolveTagIds((d.tagIds ?? []) as number[]) })),
+    totalDocs: docs.length,
+  }
+}
+
+export async function resolveCompilationItems(codes: string[]): Promise<CompilationItem[]> {
+  const resolved = await Promise.all(codes.map(async (code) => {
+    const collection = PREFIX_TO_SLUG[code[0]?.toUpperCase() ?? '']
+    if (!collection) return null
+    const doc = await getEntryByCode(collection, code) as Record<string, unknown> | null
+    if (!doc) return null
+    return { code: code.toUpperCase(), collection, name: String(doc.name ?? code), status: String(doc.status ?? 'in_development') }
+  }))
+  return resolved.filter((r): r is CompilationItem => r !== null)
+}
+
+export async function getCompilationByCode(code: string) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.compilations).where(eq(schema.compilations.code, code.toUpperCase())).limit(1)
+  const compilation = rows[0]
+  if (!compilation) return null
+  const codes = (compilation.items ?? []) as string[]
+  return {
+    ...compilation,
+    tags: resolveTagIds((compilation.tagIds ?? []) as number[]),
+    kind: compilation.kind as CompilationKind,
+    items: await resolveCompilationItems(codes),
   }
 }

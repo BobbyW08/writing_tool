@@ -554,6 +554,19 @@ export const tables = pgTable('tables', {
   index('tables_parent_idx').on(t.parentId),
 ])
 
+// An ordered set of events and entries, typed as age, chapter or custom (step Phase 7). `items`
+// is the ordered list of codes -- array order is the compile order, same spirit as `tables.rows`.
+// A compilation never creates link-index edges itself -- it only orders existing records, same as
+// a board only draws them (see traveler-wiki-build-plan.md "boards").
+export const compilations = pgTable('compilations', {
+  ...worldSharedCols(),
+  kind: text('kind').notNull().default('custom'), // age | chapter | custom
+  items: jsonb('items').$type<string[]>().default(sql`'[]'::jsonb`),
+}, (t) => [
+  index('compilations_code_idx').on(t.code),
+  index('compilations_parent_idx').on(t.parentId),
+])
+
 // ─── Cultures join tables (kept as denorm columns in world tables, not separate) ─
 
 // cultures.homelands and cultures.languages are many-to-many.

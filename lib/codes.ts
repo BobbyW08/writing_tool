@@ -19,6 +19,7 @@ export const ENTITY_PREFIXES = {
   chronicles: 'H', // a timeline paired with maps (step W4)
   boards: 'D', // saved node maps, trees, story maps, whiteboards (step W5)
   tables: 'N', // interactive tables (step W6)
+  compilations: 'A', // ordered events and entries, assembled into one Markdown export (Phase 7)
 } as const
 
 export type EntitySlug = keyof typeof ENTITY_PREFIXES
@@ -33,10 +34,9 @@ export const TAG_PREFIX = 'T'
 // guess and needs Bobby to double check it. He removes the tag once he has confirmed the record.
 export const UNK_TAG = 'UNK'
 
-// Reserved for later steps: the collection isn't built yet, but the prefix is claimed so a code
+// Reserved for a later step: the collection isn't built yet, but the prefix is claimed so a code
 // typed in text today (or a link index row added once the collection exists) never collides.
-export const COMPILATION_PREFIX = 'A' // compilations (chapters and ages assembled from events and entries)
-export const BEAT_PREFIX = 'B'        // planned story beats (step S5)
+export const BEAT_PREFIX = 'B' // planned story beats (step S5)
 
 export const ENTITY_SLUGS = Object.keys(ENTITY_PREFIXES) as EntitySlug[]
 
@@ -48,7 +48,6 @@ export const PREFIX_TO_SLUG: Record<string, string> = {
   [RELATIONSHIP_PREFIX]: 'relationships',
   [FLAG_PREFIX]: 'continuity-flags',
   [TAG_PREFIX]: 'tags',
-  [COMPILATION_PREFIX]: 'compilations',
   [BEAT_PREFIX]: 'beats',
 }
 

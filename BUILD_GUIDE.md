@@ -20,12 +20,20 @@ drag-to-create-relationship) and U6 (story board drag and drop) are also closed 
 sections below. U4 and U6's drag-and-drop gestures themselves are flagged for Bobby to confirm by
 hand (browser automation couldn't exercise either; the code review backing that call is in each
 step's section). Only U3 (a "Keep writing" section on story pages) remains in Phase 5A, blocked
-on the pre-existing `/write/[code]` crash (Phase 4 gap #2). Build passes zero errors. See the gaps flagged at the end of the Phase 4 section before touching
-anything AI- or writing-related again. The Vercel AI Gateway billing block (Phase 4 gap #1) was
-re-checked a third time this session (Bobby said it was resolved; it was not — same
-`customer_verification_required` error, including after a 90s wait for propagation) — still
-needs resolving account-side before S4 can start; don't keep re-spiking it blindly. Pivoted to
-Phase 6 (Gaps view, unblocked) while that gets sorted out.**
+on the pre-existing `/write/[code]` crash (Phase 4 gap #2). **Phase 7 (export and compilations) and
+Phase 8's search are also closed this session — see their sections below. Phase 7 has one loose
+end: the new `compilations` table's migration is generated (`db/migrations/0010_spicy_talisman.sql`)
+but not applied — the harness denied running `drizzle-kit migrate` against `APP_DATABASE_URL`
+outright (a production-deploy action), so Bobby needs to run it by hand before `/compilations`
+works (see Phase 7's section for the exact command). Phase 8's other line ("deploy... with a real
+single-user login") was flagged, not built — it reads as conflicting with hard rule 12 (no auth
+code anywhere); needs Bobby's call before anyone touches it.** Build passes zero errors. See the
+gaps flagged at the end of the Phase 4 section before touching anything AI- or writing-related
+again. The Vercel AI Gateway billing block (Phase 4 gap #1) was re-checked a third time this
+session (Bobby said it was resolved; it was not — same `customer_verification_required` error,
+including after a 90s wait for propagation) — still needs resolving account-side before S4 can
+start; don't keep re-spiking it blindly. Pivoted to Phase 6 (Gaps view, unblocked), then Phase 7
+and Phase 8's search (also unblocked), while that gets sorted out.**
 
 ### Step W6: interactive tables
 
@@ -1095,6 +1103,120 @@ Drizzle + Neon stack in November 2026 to simplify deployment and remove the admi
 
 ---
 
+### Phase 7: export and compilations — closed 2026-11-09, migration pending
+
+**Scope**: "Export as Markdown" on every entry and event, a new `compilations` collection (code A,
+an ordered set of events and entries typed as age/chapter/custom), drag-to-reorder on its items,
+"Export compilation" (joins each item's own export in order), and a "Generate one per age" starter.
+
+- **`lib/export/markdown.ts`** (new): `buildEntryMarkdown(collection, code)` — header, a `Status:`
+  line (via `STATUS_OPTIONS`' labels), summary, body, a `## Details` list, and a `## Connections`
+  list pulled from `getLinksForCode()` (both `relationship`-sourced and `field`-sourced edges, so an
+  event's `involves` list shows up here too, without hand-walking `event_involves`). The exact byte
+  format isn't a verified round-trip of the original story-bible/catalog source (that migration
+  script is gone from `scripts/`) — built from the plan's own description of the shape instead
+  ("header, Status line, labeled details, relationships written out"), so a round trip into some
+  *other* tool isn't guaranteed lossless, only that the file is complete and readable.
+  `buildCompilationMarkdown(name, items)` joins each item's own export with a `---` separator.
+- **`app/api/export/[collection]/[code]/route.ts`** and **`app/api/export/compilation/[code]/route.ts`**
+  (new): `GET`, `text/markdown` with a `Content-Disposition: attachment` filename, so the browser
+  downloads a `.md` file straight from the Export link.
+- **`components/record-actions.tsx`**: added an "Export as Markdown" link, gated to
+  `WORLD_SLUGS` + `events` (`EXPORTABLE_COLLECTIONS`) — stories, writing, boards, tables and
+  compilations itself don't get this button, per the plan's "every entry and event."
+- **`db/schema.ts`**: new `compilations` table (`worldSharedCols()` + `kind` + `items: string[]`).
+  `items` is just the ordered array of codes — array order *is* the compile order, same spirit as
+  `tables.rows`; no separate `compilation_items` join table, unlike the old Payload schema. Never
+  creates link-index edges itself (same comment and reasoning as `boards` — it orders existing
+  records, it doesn't assert a relationship), but its own `body`/`details` text fields still get
+  scanned for code mentions like every other collection (`lib/graph/extract.ts`'s
+  `compilations: WORLD_TEXT_FIELDS`).
+- **`lib/codes.ts`**: `compilations: 'A'` moved from the old "reserved prefix" comment into
+  `ENTITY_PREFIXES` proper (joining `ENTITY_SLUGS` the same way `boards`/`tables` already do) — the
+  prefix letter itself didn't change, so no existing code or text mention is affected.
+- **Wired into the three existing per-collection maps that don't share one source of truth**
+  (`lib/world/queries.ts`'s and `lib/world/actions.ts`'s `WORLD_TABLE_MAP`s, `lib/graph/sync.ts`'s
+  own copy) — the same three-places-to-touch pattern every other `worldSharedCols()` collection
+  already follows in this codebase; not something this session introduced.
+- **`lib/world/queries.ts`**: `getCompilationsList()`, `getCompilationByCode()` (resolves each
+  stored code to `{code, collection, name, status}` via `getEntryByCode`, silently dropping a code
+  whose record was since deleted rather than erroring the page), `resolveCompilationItems()`.
+- **`components/compilation-items-editor.tsx`** (new): `@dnd-kit/sortable` drag-to-reorder, named
+  explicitly in the plan's "Export and compilations" section — same structure as the pre-existing
+  `DetailsEditor`, persisting via `updateFieldAction('compilations', id, 'items', codes)`. "Add by
+  code" rejects a code outside `WORLD_SLUGS` + `events` with a message, rather than silently
+  accepting any collection the generic resolver would technically allow.
+- **`components/new-compilation-form.tsx`**, **`components/generate-age-compilations-button.tsx`**,
+  **`app/(app)/compilations/page.tsx`**, **`app/(app)/compilations/[code]/page.tsx`** (all new): the
+  same list+create+detail shape as `/tables`, down to reusing `RecordActions` and `EditableField`
+  unmodified.
+- **`generateAgeCompilationsAction()`** (`lib/world/actions.ts`): "one compilation per age can be
+  generated automatically as a starting point." For every `eras` row with `kind = 'age'` lacking a
+  compilation of the same name already, creates one (`kind: 'age'`) populated with every event
+  whose `startYear` falls inside the age's `startYear`-`endYear` range, ordered by year. Idempotent
+  per hard rule 8 — re-running after adding more ages only fills in the new ones, never duplicates.
+- **Real bug found and fixed while building this, unrelated to compilations**: `components/
+  details-editor.tsx`'s pre-existing `DndContext` had no explicit `id` prop — the exact same class
+  of hydration bug documented in the U5/U6 section above (dnd-kit's auto-incrementing
+  `DndDescribedBy-N` counter doesn't reset across client-side navigations in one tab). Fixed by
+  giving it a stable `id={`details-${collection}-${docId}`}`, and gave the new compilation items
+  editor's own `DndContext` a stable `id={`compilation-${code}`}` from the start.
+- **Typecheck and build**: `npx tsc --noEmit` and `npm run build` both zero errors, including every
+  new route (`/compilations`, `/compilations/[code]`, `/api/export/[collection]/[code]`,
+  `/api/export/compilation/[code]`). One real TS error along the way, fixed: `writing` has no
+  `status`/`aliases` columns (it uses `canonState` instead, same fact already documented at
+  `getGapRecords` above) — `searchAcrossAll`'s `writing` branch (Phase 8, below) needed its own,
+  narrower `select`.
+- **Migration generated but NOT applied**: `db/migrations/0010_spicy_talisman.sql` — purely
+  additive (one new `CREATE TABLE`, two new indexes, no drops, no column changes to any existing
+  table). Running `drizzle-kit migrate` against `APP_DATABASE_URL` is flagged by the harness as a
+  production-deploy action; unlike step G1's migration earlier (which prompted for approval and was
+  approved), this one was **denied outright by the auto-mode classifier with no prompt** — this
+  session has no way to apply it. **Bobby needs to run it by hand before `/compilations` will
+  work** (it currently 500s — the table doesn't exist yet):
+  `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
+  (same command G1 used, `drizzle-kit`'s CLI doesn't load `.env.local` on its own).
+- **Not live-tested, for the same reason**: everything under `/compilations` needs the table to
+  exist first. Verified by `npm run build` (every route compiles and typechecks) and code review
+  only. `RecordActions`' new "Export as Markdown" link and the two export API routes don't depend
+  on the new table (`buildEntryMarkdown` only reads `getEntryByCode`/`getLinksForCode`, both
+  pre-existing) — those are safe to try once the app is running, even before the migration lands.
+
+### Phase 8: search — closed 2026-11-09
+
+- **`lib/world/queries.ts`**: `searchAcrossAll(query)` — by name, alias, or exact code, across
+  every `ENTITY_SLUGS` collection. A full per-collection table scan (same approach as the
+  pre-existing `getUnkRecords`/`getGapRecords`), since alias matching lives inside a JSONB array
+  and can't be pushed into a single SQL `LIKE`; fine at this app's personal, single-user scale.
+- **`app/(app)/search/page.tsx`** (new): `?q=` results list, grouped by nothing in particular (one
+  flat list, collection shown as a tag on the right, matching the plan's "search across
+  everything"). An exact code with exactly one match redirects straight to the record instead of
+  showing a one-row results page — preserves the old sidebar box's jump-to-code feel.
+- **`components/code-lookup.tsx`**: the sidebar box's "Not found" dead end now falls through to
+  `/search?q=...` instead — the box's existing exact-match behavior (code or best name match) is
+  unchanged for anything it already handled, so this only improves what used to be a dead end.
+  Also dropped the box's unused `CODE_RE` constant and `error` state while touching this file
+  (dead code from before this session, not load-bearing).
+- **Typecheck and build**: covered in the Phase 7 entry above (both features were typechecked and
+  built together).
+- **Verified**: by `npm run build` only (`/search` doesn't depend on the pending `compilations`
+  migration — it reads existing tables — so it's safe to try live once the dev server is up; not
+  separately browser-tested this session, consistent with the standing "don't over-test" guidance
+  for a page with no stateful gesture to verify beyond a normal server-rendered list).
+
+**Flagging, not building**: Phase 8's other line, "deploy to Vercel with a real single-user login,"
+reads as being in direct tension with `CLAUDE.md` hard rule 12 ("No login and no auth code,
+anywhere in this codebase... no login screen, no session, no middleware checking auth"). Hard rules
+win on conflict, so no auth code was written. This needs Bobby's call: either that plan line is
+stale (the tool was always meant to ship with no gate in front of it, matching hard rule 12 and the
+"single user, no login" framing throughout this file), or hard rule 12 needs updating first. Either
+way, deciding that isn't something to guess at from here. The other half of that line — switching
+from dev auto-push to real migrations before deploy — is also unstarted, and probably worth doing
+together with whatever Bobby decides about the login question, since both are part of the same
+"deploy to Vercel" step.
+
+---
+
 ## Next up (in order)
 
 The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
@@ -1111,9 +1233,12 @@ The master order is in `traveler-wiki-build-plan.md` ("Build order"). In short:
    section). U1, U2, U4, U5 and U6 are all closed. U3 (a "Keep writing" section on story pages)
    stays **blocked** on the pre-existing `/write/[code]` Lexical #173 / React #418 crash, Phase 4
    gap #2, since both pages share the same editor component. This is the only Phase 5A item left.
-3. **Phases 7 and 8.** Export, compilations, search, deploy. Phase 6's Gaps view is now closed
-   (see its section above); Review (UNK) was already done in Phase 3; Suggestions stays blocked on
-   S4-S6 above. Phases 7-8 are also unblocked while S4-S7 waits on the billing fix.
+3. **Phase 7 and Phase 8's search are now closed** (see their sections above) — the only thing
+   left from that trio is **applying the `compilations` migration**
+   (`db/migrations/0010_spicy_talisman.sql`, purely additive) by hand:
+   `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
+   — and **Phase 8's deploy line**, which stays unstarted pending Bobby's call on the hard-rule-12
+   conflict (see Phase 8's section above for the exact wording).
 
 Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[code]` (Phase 4 gap
 #2) — blocks using the Writing Studio day to day, worth fixing before leaning on it further.
@@ -1140,7 +1265,11 @@ Also still open: the pre-existing Lexical #173 / React #418 crash on `/write[cod
   migrations as `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`.
 - Applying a schema migration (`drizzle-kit migrate`) against `APP_DATABASE_URL` is flagged by the
   harness as a production-deploy action — ask before running it, same as any other hard-to-reverse
-  action against shared state.
+  action against shared state. For step G1 this surfaced as an approval prompt (approved and
+  applied). For the `compilations` table (Phase 7, this session) the same command was instead
+  **denied outright by the auto-mode classifier, with no prompt at all** — so from inside an
+  auto-mode session, a migration may simply not be runnable, not just gated. Generate it
+  (`drizzle-kit generate`, safe, local-only) and leave applying it for Bobby.
 - shadcn popovers and dialogs rendered transparent until the theme variables were added to
   `globals.css`. If you add components, check they render opaque.
 - Browser automation clicks intermittently miss. Retry, and check server logs for whether the
