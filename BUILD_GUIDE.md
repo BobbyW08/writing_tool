@@ -35,7 +35,7 @@ again. The Vercel AI Gateway billing block (Phase 4 gap #1) was re-checked a thi
 session (Bobby said it was resolved; it was not — same `customer_verification_required` error,
 including after a 90s wait for propagation) — still needs resolving account-side before S4 can
 start; don't keep re-spiking it blindly. Pivoted to Phase 6 (Gaps view, unblocked), then Phase 7
-and Phase 8's search (also unblocked), while that gets sorted out.**
+and Phase 8's search (also unblocked), while that gets sorted out.
 
 ### Step W6: interactive tables
 
@@ -1106,25 +1106,37 @@ Data layer files:
 - `lib/continuity/queries.ts` - read side: open decisions/updates, decision log, one flag, entity history, check summary (Phase 4)
 - `lib/continuity/{analyze,plan,text,types,constants,links}.ts` - the pure/shared logic (constants.ts fixed in Phase 4, the rest unchanged)
 
-Active routes under `app/(app)/`:
+Active routes under `app/(app)/` (full list as of the 2026-11-09 build, 48 routes total — kept
+here as a snapshot; `npm run build`'s own route table is always the source of truth):
 - `/` home hub
 - `/[entityType]` list, `/[entityType]/new` create, `/[entityType]/[slug]` read/edit
+- `/(.)view/[collection]/[code]` — intercepting route for the large record popup (U5), backed by
+  `/view/[collection]/[code]` as the direct, non-popup fallback
 - `/events`, `/events/new`, `/events/[slug]`
-- `/stories`, `/stories/new`, `/stories/[code]`
+- `/stories`, `/stories/new`, `/stories/[code]` (U3's "Keep writing" section lives here)
 - `/write`, `/write/[code]`
 - `/timeline`
 - `/node-map`
-- `/story-board`
+- `/story-board` (U6 drag and drop)
 - `/continuity`, `/continuity/[flagCode]`
 - `/snippets`, `/snippets/new`, `/snippets/[id]` (stubbed)
 - `/link-health`
 - `/maps`, `/maps/[code]` (W3)
 - `/pins/[code]` (thin redirect to its owning map, W3)
+- `/chronicles`, `/chronicles/[code]` (W4)
+- `/boards`, `/boards/[code]` (W5)
+- `/tables`, `/tables/[code]` (W6)
+- `/compilations`, `/compilations/[code]` (Phase 7 — 500s until the pending migration is applied)
+- `/gaps` (Phase 6)
+- `/review` (UNK queue, Phase 3)
+- `/search` (Phase 8)
 
 Active routes under `app/api/`:
 - `/api/media`, `/api/uploads/[...path]`
 - `/api/codes/[code]/links`
 - `/api/graph`, `/api/graph/[code]`, `/api/graph/orphans`, `/api/graph/broken`, `/api/graph/path`
+- `/api/relationships/[code]` (U5 edge editing)
+- `/api/export/[collection]/[code]`, `/api/export/compilation/[code]` (Phase 7)
 
 ---
 

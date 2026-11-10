@@ -137,9 +137,10 @@ file owns, with where each sits in that list.
 
 - [x] **S0.** Gate 2C data applied (build order item 1). Done 2026-10-20.
 - [x] **S1. Writing Studio** (item 2). Complete 2026-10-20. Editor: Lexical via `@lexical/react`. Routes: `/write` list + `/write/[code]` editor. Round-trip OK on W1-W3. `canonState` field live.
-- [ ] **S2. Front end shell and rewire** (item 3). Icon rail, side panel, canvas layout, dashboard.
+- [x] **S2. Front end shell and rewire** (item 3). Icon rail, side panel, canvas layout, dashboard.
       Delivered with Phase 3 of the build plan (read pages on the data layer, retire the old data
-      layer) and step W1 (world tree, infobox, home hub).
+      layer) and step W1 (world tree, infobox, home hub). Checkbox corrected 2026-11-09 — this was
+      already live, just never flipped.
 - [x] **S3. Timeline and node map** (item 6). Phase 5 of the build plan (timeline, convergence, node
       map, relationship view), delivered with step W2 (eras, lanes). The node map reads the link index (step G1).
       Done 2026-11-09.

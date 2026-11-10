@@ -2,7 +2,69 @@
 
 Paste this into a new session alongside CLAUDE.md to get a model up to speed.
 
-## Last session (2026-11-08d): Phase 4, the continuity check port
+## Last session (2026-11-09, latest): Lexical crash fixed, Phase 5A closed
+
+This entry consolidates everything since 2026-11-08d below — several sessions' worth of progress
+that never got a SESSION.md entry written along the way. Full detail for all of it is in
+`BUILD_GUIDE.md`'s "Current state" and each phase's own section; this is the condensed version.
+
+**Since 2026-11-08d, in order:** Phase 5 (views: sidebar filter, multi-lane convergence, node map
+and relationship view on the link index, story board, timeline polish — closed 2026-11-09, step
+S3/W2 delivered with it). Phase 5A, steps U1-U6 (header actions; edit relationships + place
+history in place; table and status board views on every collection list page; record popups with
+movable nodes, edge editing and drag-to-create-relationship; story board drag and drop) — all
+closed, with U4/U6's drag-and-drop gesture itself flagged for Bobby to confirm by hand (browser
+automation couldn't exercise dnd-kit's drag start under simulated pointer input). Phase 6 (Gaps
+view, `/gaps`) — closed; Suggestions stays blocked on the AI Gateway billing issue. Phase 7
+(Markdown export for any entry, the new `compilations` collection with drag-reorder and combined
+export) — closed, but its migration (`db/migrations/0010_spicy_talisman.sql`, purely additive) is
+generated and **not applied**: the harness denies `drizzle-kit migrate` against `APP_DATABASE_URL`
+outright as a production-deploy action, no prompt. Bobby needs to run it by hand:
+`node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
+— `/compilations` 500s until then. Phase 8's search (`/search`, exact-code or name/alias match
+across every collection) — closed; Phase 8's other line ("deploy with a real single-user login")
+is flagged, not built — it conflicts with `CLAUDE.md` hard rule 12 (no auth code anywhere);
+needs Bobby's call on which one is stale before anyone touches it.
+
+**This session specifically:** Found and fixed the real root cause of the `/write/[code]` crash
+that had blocked step U3 across multiple sessions (tracked as "Phase 4 gap #2" below, and
+previously guessed to be a generic hydration mismatch — it wasn't). The actual cause: the default
+Lexical Markdown `TRANSFORMERS` set includes CODE and LINK transformers whose `dependencies`
+arrays name `CodeNode`/`LinkNode`; neither was registered in `initialConfig.nodes`, so Lexical's
+own dependency check threw synchronously on every `/write/[code]` mount regardless of content.
+Fixed by registering both node types (`@lexical/code-core`, `@lexical/link` — both already
+present transitively at the matching `0.50.0`, now direct dependencies) in both
+`app/(app)/write/[code]/editor.tsx` (client) and `lib/studio/lexical.ts` (server headless
+converter). Verified live on W1 and W3 with no console exceptions. Committed separately
+(`646a9f6`) from the feature work it unblocked.
+
+With that fixed, built **step U3** — a "Keep writing" section on `/stories/[code]` that embeds
+the real `WritingEditor` directly (not a fork), with a picker across the story's writing records,
+a "+ New" option, and a record list below linking to `/write/[code]`. Added a `getWritingListByStory`
+query, an optional `storyId` on `createWriting`, and an `onFieldsSaved` callback on `WritingEditor`
+so the embedded list stays in sync without a full reload. Also added the "floating = suggested age
+range" label wherever a story's floating state is shown (the story page and the story board's
+floating lane/cards) — `lib/stories.ts`'s `floatingRangeText()`. Verified live against real data
+(switched records, created and then cleaned up one throwaway test record). Committed (`d780aab`).
+**This closes Phase 5A completely (U1-U6 all done).**
+
+Also corrected a stale-documentation issue found while updating these docs: `traveler-wiki-build-plan.md`'s
+"Step W1" section and `docs/PLAN_WRITING_AND_AI.md`'s S2 line were both still unchecked despite
+both already saying "Delivered with Phase 3 and step S2" — the shell, world tree, infobox and home
+hub were genuinely built long ago; the checkboxes were just never flipped. Spot-checked the actual
+code (`components/world-tree.tsx`, `components/infobox.tsx`, `lib/infobox.ts`, the home page) to
+confirm before correcting rather than taking the stale note at face value.
+
+Committed: yes, two commits (`646a9f6` the Lexical fix, `d780aab` step U3).
+
+**What's left, and all three need Bobby, not more building:** applying the `compilations`
+migration by hand; a decision on the Phase 8 login-vs-hard-rule-12 conflict; and the Vercel AI
+Gateway `customer_verification_required` billing error (re-checked three times now with no
+change — likely an account/team-scoping mismatch, not something retrying from here will fix).
+Phase 9 (Cartographer Studio Design) is explicitly scoped to start only once every phase above is
+closed, so it's waiting on these too.
+
+## Session (2026-11-08d): Phase 4, the continuity check port
 
 Ported the whole continuity check (`lib/continuity/run-check.ts`, `actions.ts`, `queries.ts`) from
 its pre-Payload-removal implementation onto `appDb`/Drizzle, following `lib/world/`'s server-action
@@ -81,13 +143,20 @@ Committed: not yet — pending user review of this session's changes.
 
 ## What is next
 
-See `next.md` for the full instructions. In short:
+See `next.md` for the full instructions. In short, every base-build phase through Phase 5A is now
+closed (Phase 5 views, Phase 5A U1-U6, Phase 6 Gaps view, Phase 7 export/compilations, Phase 8
+search), and the `/write/[code]` Lexical crash is fixed. Three items are left, all needing Bobby
+before anyone can go further — see the latest session entry above for the full detail:
 
-1. **Phase 5 (views): filter, convergence, node map, relationship view, story board.** Builds on
-   the G1 link index, which is done.
-2. Before that becomes the day-to-day focus: a credit card needs adding to the Vercel account's
-   AI Gateway billing, and the pre-existing `/write/[code]` Lexical crash (found during Phase 4,
-   not caused by it) is worth a look — see `BUILD_GUIDE.md`'s Phase 4 section for both.
+1. **Apply the `compilations` migration by hand** (the harness won't run it) —
+   `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`.
+2. **Decide the Phase 8 login question** — its plan line conflicts with `CLAUDE.md` hard rule 12.
+3. **Fix the Vercel AI Gateway billing block** (`customer_verification_required`) account-side —
+   this is what S4-S7 (the AI foundation, Story Builder, Ask AI, canon check extensions) are
+   waiting on.
+
+Phase 9 (Cartographer Studio Design) is explicitly scoped to start only once every phase above is
+closed, so it's also waiting on items 1 and 2.
 
 ## Stack reference (quick)
 

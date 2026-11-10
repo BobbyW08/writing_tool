@@ -656,10 +656,16 @@ applied to live `APP_DATABASE_URL` with permission asked each time.
 **Known gaps to flag to Bobby, not fixed in this phase:**
 1. **AI Gateway needs a credit card on file** on the Vercel account before any continuity check
    can actually complete (see link in the error message stored on a failed check).
-2. **Pre-existing Writing Studio bug, unrelated to this phase**: opening any `/write/[code]`
-   editor page throws a Lexical error #173 (cascading from a React #418 hydration mismatch) in
-   the browser console, reproducing on W1 and W3 alike — found while testing Phase 4's "Check
-   against canon" button, not caused by it. Not investigated or fixed here.
+2. **Pre-existing Writing Studio bug, unrelated to this phase — FIXED 2026-11-09.** Opening any
+   `/write/[code]` editor page threw a Lexical error #173 (cascading from a React #418 hydration
+   mismatch) in the browser console, reproducing on W1 and W3 alike — found while testing Phase
+   4's "Check against canon" button, not caused by it, and not investigated further at the time.
+   Root cause turned out not to be the hydration-mismatch guess above: the default Lexical
+   Markdown `TRANSFORMERS` set includes CODE/LINK transformers whose declared dependencies
+   (`CodeNode`, `LinkNode`) were never registered in `initialConfig.nodes`, so Lexical's own
+   dependency check threw on every mount. Fixed by registering both node types in
+   `app/(app)/write/[code]/editor.tsx` and `lib/studio/lexical.ts`. See `BUILD_GUIDE.md`'s U3
+   section for the full fix and live verification; this unblocked step U3.
 3. **Draft vs. Canon "never spreads"** (`docs/PLAN_WRITING_AND_AI.md`, "Decisions already made"
    #2-3) is not yet implemented: today the check auto-applies new records/details from Draft
    writing exactly as it does from Canon writing, matching the pre-existing mechanism this phase
@@ -953,14 +959,17 @@ Done 2026-11-08.
       data except where exercised by the scripted test above (cleaned up after). See `BUILD_GUIDE.md`
       "Current state" for the full report.
 
-## Step W1: world tree, infobox, home hub, images
+## Step W1: world tree, infobox, home hub, images — **Closed** (delivered with Phase 3 and S2;
+checkboxes below were never flipped at the time — confirmed still live and corrected 2026-11-09)
 
 Delivered with Phase 3 and step S2.
-- [ ] `media` upload collection, `image` on every entry, `inInfobox` on detail rows, `lib/infobox.ts`.
-- [ ] The shell: icon rail, side panel, canvas.
-- [ ] World tree with its four modes, filter, add entry, drag to re-parent.
-- [ ] Infobox at the top right of every read page.
-- [ ] Home hub with quick-create tiles.
+- [x] `media` upload collection, `image` on every entry, `inInfobox` on detail rows, `lib/infobox.ts`.
+- [x] The shell: icon rail, side panel, canvas.
+- [x] World tree with its four modes (by type, by story, by culture, by era), filter, add entry,
+      drag to re-parent.
+- [x] Infobox at the top right of every read page.
+- [x] Home hub with quick-create tiles (one per world collection, status bar for UNK/placeholders,
+      recent edits).
 
 ## Step W2: eras and the timeline canvas
 

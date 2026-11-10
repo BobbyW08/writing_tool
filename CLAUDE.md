@@ -81,7 +81,7 @@ them, not a replacement.
 | H | `chronicles` | A timeline paired with maps (step W4) |
 | D | `boards` | Saved node maps, trees, story maps and whiteboards (step W5) |
 | N | `tables` | Interactive tables (step W6) |
-| A | `compilations` | Reserved for Phase 7 |
+| A | `compilations` | An ordered group of entries for combined export (Phase 7) |
 | X | `relationships` | A link between two entries |
 | Q | `continuity-flags` | A continuity question or notice |
 | T | `tags` | A tag (UNK is built in, and so is AI suggested) |

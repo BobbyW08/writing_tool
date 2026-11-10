@@ -4,84 +4,68 @@ This file holds the instructions for the next phase/step/task in the build, in a
 with `traveler-wiki-build-plan.md` and the rules in `CLAUDE.md`. Update it at the end of every
 session: replace its contents with the instructions for whatever comes after.
 
-## Do this first: two things found during Phase 4, neither fixed yet
+## Where things stand (2026-11-09)
 
-Both are flagged in detail in `BUILD_GUIDE.md`'s "Phase 4" section and
-`traveler-wiki-build-plan.md`'s Phase 4 checklist. Neither blocks starting Phase 5, but both
-block actually using the continuity check or the Writing Studio day to day, so raise them with
-Bobby before or alongside starting Phase 5 — don't silently work around either.
+Every phase through Phase 5A is closed: Phase 5 (views), Phase 5A (steps U1-U6, working surfaces),
+Phase 6 (Gaps view), Phase 7 (export and compilations), and Phase 8's search. The pre-existing
+`/write/[code]` Lexical crash (Phase 4 gap #2) is fixed. Full detail for all of it is in
+`BUILD_GUIDE.md`'s "Current state" and each phase's own section.
 
-1. **The Vercel account's AI Gateway has no credit card on file.** A real continuity check
-   against live writing (W3) ran the whole pipeline correctly and failed only at the network
-   call, with this message (also stored verbatim on the writing's `checkError`):
-   "AI Gateway requires a valid credit card on file to service requests." The fix is entirely
-   account-side (Bobby adding a card in the Vercel dashboard); there's nothing to build.
-2. **Pre-existing bug, found while testing Phase 4, not caused by it**: opening any
-   `/write/[code]` editor page (confirmed on both W1 and W3) throws a Lexical error #173
-   cascading from a React #418 hydration mismatch, in the browser console. The page may render
-   broken or the tab may hang. Likely cause: the editor's
-   `editorState: () => $convertFromMarkdownString(record.text ?? '', TRANSFORMERS)` initializer
-   in `app/(app)/write/[code]/editor.tsx` producing a different tree client-side than SSR
-   rendered — a classic Lexical+SSR hydration issue. Not investigated further this session
-   (out of Phase 4's scope). Whoever picks this up should reproduce it first (it's not
-   browser-automation flakiness — confirmed via `read_console_messages`, not just a screenshot
-   timeout) before deciding on a fix.
+## Ask Bobby about these three before building anything else
 
-## Task: Phase 5 (views) and step S3 / W2
+There is no unblocked build work left — the only remaining items in the plan each need something
+only Bobby can do. Don't work around any of these; raise them and wait.
 
-G1 (the link index) and Phase 4 (the continuity check port) are both done — checked off in
-`traveler-wiki-build-plan.md`. This is a new build step, not a verification pass — **ask Bobby
-before starting it**, same as G1 and Phase 4 were.
+1. **Apply the `compilations` migration.** It's generated
+   (`db/migrations/0010_spicy_talisman.sql`, purely additive — a single `CREATE TABLE` plus two
+   `CREATE INDEX` statements) but not applied. The harness denies `drizzle-kit migrate` against
+   `APP_DATABASE_URL` outright as a production-deploy action — no approval prompt, unlike earlier
+   migrations in this project. Bobby needs to run it himself:
+   `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
+   `/compilations` 500s until this runs.
+2. **Decide the Phase 8 login question.** The plan's Phase 8 line ("deploy to Vercel with a real
+   single-user login") conflicts with `CLAUDE.md` hard rule 12 ("No login and no auth code,
+   anywhere in this codebase"). No auth code has been written — hard rules win on conflict. Bobby
+   needs to say which one is stale: either that plan line, or hard rule 12.
+3. **Fix the Vercel AI Gateway billing block.** Every attempt fails with
+   `customer_verification_required` even after Bobby said it was resolved (re-checked three times
+   across sessions, including after a 90s wait for propagation) — this looks like an
+   account/team-scoping mismatch between where a card was added and the team the
+   `AI_GATEWAY_API_KEY` belongs to, not something retryable from here. This blocks S4 through S7
+   (AI foundation, Story Builder, Ask AI and the prompts menu, canon check extensions) and
+   Suggestions (the last open item in Phase 6).
 
-From `traveler-wiki-build-plan.md`'s "Phase 5: Views" (under "Build order", item 6) and
-"Step W2: eras and the timeline canvas":
+## After those are resolved
 
-- [ ] Sidebar multi-select filter (`shadcn-multi-select-component`).
-- [ ] Multi-lane convergence view (`i-storyline-js` for layout math, custom SVG render — see the
-      "Multi-lane convergence view" note around line 496 of the build plan for the braiding
-      behavior).
-- [ ] Node map and per-entry relationship view, built on React Flow, reading the G1 link index
-      (`lib/graph/queries.ts`) — **not** by hand-querying relationship columns. Every visual
-      feature shares the one `Graph`/`Node`/`Edge` shape in `lib/graph/types.ts` (hard rule 15).
-- [ ] Story board (for beats — note `beats` itself is a later step, S5; the board surface can be
-      built now against the same `lib/graph/types.ts` shape it will need then).
-- [ ] Timeline polish: two-tier header for wide zoom; decide whether sub-events hide until zoom.
-- [ ] Step W2: spike `react-calendar-timeline` for era bands + 11 lanes first (fall back to
-      hand-rolling the single-line view with `lib/timeline-scale.ts` if it can't). `eras` table
-      (prefix Y, already reserved in `lib/codes.ts`), a `timeline-settings` global, and new event
-      fields `eventType`/`importance`/`lane`. Era bands with background images, lanes, mini-map,
-      search/filter. Click empty space to add an event at that year; time gaps.
+- Once item 1 is done: nothing else to build for Phase 7: it's fully closed.
+- Once item 2 is decided: either build the login (if hard rule 12 gets updated) or mark Phase 8
+  fully closed as-is (if the plan line was stale) and switch from dev auto-push to real migrations
+  for deploy, per that same Phase 8 line.
+- Once item 3 is fixed: S4 (AI foundation on Claude — `lib/ai/`, the context builder on the link
+  index, `ai_proposals`, `ai_settings`, the Accept/Reject inbox, the `AI suggested` tag) is next
+  in the build order, then S5/S6 (Story Builder, Ask AI anywhere), then S7 (claims ledger,
+  backward check, revert by source — also where Phase 4's documented "Draft never spreads into
+  canon" gap gets closed).
+- **Phase 9 (Cartographer Studio Design)** is explicitly scoped in the plan to start only once
+  every phase above it is closed — so it's gated behind items 1 and 2 above, not ready yet even
+  though it doesn't depend on the AI Gateway.
 
-Read `traveler-wiki-build-plan.md`'s full "Link index" section and `lib/graph/types.ts` before
-starting — every new view here is a consumer of G1, not a new data path of its own.
-
-### When this is done
-
-1. Check off the Phase 5 / W2 items in `traveler-wiki-build-plan.md`.
-2. Update `BUILD_GUIDE.md`: "Current state" and "Next up".
-3. Update `SESSION.md` with what was done this session.
-4. Replace this file (`next.md`) with the next task (S4, the AI foundation, per the build order —
-   unless Bobby wants W3-W6 reordered ahead of it, which the plan explicitly allows).
-
-Build order after Phase 5 / W2: S4 (AI foundation on Claude, item 7), then S5/S6 (Story Builder,
-Ask AI), then S7 (claims ledger, backward check, revert by source — this is also where Phase 4's
-documented "Draft writing never spreads into canon" gap gets closed), per the table in
-`traveler-wiki-build-plan.md`. Items 11-14 (W3-W6: maps, chronicles, boards, tables) can be
-reordered ahead of S4-S7 if Bobby prefers — the plan only requires items 1-5 (now all done) to
-stay first.
-
-## Also still pending from before (not urgent)
+## Also still pending from before (not urgent, no new information)
 
 Bobby wants Vercel wired to deploy automatically on every push to GitHub. Pick it up whenever —
-it doesn't block anything above.
+it doesn't block anything above, and ties naturally into whatever Bobby decides for the Phase 8
+deploy line.
 
-1. **Push this repo to GitHub.** The remote already exists
-   (`origin` → `github.com/BobbyW08/writing_tool.git`, checked this session via `git remote -v`).
-   `master` is currently 1 commit ahead of `origin/master` (the G1 commit) with Phase 4's changes
-   still uncommitted on top — push once those are committed and Bobby has reviewed them
-   (`git push -u origin master` if the upstream link needs re-establishing, else plain `git push`).
-2. **Connect Vercel to that GitHub repo**, if not already done — check the Vercel dashboard,
-   this project, Settings, Git first. If connected, Vercel auto-deploys on every push to the
-   production branch (`master`) and creates a preview deployment for every other branch and PR.
+1. Push this repo to GitHub (`origin` → `github.com/BobbyW08/writing_tool.git`, confirmed present
+   in an earlier session via `git remote -v`) once Bobby has reviewed what's accumulated.
+2. Connect Vercel to that GitHub repo if not already done (Vercel dashboard → this project →
+   Settings → Git).
 3. Confirm by making a trivial commit and push, then checking the Deployments tab for a new
    deployment that started on its own.
+
+### When any of the three blockers above gets resolved
+
+1. Check off the relevant items in `traveler-wiki-build-plan.md`.
+2. Update `BUILD_GUIDE.md`: "Current state" and "Next up".
+3. Add a new entry at the top of `SESSION.md`.
+4. Replace this file (`next.md`) with the next task.
