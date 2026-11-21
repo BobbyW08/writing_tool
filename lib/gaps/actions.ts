@@ -42,8 +42,12 @@ async function wordTopGaps(top: RankedGap[]): Promise<RankedGap[]> {
   }
 }
 
-export async function getTopGapsAction(limit = 3): Promise<RankedGap[]> {
+// UX2's type-page panel passes `collection` to rank that type's own gaps first (step UX2: "reuses
+// the UX1 ranking, filtered to this type first"). If the type has none open, falls back to the
+// global ranking so the panel is never empty — "Open" can then leave the type page, as the plan says.
+export async function getTopGapsAction(limit = 3, collection?: string): Promise<RankedGap[]> {
   const candidates = await computeGapCandidates();
-  const top = rankGaps(candidates).slice(0, limit);
+  const scoped = collection ? candidates.filter((c) => c.entryCollection === collection) : candidates;
+  const top = rankGaps(scoped.length > 0 ? scoped : candidates).slice(0, limit);
   return wordTopGaps(top);
 }

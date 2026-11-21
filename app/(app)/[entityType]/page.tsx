@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { CollectionViewSwitch } from "@/components/collection-view-switch";
 import { listViewConfigFor } from "@/lib/world/listViews";
 import type { TableRow } from "@/components/collection-table-view";
+import { GapRecommender } from "@/components/gap-recommender";
 
 const WORLD_COLLECTIONS: Record<string, string> = {
   characters: "Characters",
@@ -76,6 +77,8 @@ export default async function CollectionListPage({ params }: { params: Promise<{
           + New
         </Link>
       </div>
+
+      <GapRecommender collection={entityType} />
 
       <CollectionViewSwitch collection={entityType} listView={listView} rows={rows} config={config} allTags={allTags} />
     </div>

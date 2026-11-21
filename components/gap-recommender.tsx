@@ -6,22 +6,23 @@ import { Button } from "@/components/ui/button";
 import { getTopGapsAction } from "@/lib/gaps/actions";
 import type { RankedGap } from "@/lib/gaps/types";
 
-// Step UX1's "Ask AI to recommend a gap" (board 1's home panel, and board 2's type-page panel
-// once UX2 reuses this). Only reads (hard rules 1 and 4): nothing here creates or changes a
+// Step UX1's "Ask AI to recommend a gap" (board 1's home panel), reused by UX2's type-page panel
+// with a `collection` filter. Only reads (hard rules 1 and 4): nothing here creates or changes a
 // record. "Not now" only hides a suggestion for this page view, as the plan specifies.
-export function GapRecommender() {
+export function GapRecommender({ collection }: { collection?: string } = {}) {
   const [pending, startTransition] = useTransition();
   const [gaps, setGaps] = useState<RankedGap[] | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const ask = () =>
     startTransition(async () => {
-      const result = await getTopGapsAction(3);
+      const result = await getTopGapsAction(3, collection);
       setGaps(result);
       setDismissed(new Set());
     });
 
   const visible = (gaps ?? []).filter((g) => !dismissed.has(g.key));
+  const someElsewhere = collection != null && visible.some((g) => g.entryCollection !== collection);
 
   return (
     <section className="flex flex-1 min-w-0 flex-col gap-3 rounded-lg border bg-card p-5">
@@ -36,6 +37,11 @@ export function GapRecommender() {
           Ask AI to recommend a gap
         </Button>
       </div>
+      {someElsewhere && (
+        <p className="text-xs text-muted-foreground">
+          Nothing open here right now — showing the biggest gaps overall. &quot;Work on this&quot; may leave this screen.
+        </p>
+      )}
 
       {gaps === null && !pending && (
         <p className="text-xs text-muted-foreground">Nothing fetched yet. Click the button above.</p>
