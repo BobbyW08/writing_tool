@@ -124,8 +124,8 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
             </>
           )}
         </div>
-        <div className="mt-1 flex items-start gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="mt-1 flex flex-wrap items-start gap-3">
+          <div className="flex-1">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold">
                 <EditableField collection="events" docId={doc.id} fieldName="name" value={doc.name} kind="text" className="text-2xl font-semibold" />

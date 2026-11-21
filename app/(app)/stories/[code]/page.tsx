@@ -108,8 +108,8 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
       {/* Header */}
       <div>
         <Link href="/stories" className="text-sm text-muted-foreground hover:underline">Stories</Link>
-        <div className="mt-1 flex items-start gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="mt-1 flex flex-wrap items-start gap-3">
+          <div className="flex-1">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold">
                 <EditableField collection="stories" docId={doc.id} fieldName="name" value={doc.name} kind="text" className="text-2xl font-semibold" />
