@@ -14,7 +14,8 @@
     "test:continuity": "tsx scripts/test-continuity.ts",
     "test:mentions": "tsx scripts/test-mentions.ts",
     "test:names": "tsx scripts/test-names.ts",
-    "test:drop-position": "tsx scripts/test-drop-position.ts"
+    "test:drop-position": "tsx scripts/test-drop-position.ts",
+    "test:gaps": "tsx scripts/test-gaps.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.105",

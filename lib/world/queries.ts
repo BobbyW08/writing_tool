@@ -975,6 +975,13 @@ export async function getCollectionPlaceholderCount(collection: string): Promise
   }).length
 }
 
+// Step UX1: "[n] entries, [n] need attention" on the home launcher's type cards. Matches the
+// Gaps page's own definition of a gap -- any entry not yet Locked (hard rule 4).
+export async function getCollectionNeedsAttentionCount(collection: string): Promise<number> {
+  const list = await getCollectionList(collection)
+  return list.docs.filter(d => (d as Record<string, unknown>).status !== 'locked').length
+}
+
 export async function getRecentEdits(limit = 10): Promise<{
   id: number; code: string; name: string; collection: string; updatedAt: string
 }[]> {
