@@ -74,15 +74,17 @@ local is the working tree's uncommitted changes below.
   lane at `/stories/[code]/beats`, three-option beat cards, and promote-to-event.
 - S6, Ask AI and prompts menu: done. The assist bar on entry and event pages, the prompts menu (Answer it
   myself / Ask AI / search), `prompt_sets` (migration `0015_prompt_sets`, applied, 40 seeded rows).
-- S7, partial: the `claims` table (migration `0016_claims`, applied, 0 rows so far — nothing has exercised
-  it live yet), claims written by the continuity check, the label check, "Leaving Canon" with
-  revert-by-history-row (`components/writing-history-panel.tsx`). Missing: the backward check (a changed
-  canon field never re-reads `claims` to flag the passages that assumed the old value) and the forward
-  check's Draft-vs-Locked priority split. See "Steps S0 to S7" for detail. Uncommitted and not yet wired:
-  `lib/continuity/backward.ts` (pure functions `fieldWasReplaced`, `findStaleClaims`, 25 of 25 checks pass in
-  `npm run test:continuity`). No write function, flag or screen calls it yet.
+- S7, done 2026-11-21: the `claims` table (migration `0016_claims`, applied), claims written by the
+  continuity check, the label check, "Leaving Canon" with revert-by-history-row
+  (`components/writing-history-panel.tsx`), the backward check (`lib/continuity/backward.ts` +
+  `backward-check.ts`, raises a `stale_claim` flag when a changed canon field leaves a claim stale,
+  revertible via `revertStaleClaimAction`, surfaced in the `/continuity` inbox) and the forward
+  check's Draft-vs-Locked priority split (`conflictPriority` in `lib/continuity/priority.ts`, wired
+  in at the query layer so a conflict against a Locked entry sorts before one where both sides are
+  still Draft). See "Steps S0 to S7" for detail.
 - **No longer unverified:** migrations 0011 to 0016 are all applied, `npm run build` and every test
   pass on this working tree, and S4 to S7 completeness is recorded above and in "Steps S0 to S7".
+  Everything in this section is committed on `claude/writing-drives-world`; nothing is left uncommitted.
 
 **Not started:** the start flow and page redesign (step UX, designed 2026-11-21), Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
@@ -759,7 +761,7 @@ Continuity inbox, Field history, Confirmations).
 - [x] **S4. AI foundation.** Audited 2026-11-21, done. `lib/ai/model.ts` `askAI()` is the one entry point, reading the model per task from `ai_settings`. `lib/ai/context.ts` `buildAiContext()` reads the link index (`schema.links`), not hand-queried columns, and excludes Set aside writing. Every accept tags the record `UNK` and `AI suggested` (`lib/ai/actions.ts` `acceptProposalAction`, tag defined in `db/tags.ts`). `/ai-inbox` (Accept and Reject) is built. `ai_proposals` holds 12 real rows and `ai_settings` 1 row in Neon, confirming structured output works end to end with a live model call.
 - [x] **S5. Beats.** Audited 2026-11-21, done. `beats`/`beat_involves` tables (migration 0014, applied, currently empty rows). Beats lane at `app/(app)/stories/[code]/beats/page.tsx`, three-option beat cards via `lib/ai/beats.ts` (never writes until a card is picked). Promote to event, previously marked unconfirmed, is implemented: `promoteBeatToEventAction` in `lib/world/actions.ts`, wired into the link index through a `promotedTo`/`Promoted from` relation (`lib/graph/labels.ts`, `lib/graph/sync.ts`) and surfaced in `components/story-beats-lane.tsx`. The visual home for beats is still the Story Builder canvas (step SB, not started).
 - [x] **S6. Ask AI anywhere and the prompts menu.** Audited 2026-11-21, done. Assist bar (`components/ai-assist-bar.tsx`), prompts menu (`components/prompts-menu.tsx`) with search box, "Answer it myself" (blank details row, `answerPromptMyselfAction`) and "Ask AI" (three candidate answers queued as `ai_proposals`, `lib/ai/prompts.ts` `generatePromptAnswers` + `generatePromptOptionsAction`), accepted answers tagged UNK and AI suggested through the same `acceptProposalAction` as every other proposal. `prompt_sets` holds 40 seeded rows (migration 0015, applied).
-- [~] **S7. Canon check and change tracking.** Audited 2026-11-21, partial. Done: the claims ledger (`lib/continuity/run-check.ts` `recordClaims`, one row per checkable fact, tagged with `sourceCanonState`), the forward check (conflicts and possible changes become Continuity inbox flags, `buildPlan` in `lib/continuity/plan.ts`), the label check (`checkEventLabelMismatch` in `lib/world/actions.ts`, no AI, flags a `yearLabel`/`startYear` mismatch via `reviewNote` + UNK), "Leaving Canon" (`components/writing-history-panel.tsx` + `revertHistoryRowAction`, one click revert for an appended detail; reverting a whole created record is deliberately not offered, by documented decision), and, done 2026-11-21, the **backward check**: `updateDetailsAction` (`lib/world/actions.ts`) diffs the incoming details array against the current one (`changedReplacedFields` in `lib/continuity/backward.ts`) and `lib/continuity/backward-check.ts`'s `flagStaleClaims` opens one `stale_claim` continuity flag per claim that assumed wording a field no longer has, each revertible on its own via `revertStaleClaimAction`. Still missing: a dedicated `/continuity` inbox rendering for `stale_claim` (it currently renders through the generic `UPDATE_KINDS` list, label and revert button not yet confirmed to fit), and the forward check's priority split between "Draft contradicts Locked" and "two Drafts disagree" — `buildPlan`/`compareSchema` carry no `canonState` of the conflicting side, so every conflict is raised the same way regardless of source. Relative timing (proposing a recorded relationship from "two years after") is not built.
+- [x] **S7. Canon check and change tracking.** Done 2026-11-21. The claims ledger (`lib/continuity/run-check.ts` `recordClaims`, one row per checkable fact, tagged with `sourceCanonState`), the forward check (conflicts and possible changes become Continuity inbox flags, `buildPlan` in `lib/continuity/plan.ts`), the label check (`checkEventLabelMismatch` in `lib/world/actions.ts`, no AI, flags a `yearLabel`/`startYear` mismatch via `reviewNote` + UNK), "Leaving Canon" (`components/writing-history-panel.tsx` + `revertHistoryRowAction`, one click revert for an appended detail; reverting a whole created record is deliberately not offered, by documented decision), the **backward check** (`updateDetailsAction` in `lib/world/actions.ts` diffs the incoming details array against the current one via `changedReplacedFields` in `lib/continuity/backward.ts`, and `lib/continuity/backward-check.ts`'s `flagStaleClaims` opens one `stale_claim` continuity flag per claim that assumed wording a field no longer has, each revertible on its own via `revertStaleClaimAction`, surfaced in the `/continuity` inbox with its field label, explanation and a Revert button, verified live via Playwright), and the **Draft-vs-Locked priority split** (`conflictPriority` in `lib/continuity/priority.ts`, a pure function from an entry's current `status`; wired in at the query layer in `lib/continuity/queries.ts` so `listOpenDecisions` sorts a conflict against a Locked entry before one where both sides are still Draft, with an "Against Locked canon" badge in the inbox and the flag detail page — computed from the entry's live status rather than threaded through `buildPlan`/`compareSchema`, so no migration was needed). Relative timing (proposing a recorded relationship from "two years after") is not built and remains out of scope for S7.
 
 ### To verify (step P0 does these)
 
@@ -1472,8 +1474,8 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 8 | Writing drives the world port | Name linking, sheets, plot outlines, Change type. Done 2026-11-11, uncommitted, browser checklist not run |
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
-| 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu done. Finish S7: the backward check and the Draft-vs-Locked priority split. **Next** |
-| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header) |
+| 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
+| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). **Next** |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
@@ -1755,6 +1757,33 @@ labels, so `updateFieldAction`'s named-column path needs no wiring. Added `rever
 guarded like `revertHistoryRowAction`. `stale_claim` joins `UPDATE_KINDS` (raised automatically, hard
 rule 1). Left for a later task: a dedicated `/continuity` rendering for the new kind, and the forward
 check's Draft-vs-Locked priority split.
+
+### Session 2026-11-21: step S7, finished the backward check's UI and the Draft-vs-Locked split
+Part 1: the `/continuity` inbox's generic `UPDATE_KINDS` rendering was missing a field label and
+any sense of what changed for `stale_claim`. Added the shared field-label line (already used by
+`new_detail`), a line showing the flag's `explanation` ("Eye Color now says: ..."), and a
+`RevertStaleClaimButton` wired to `revertStaleClaimAction` (now wrapped in try/catch, matching
+`resolveFlagAction`, so a failure surfaces as a toast instead of an unhandled 500). Verified live
+through the running app with Playwright, per the new standing instruction to use Playwright (not
+Claude-in-Chrome) for front-end testing: edited a details field with a claim against it on a real
+character record, confirmed the `stale_claim` flag appeared with the right quote/label/explanation,
+clicked Revert, confirmed the field, the flag's status and the `continuity_history` row all updated
+correctly; the test data and its throwaway `scripts/_test-stale-claim-*.ts` scripts were cleaned up
+afterward.
+
+Part 2, the Draft-vs-Locked priority split: rather than threading a `canonState` through
+`buildPlan`/`compareSchema` and storing it on the continuity row (which would need a migration, and
+would only capture a snapshot from when the flag was raised), added `conflictPriority(entryStatus)`
+in `lib/continuity/priority.ts` — a pure function, "high" for a Locked entry, "normal" otherwise,
+tested in `test-continuity.ts` — and computed it at the query layer: `enrichEntries` in
+`lib/continuity/queries.ts` now also reads each flagged entry's current `status`, and
+`listOpenDecisions` sorts high-priority conflicts first (stable within each group). An "Against
+Locked canon" badge shows in both the inbox and the flag detail page. No migration needed; priority
+always reflects what canon says now.
+
+Also upgraded Next.js 16.4.2 to 16.4.6 (security advisory) in a separate worktree/branch
+(`chore/nextjs-security-upgrade`, commit `18e32a2`) rather than this working tree, per Bobby's
+choice; not yet merged.
 
 ### Session 2026-11-21: step UX0, fixed the five browser-checklist defects
 Fixed and committed all five, in order, one commit each, with `npm run build` and `npm run test:continuity`
