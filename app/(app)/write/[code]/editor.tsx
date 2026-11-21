@@ -39,7 +39,7 @@ import { saveWriting } from '@/lib/studio/actions'
 import { listLinkableNames, type NameEntry } from '@/lib/studio/name-actions'
 import { buildIndex, findMatches, suggestForAt, suggestForTyping, type NameIndex, type Suggestion } from '@/lib/studio/name-index'
 import { ENTRY_DRAG_TYPE, type EntryDragPayload } from '@/lib/studio/drag'
-import { MentionNode, $createMentionNode, proseTransformers, SHORTCUT_TRANSFORMERS, type CodeMap } from '@/lib/studio/mention-node'
+import { MentionNode, $createMentionNode, proseTransformers, SHORTCUT_TRANSFORMERS, COLLECTION_LABEL, type CodeMap } from '@/lib/studio/mention-node'
 import { type WritingRecord } from '@/lib/studio/queries'
 import { recheckWritingAction } from '@/lib/continuity/actions'
 import { SnippetCheckStatus, type CheckSummary } from '@/components/snippet-check-status'
@@ -54,11 +54,6 @@ class NameOption extends MenuOption {
     super(suggestion.entry.code)
     this.suggestion = suggestion
   }
-}
-
-const COLLECTION_LABEL: Record<string, string> = {
-  characters: 'Character', locations: 'Location', items: 'Item', cultures: 'Culture', factions: 'Faction',
-  races: 'Race', languages: 'Language', lore: 'Lore', events: 'Event', stories: 'Story',
 }
 
 // Type a name and a short list of matching entries appears under the cursor. Tab or Enter links
@@ -623,9 +618,13 @@ export function WritingEditor({
         .writing-surface .writing-mention {
           color: var(--primary);
           font-weight: 600;
-          background: var(--accent);
-          border-radius: 4px;
-          padding: 0 0.2em;
+          text-decoration: underline;
+          text-decoration-color: color-mix(in srgb, var(--primary) 40%, transparent);
+          text-underline-offset: 2px;
+          cursor: pointer;
+        }
+        .writing-surface .writing-mention:hover {
+          text-decoration-color: var(--primary);
         }
         .writing-surface[data-dropping='true'] {
           outline: 2px dashed var(--ring);

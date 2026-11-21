@@ -79,6 +79,33 @@ export type TypingMatch = {
 
 const MAX_SUGGESTIONS = 6
 
+// The order entry types appear in the autocomplete when names tie on everything else:
+// Characters, Locations, Events, Factions, Cultures, Items, Lore last (next.md, step UX0).
+const TYPE_ORDER = [
+  'characters', 'locations', 'events', 'factions', 'cultures', 'items', 'races', 'languages', 'stories', 'lore',
+]
+function typeRank(collection: string): number {
+  const i = TYPE_ORDER.indexOf(collection)
+  return i === -1 ? TYPE_ORDER.length : i
+}
+
+// Ranks matches for display: an exact match of what was typed first, then grouped by entry type,
+// then alphabetically. Mutates nothing -- returns a new array for the caller to dedupe and cap.
+function rankHits(hits: { text: string; lower: string; entry: NameEntry }[], query: string): { text: string; lower: string; entry: NameEntry }[] {
+  const q = query.trim().toLowerCase()
+  return [...hits].sort((a, b) => {
+    const aExact = a.lower === q
+    const bExact = b.lower === q
+    if (aExact !== bExact) return aExact ? -1 : 1
+    const typeDiff = typeRank(a.entry.collection) - typeRank(b.entry.collection)
+    if (typeDiff !== 0) return typeDiff
+    const aStarts = a.lower.startsWith(q)
+    const bStarts = b.lower.startsWith(q)
+    if (aStarts !== bStarts) return aStarts ? -1 : 1
+    return a.text.localeCompare(b.text)
+  })
+}
+
 // One suggestion per entry, in the order entries first appeared. When an entry matches under more
 // than one spelling, the shortest wins, so "Bar" gives "Bard" rather than "Bard (Original)".
 function dedupe(list: Suggestion[]): Suggestion[] {
@@ -93,10 +120,8 @@ function dedupe(list: Suggestion[]): Suggestion[] {
 // Typing "@" opens the full list, narrowed by whatever follows it.
 export function suggestForAt(index: NameIndex, query: string): Suggestion[] {
   const q = query.trim().toLowerCase()
-  const hits = index.terms
-    .filter((t) => !q || t.lower.includes(q))
-    .sort((a, b) => Number(b.lower.startsWith(q)) - Number(a.lower.startsWith(q)) || a.text.localeCompare(b.text))
-    .map((t) => ({ entry: t.entry, insertText: t.text }))
+  const matched = index.terms.filter((t) => !q || t.lower.includes(q))
+  const hits = rankHits(matched, query).map((t) => ({ entry: t.entry, insertText: t.text }))
   return dedupe(hits)
 }
 
@@ -123,16 +148,16 @@ export function suggestForTyping(index: NameIndex, textBeforeCaret: string): Typ
     if (!multiWord && STOPWORDS.has(lower)) continue
     const capital = /^\p{Lu}/u.test(typed)
 
-    const hits: Suggestion[] = []
+    const hits: Term[] = []
     for (const t of index.terms) {
       if (t.lower.startsWith(lower) && (capital || typed.length >= 4)) {
-        hits.push({ entry: t.entry, insertText: t.text })
+        hits.push(t)
       } else if (!multiWord && capital && t.lower.split(/\s+/).slice(1).some((w) => w.startsWith(lower))) {
         // A later word in a longer name, such as "Emp" in "The First Empress".
-        hits.push({ entry: t.entry, insertText: t.text })
+        hits.push(t)
       }
     }
-    const suggestions = dedupe(hits)
+    const suggestions = dedupe(rankHits(hits, typed).map((t) => ({ entry: t.entry, insertText: t.text })))
     if (suggestions.length > 0) return { start: offset + startInTail, typed, suggestions }
   }
   return null

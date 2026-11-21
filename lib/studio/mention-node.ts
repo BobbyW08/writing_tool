@@ -12,6 +12,11 @@ import { PREFIX_TO_SLUG } from '@/lib/codes'
 // A chip that shows an entry's name inside the text. The saved Markdown holds the entry's ID code
 // (C4) in its place, so the code stays the one permanent reference to the entry.
 
+export const COLLECTION_LABEL: Record<string, string> = {
+  characters: 'Character', locations: 'Location', items: 'Item', cultures: 'Culture', factions: 'Faction',
+  races: 'Race', languages: 'Language', lore: 'Lore', events: 'Event', stories: 'Story',
+}
+
 type SerializedMentionNode = Spread<
   { mentionCode: string; mentionCollection: string },
   SerializedTextNode
@@ -37,7 +42,21 @@ export class MentionNode extends TextNode {
     const dom = super.createDOM(config)
     dom.classList.add('writing-mention')
     dom.setAttribute('data-mention', this.__mentionCode)
-    dom.title = this.__mentionCode
+    dom.setAttribute('role', 'link')
+    const typeLabel = COLLECTION_LABEL[this.__mentionCollection] ?? this.__mentionCollection
+    dom.title = `${typeLabel} · ${this.getTextContent()}`
+    // A plain click follows the link in place; Ctrl/Cmd-click opens it in a new tab, matching how
+    // an ordinary link behaves.
+    dom.addEventListener('click', (event) => {
+      if (!this.__mentionCollection) return
+      event.preventDefault()
+      const href = `/${this.__mentionCollection}/${this.__mentionCode}`
+      if (event.ctrlKey || event.metaKey) {
+        window.open(href, '_blank', 'noopener')
+      } else {
+        window.location.href = href
+      }
+    })
     return dom
   }
 
