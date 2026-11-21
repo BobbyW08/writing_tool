@@ -10,6 +10,7 @@ export interface CheckSummary {
   newRecords: number;
   newDetails: number;
   confirmed: number;
+  claims: number;
 }
 
 // Shows where the check is. While it runs the page refreshes itself, and when it finishes
@@ -105,6 +106,10 @@ export function SnippetCheckStatus({
         </form>
       </div>
       {notes && <p className="text-muted-foreground">{notes}</p>}
+      <p className="text-xs text-muted-foreground">
+        {summary.claims} checkable claim{summary.claims === 1 ? "" : "s"} found. The check can miss
+        an indirect claim, so treat this as a floor, not a guarantee.
+      </p>
     </div>
   );
 }

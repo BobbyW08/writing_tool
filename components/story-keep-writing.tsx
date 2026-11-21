@@ -6,6 +6,7 @@ import { WritingEditor } from '@/app/(app)/write/[code]/editor'
 import { createWriting, getWritingWithSummaryAction } from '@/lib/studio/actions'
 import type { WritingListItem, WritingRecord } from '@/lib/studio/queries'
 import type { CheckSummary } from '@/components/snippet-check-status'
+import type { CodeMap } from '@/lib/studio/mention-node'
 
 const NEW_VALUE = '__new__'
 
@@ -30,6 +31,7 @@ export function StoryKeepWriting({
   allStories,
   initialRecord,
   initialSummary,
+  initialCodeMap,
   initialList,
 }: {
   storyId: number
@@ -37,11 +39,13 @@ export function StoryKeepWriting({
   allStories: { id: number; code: string; name: string }[]
   initialRecord: WritingRecord
   initialSummary: CheckSummary
+  initialCodeMap: CodeMap
   initialList: WritingListItem[]
 }) {
   const [list, setList] = useState(initialList)
   const [record, setRecord] = useState(initialRecord)
   const [summary, setSummary] = useState(initialSummary)
+  const [codeMap, setCodeMap] = useState(initialCodeMap)
   const [loading, setLoading] = useState(false)
   const [, startTransition] = useTransition()
 
@@ -51,6 +55,7 @@ export function StoryKeepWriting({
     if (result) {
       setRecord(result.record)
       setSummary(result.summary)
+      setCodeMap(result.codeMap)
     }
     setLoading(false)
   }
@@ -79,6 +84,7 @@ export function StoryKeepWriting({
           ])
           setRecord(full.record)
           setSummary(full.summary)
+          setCodeMap(full.codeMap)
         }
       }
       setLoading(false)
@@ -119,6 +125,7 @@ export function StoryKeepWriting({
             record={record}
             stories={allStories}
             summary={summary}
+            codeMap={codeMap}
             onFieldsSaved={handleSaved}
           />
         </div>

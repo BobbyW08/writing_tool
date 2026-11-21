@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { movedTo } from "@/lib/codes-history";
 import { getEntryByCode, getEntryBySlug, getSubItems, getRelationshipsByCode, getEventsInvolving, buildCodeMap, isUnk, getMapsForLocation, getMapByCode } from "@/lib/world/queries";
 import { MapCanvas, type MapData } from "@/components/map-canvas";
 import { StatusBadge } from "@/components/status-badge";
@@ -7,6 +8,9 @@ import { CodeText } from "@/components/code-text";
 import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
 import { EditableField } from "@/components/editable-field";
 import { DetailsEditor } from "@/components/details-editor";
+import { SheetEditor } from "@/components/sheet-editor";
+import { SHEET_TEMPLATES } from "@/lib/sheets/templates";
+import { nonSheetRows, sheetAnswers } from "@/lib/sheets/answers";
 import { RelationshipEditor } from "@/components/relationship-editor";
 import { RecordActions } from "@/components/record-actions";
 import { COLLECTION_FIELDS } from "@/lib/world/fields";
@@ -15,6 +19,7 @@ import { INFOBOX_FIELDS } from "@/lib/infobox";
 import { WhatLinksHere } from "@/components/what-links-here";
 import { RelationshipView } from "@/components/relationship-view";
 import { nodeKindFor } from "@/lib/nodeKinds";
+import { AiAssistBar } from "@/components/ai-assist-bar";
 
 const WORLD_COLLECTIONS: Record<string, string> = {
   characters: "Characters",
@@ -75,7 +80,11 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
   const entry = CODE_RE.test(slug.toUpperCase())
     ? await getEntryByCode(entityType, slug)
     : await getEntryBySlug(entityType, slug);
-  if (!entry) notFound();
+  if (!entry) {
+    const moved = CODE_RE.test(slug.toUpperCase()) ? await movedTo(slug) : null;
+    if (moved) redirect(moved);
+    notFound();
+  }
 
   const doc = entry as unknown as EntryDoc;
   const code = doc.code ?? "";
@@ -88,6 +97,8 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
   ]);
   const firstLocationMap = locationMaps[0] ? await getMapByCode(locationMaps[0].code) : null;
 
+  const answers = sheetAnswers(doc.details);
+  const sheet = SHEET_TEMPLATES[entityType] ?? null;
   const allTexts = [doc.summary, doc.gapPrompt, ...(doc.details?.map(d => d.value) ?? [])];
   const codeMap = await buildCodeMap(allTexts);
   const unkTagged = isUnk(doc.tagIds ?? null);
@@ -207,6 +218,13 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </div>
       </div>
 
+      <AiAssistBar
+        collection={entityType}
+        code={code}
+        docId={doc.id}
+        currentDetails={(doc.details ?? []).map(d => ({ label: d.label, value: d.value ?? "" }))}
+      />
+
       {unkTagged && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
           <span className="font-semibold">Check this: </span>
@@ -245,10 +263,25 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
         </div>
       )}
 
+      {sheet && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">{sheet.title}</h2>
+          <SheetEditor
+            collection={entityType}
+            docId={doc.id}
+            sections={sheet.sections}
+            answers={answers}
+            codeMap={codeMap}
+            openFirst={entityType === "characters"}
+            credit={sheet.credit}
+          />
+        </section>
+      )}
+
       <DetailsEditor
         collection={entityType}
         docId={doc.id}
-        initial={(doc.details ?? []).map(d => ({
+        initial={nonSheetRows(doc.details).map(d => ({
           id: d.id ?? undefined,
           label: d.label,
           value: d.value ?? "",

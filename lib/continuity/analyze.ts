@@ -1,3 +1,4 @@
+import { anthropic } from "@ai-sdk/anthropic";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 import { compareSchema, detectSchema, type CompareResult, type DetectResult, type EntityForCheck, type SnippetForCheck } from "./types";
@@ -6,7 +7,7 @@ import { compareSchema, detectSchema, type CompareResult, type DetectResult, typ
 // never writes story content, and nothing it returns reaches canon until plan.ts has
 // verified every quote against the author's own words.
 
-const MODEL = process.env.CONTINUITY_MODEL || "anthropic/claude-sonnet-4.5";
+const MODEL = process.env.CONTINUITY_MODEL || "claude-sonnet-4-5";
 
 export interface Analyzer {
   detect(input: { snippet: SnippetForCheck; index: EntityForCheck[] }): Promise<DetectResult>;
@@ -63,7 +64,7 @@ function formatSnippet(s: SnippetForCheck): string {
 
 async function ask<S extends z.ZodType>(system: string, prompt: string, schema: S): Promise<z.infer<S>> {
   const { output } = await generateText({
-    model: MODEL,
+    model: anthropic(MODEL),
     system,
     prompt,
     temperature: 0,

@@ -31,13 +31,14 @@ export const TEXT_FIELDS: Record<string, TextFieldSource[]> = {
     { kind: 'plain', field: 'whatWasLearned' },
     { kind: 'details' },
   ],
-  stories: [{ kind: 'plain', field: 'body' }],
+  stories: [{ kind: 'plain', field: 'body' }, { kind: 'details' }],
   writing: [{ kind: 'plain', field: 'text' }],
   maps: WORLD_TEXT_FIELDS,
   'map-pins': [{ kind: 'plain', field: 'summary' }],
   chronicles: WORLD_TEXT_FIELDS,
   boards: WORLD_TEXT_FIELDS,
   tables: [...WORLD_TEXT_FIELDS, { kind: 'rows' }],
+  beats: WORLD_TEXT_FIELDS,
   // compilations.items (the ordered code list) is never indexed here -- same as a board's query,
   // it orders existing records rather than asserting a relationship (see db/schema.ts). Only a
   // code mentioned in its own summary/body free text gets indexed, same as every other collection.

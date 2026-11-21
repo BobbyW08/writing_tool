@@ -1,13 +1,16 @@
 'use server'
 import { after } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { eq, or, like } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { assignNextCode, slugify } from '@/db/codes'
 import { syncLinksForRecord, removeRecordLinks } from '@/lib/graph/sync'
 import { getWritingByCode, type WritingRecord } from '@/lib/studio/queries'
 import { getCheckSummary, type CheckSummary } from '@/lib/continuity/queries'
+import { buildCodeMap } from '@/lib/world/queries'
+import { writingPlainText } from '@/lib/studio/plain-text'
+import type { CodeMap } from '@/lib/studio/mention-node'
 
 export async function createWriting(name: string, storyId?: number | null): Promise<{ code: string; error?: string }> {
   try {
@@ -26,11 +29,11 @@ export async function createWriting(name: string, storyId?: number | null): Prom
   }
 }
 
-export async function getWritingWithSummaryAction(code: string): Promise<{ record: WritingRecord; summary: CheckSummary } | null> {
+export async function getWritingWithSummaryAction(code: string): Promise<{ record: WritingRecord; summary: CheckSummary; codeMap: CodeMap } | null> {
   const record = await getWritingByCode(code.toUpperCase())
   if (!record) return null
-  const summary = await getCheckSummary(record.id)
-  return { record, summary }
+  const [summary, codeMap] = await Promise.all([getCheckSummary(record.id), buildCodeMap([record.text])])
+  return { record, summary, codeMap }
 }
 
 export async function saveWriting(
@@ -42,14 +45,13 @@ export async function saveWriting(
     startYear: number | null
     storyId: number | null
     text: string
-    mentionIds: number[]
   },
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const [before] = await appDb.select({ text: schema.writing.text, startYear: schema.writing.startYear })
       .from(schema.writing).where(eq(schema.writing.id, id)).limit(1)
 
-    const plain = data.text.replace(/[#*_~`>\[\]]/g, '').replace(/\s+/g, ' ').trim()
+    const plain = writingPlainText(data.text)
     await appDb.update(schema.writing).set({
       name: data.name,
       kind: data.kind,
@@ -61,19 +63,11 @@ export async function saveWriting(
       updatedAt: new Date(),
     }).where(eq(schema.writing.id, id))
 
-    // Sync mentions
-    await appDb.delete(schema.writingMentions).where(eq(schema.writingMentions.writingId, id))
-    if (data.mentionIds.length > 0) {
-      // mentionIds are entity DB ids flattened — we don't have collection here;
-      // writingMentions records are optional for display only. Skip for now until
-      // the continuity layer (Phase 4) supplies collection context.
-    }
-
     await syncLinksForRecord('writing', id)
 
     // Continuity check (Phase 4): runs after the response, when the prose or the writing's
     // timeline position changed. Draft and Canon are both checked; Set aside is excluded
-    // from every check (docs/PLAN_WRITING_AND_AI.md, "Decisions already made" #2).
+    // from every check (traveler-wiki-build-plan.md, "Writing Studio and AI layer", decision 2).
     const textChanged = before && before.text !== data.text
     const yearChanged = before && before.startYear !== data.startYear
     if (data.canonState !== 'set_aside' && (textChanged || yearChanged)) {
@@ -105,59 +99,4 @@ export async function deleteWriting(id: number): Promise<{ ok: boolean }> {
   } catch {
     return { ok: false }
   }
-}
-
-export type SearchResult = {
-  id: number
-  code: string
-  name: string
-  collection: string
-}
-
-type AnyTable = typeof schema.characters
-const SEARCH_TABLE_MAP: { slug: string; table: AnyTable }[] = [
-  { slug: 'characters', table: schema.characters as unknown as AnyTable },
-  { slug: 'locations', table: schema.locations as unknown as AnyTable },
-  { slug: 'items', table: schema.items as unknown as AnyTable },
-  { slug: 'cultures', table: schema.cultures as unknown as AnyTable },
-  { slug: 'factions', table: schema.factions as unknown as AnyTable },
-  { slug: 'races', table: schema.races as unknown as AnyTable },
-  { slug: 'languages', table: schema.languages as unknown as AnyTable },
-  { slug: 'lore', table: schema.lore as unknown as AnyTable },
-]
-
-export async function searchEntities(query: string): Promise<SearchResult[]> {
-  if (!query || query.length < 1) return []
-  const results: SearchResult[] = []
-  const codePattern = /^[A-Z]\d+$/i.test(query.trim())
-
-  for (const { slug, table } of SEARCH_TABLE_MAP) {
-    if (results.length >= 8) break
-    const rows = await appDb.select({
-      id: table.id,
-      code: table.code,
-      name: table.name,
-    })
-      .from(table as never)
-      .where(
-        codePattern
-          ? eq(table.code, query.toUpperCase())
-          : like(table.name, `%${query}%`)
-      )
-      .limit(Math.max(1, 8 - results.length))
-    for (const r of rows as { id: number; code: string; name: string }[]) {
-      results.push({ id: r.id, code: r.code, name: r.name, collection: slug })
-    }
-  }
-
-  // Also search events and stories
-  if (results.length < 8) {
-    const evts = await appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name })
-      .from(schema.events)
-      .where(codePattern ? eq(schema.events.code, query.toUpperCase()) : like(schema.events.name, `%${query}%`))
-      .limit(Math.max(1, 8 - results.length))
-    for (const r of evts) results.push({ id: r.id, code: r.code, name: r.name, collection: 'events' })
-  }
-
-  return results.slice(0, 8)
 }

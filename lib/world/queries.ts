@@ -2,6 +2,7 @@ import 'server-only'
 import { eq, and, desc, inArray, like, or, isNotNull, gte, lte, ne } from 'drizzle-orm'
 import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
+import { currentCodes } from '@/lib/codes-history'
 import { CODE_REGEX, CODE_PREFIX_CHARS, ENTITY_SLUGS, PREFIX_TO_SLUG } from '@/lib/codes'
 import type {
   characters, locations, items, cultures, factions, races, languages,
@@ -47,6 +48,7 @@ const WORLD_TABLE_MAP: Record<string, AnyWorldTable> = {
   boards: schema.boards as unknown as AnyWorldTable,
   tables: schema.tables as unknown as AnyWorldTable,
   compilations: schema.compilations as unknown as AnyWorldTable,
+  beats: schema.beats as unknown as AnyWorldTable,
 }
 
 function getWorldTable(collection: string) {
@@ -214,6 +216,27 @@ export async function getSubItems(collection: string, parentId: number) {
   return rows as unknown[]
 }
 
+// ─── Beats (step S5) ───────────────────────────────────────────────────────────
+export async function getBeatsForStory(storyId: number) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.beats)
+    .where(eq(schema.beats.storyId, storyId)).orderBy(schema.beats.order)
+  return rows.map(r => ({ ...r, tags: resolveTagIds((r.tagIds ?? []) as number[]) }))
+}
+
+export async function getBeatByCode(code: string) {
+  await getAllTags()
+  const rows = await appDb.select().from(schema.beats).where(eq(schema.beats.code, code.toUpperCase())).limit(1)
+  if (!rows[0]) return null
+  return { ...rows[0], tags: resolveTagIds((rows[0].tagIds ?? []) as number[]) }
+}
+
+export async function getBeatInvolves(beatId: number) {
+  return appDb.select({
+    entryCollection: schema.beatInvolves.entryCollection, entryId: schema.beatInvolves.entryId,
+  }).from(schema.beatInvolves).where(eq(schema.beatInvolves.beatId, beatId))
+}
+
 // ─── getRelationshipsByCode ───────────────────────────────────────────────────
 export async function getRelationshipsByCode(code: string) {
   const [fromRows, toRows] = await Promise.all([
@@ -372,7 +395,7 @@ export async function getMapsList() {
 
 export type ResolvedLinkEntry = { collection: string; id: number; code: string; name: string }
 
-async function resolveLinkEntries(
+export async function resolveLinkEntries(
   rows: { entryCollection: string; entryId: number }[]
 ): Promise<ResolvedLinkEntry[]> {
   const out: ResolvedLinkEntry[] = []
@@ -717,8 +740,13 @@ export async function buildCodeMap(texts: (string | null | undefined)[]): Promis
   }
   if (codes.size === 0) return {}
 
+  // A code retired by a type change resolves to the entry's current code.
+  const moved = await currentCodes([...codes])
+  const canon = (code: string) => moved.get(code) ?? code
+
   const byCollection = new Map<string, string[]>()
-  for (const code of codes) {
+  for (const original of codes) {
+    const code = canon(original)
     const collection = PREFIX_TO_SLUG[code[0]]
     if (!collection || collection === 'relationships' || collection === 'continuity-flags' || collection === 'tags') continue
     if (!byCollection.has(collection)) byCollection.set(collection, [])
@@ -754,7 +782,7 @@ export async function buildCodeMap(texts: (string | null | undefined)[]): Promis
   }))
 
   for (const code of codes) {
-    if (!(code in map)) map[code] = null
+    map[code] = map[canon(code)] ?? null
   }
 
   return map
@@ -836,10 +864,11 @@ export async function getWorldTreeNodes() {
 
 // ─── resolveCodeLookup ────────────────────────────────────────────────────────
 export async function resolveCodeLookup(query: string): Promise<{ code: string; collection: string; name: string } | null> {
-  const q = query.trim().toUpperCase()
+  let q = query.trim().toUpperCase()
   // Built from the same prefix chars as CODE_REGEX, so a new prefix only needs adding in one place.
   const re = new RegExp(`^[${CODE_PREFIX_CHARS}]\\d{1,6}$`)
   if (re.test(q)) {
+    q = (await currentCodes([q])).get(q) ?? q
     const collection = PREFIX_TO_SLUG[q[0]]
     if (collection && ENTITY_SLUGS.includes(collection as never)) {
       const doc = await getEntryByCode(collection, q)

@@ -11,9 +11,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "test:continuity": "tsx scripts/test-continuity.ts"
+    "test:continuity": "tsx scripts/test-continuity.ts",
+    "test:mentions": "tsx scripts/test-mentions.ts",
+    "test:names": "tsx scripts/test-names.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.105",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -39,7 +42,7 @@
     "@radix-ui/react-slot": "^1.3.3",
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.12.1",
-    "ai": "^7.0.77",
+    "ai": "^7.0.173",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

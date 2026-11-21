@@ -175,6 +175,41 @@ export async function undoNewDetailAction(flagCode: string): Promise<ActionResul
   return { ok: true }
 }
 
+// "Leaving Canon" (step S7): reverts one change a piece of writing caused, by history row id
+// rather than by an open continuity flag, so it still works after the flag was acknowledged.
+// Only an 'added' row (a detail appended to an existing record) is revertible here; 'created'
+// (a whole new record) is not, since deleting a record is a bigger, harder to reverse operation
+// this action deliberately does not attempt.
+export async function revertHistoryRowAction(historyId: number): Promise<ActionResult> {
+  const [row] = await appDb.select().from(schema.continuityHistory).where(eq(schema.continuityHistory.id, historyId)).limit(1)
+  if (!row) return { ok: false, error: 'That change no longer exists.' }
+  if (row.action !== 'added') return { ok: false, error: 'Only an appended detail can be reverted here.' }
+
+  const table = WORLD_TABLE_MAP[row.entryCollection]
+  if (!table) return { ok: false, error: 'The entry this refers to no longer exists.' }
+  const [entry] = await appDb.select({ details: table.details }).from(table as never).where(eq(table.id, row.entryId)).limit(1)
+  if (!entry) return { ok: false, error: 'The entry this refers to no longer exists.' }
+
+  const details = [...(((entry as { details: DetailRow[] }).details) ?? [])]
+  const idx = details.findIndex((d) => d.label.trim().toLowerCase() === row.fieldLabel.trim().toLowerCase())
+  const current = idx >= 0 ? details[idx].value : null
+  if (current === null || current !== row.newValue) {
+    return { ok: false, error: 'That field has changed since, so it was left alone. Edit it on the entry page.' }
+  }
+
+  if (row.oldValue) details[idx] = { ...details[idx], value: row.oldValue }
+  else details.splice(idx, 1)
+
+  await updateDetailsAction(row.entryCollection, row.entryId, details)
+  await appDb.insert(schema.continuityHistory).values({
+    entryCollection: row.entryCollection, entryId: row.entryId, fieldLabel: row.fieldLabel,
+    action: 'reverted', oldValue: row.newValue, newValue: row.oldValue, writingId: row.writingId,
+  })
+
+  revalidatePath('/write')
+  return { ok: true }
+}
+
 // Manual fallback: run the check on demand, outside the automatic save-time trigger.
 export async function triggerContinuityCheckAction(writingId: number): Promise<ActionResult> {
   const { claimCheck, runContinuityCheck } = await import('./run-check')

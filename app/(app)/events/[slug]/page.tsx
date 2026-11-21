@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { movedTo } from "@/lib/codes-history";
 import { getEventByCode, getEventBySlug, getRelationshipsByCode, buildCodeMap, isUnk, getLocationRef, getEventPins } from "@/lib/world/queries";
 import { CodeText } from "@/components/code-text";
 import { EditableField } from "@/components/editable-field";
@@ -9,6 +10,7 @@ import { WhatLinksHere } from "@/components/what-links-here";
 import { RelationshipView } from "@/components/relationship-view";
 import { EventPinsEditor, type EventPinRef } from "@/components/event-pins-editor";
 import { nodeKindFor } from "@/lib/nodeKinds";
+import { AiAssistBar } from "@/components/ai-assist-bar";
 
 const CODE_RE = /^E\d{1,6}$/i;
 
@@ -21,6 +23,7 @@ type EventDoc = {
   endYear?: number | null;
   yearLabel?: string | null;
   locationId?: number | null;
+  details?: { label: string; value?: string | null }[] | null;
   tagIds?: number[] | null;
   reviewNote?: string | null;
   gapPrompt?: string | null;
@@ -74,7 +77,11 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
   const event = CODE_RE.test(slug.toUpperCase())
     ? await getEventByCode(slug)
     : await getEventBySlug(slug);
-  if (!event) notFound();
+  if (!event) {
+    const moved = CODE_RE.test(slug.toUpperCase()) ? await movedTo(slug) : null;
+    if (moved) redirect(moved);
+    notFound();
+  }
 
   const doc = event as unknown as EventDoc;
   const code = doc.code ?? "";
@@ -135,6 +142,13 @@ export default async function EventReadPage({ params }: { params: Promise<{ slug
           <RecordActions collection="events" id={doc.id} code={code} name={doc.name} status={doc.status} />
         </div>
       </div>
+
+      <AiAssistBar
+        collection="events"
+        code={code}
+        docId={doc.id}
+        currentDetails={(doc.details ?? []).map(d => ({ label: d.label, value: d.value ?? "" }))}
+      />
 
       {unkTagged && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">

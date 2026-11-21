@@ -6,7 +6,9 @@ import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { assignNextCode, slugify } from '@/db/codes'
 import { PREFIX_TO_SLUG } from '@/lib/codes'
+import { SHEET_ROW_PREFIX } from '@/lib/sheets/templates'
 import { syncLinksForRecord, removeRecordLinks, isLinkRelevantField } from '@/lib/graph/sync'
+import { getUnkTagId } from '@/lib/world/queries'
 
 // ─── Table map ───────────────────────────────────────────────────────────────
 type AnyTable = typeof schema.characters
@@ -27,6 +29,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   boards: schema.boards as unknown as AnyTable,
   tables: schema.tables as unknown as AnyTable,
   compilations: schema.compilations as unknown as AnyTable,
+  beats: schema.beats as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -41,6 +44,7 @@ export async function updateEventYearAction(id: string, year: number) {
   await appDb.update(schema.events)
     .set({ startYear: Math.round(year), updatedAt: new Date() })
     .where(eq(schema.events.id, Number(id)))
+  await checkEventLabelMismatch(Number(id))
   revalidatePath('/timeline')
 }
 
@@ -182,6 +186,107 @@ export async function updateMapPinLinksAction(
   }
 }
 
+// ─── Beat actions (step S5) ────────────────────────────────────────────────────
+// Unrelated to the legacy `stories.beats` display block on the story page (dead code from before
+// the Drizzle migration, no backing column) -- this is the new `beats` collection (code B).
+
+export async function createBeatAction(data: {
+  storyId: number
+  name: string
+  summary?: string | null
+  order: number
+  startYear?: number | null
+  yearLabel?: string | null
+}): Promise<{ id: number; code?: string; error?: string }> {
+  return createEntityAction('beats', data)
+}
+
+export async function updateBeatInvolvesAction(
+  beatId: number,
+  involves: { relationTo: string; value: number }[]
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.delete(schema.beatInvolves).where(eq(schema.beatInvolves.beatId, beatId))
+    if (involves.length > 0) {
+      await appDb.insert(schema.beatInvolves).values(
+        involves.map(i => ({ beatId, entryCollection: i.relationTo, entryId: i.value }))
+      )
+    }
+    await appDb.update(schema.beats).set({ updatedAt: new Date() }).where(eq(schema.beats.id, beatId))
+    await syncLinksForRecord('beats', beatId)
+    revalidatePath('/stories')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// Swaps a beat's order with its neighbor. A plain up/down move rather than a dnd-kit drag, since
+// automation cannot start a dnd-kit drag (CLAUDE.md Gotchas) and this needs to be verifiable here.
+export async function moveBeatAction(storyId: number, beatId: number, direction: 'up' | 'down'): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const beats = await appDb.select({ id: schema.beats.id, order: schema.beats.order })
+      .from(schema.beats).where(eq(schema.beats.storyId, storyId)).orderBy(schema.beats.order)
+    const idx = beats.findIndex(b => b.id === beatId)
+    if (idx < 0) return { ok: false, error: 'This beat no longer exists.' }
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= beats.length) return { ok: true } // already at an end, no-op
+
+    const a = beats[idx]
+    const b = beats[swapIdx]
+    await appDb.update(schema.beats).set({ order: b.order, updatedAt: new Date() }).where(eq(schema.beats.id, a.id))
+    await appDb.update(schema.beats).set({ order: a.order, updatedAt: new Date() }).where(eq(schema.beats.id, b.id))
+    revalidatePath('/stories')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// Promotes a beat to a canon event (plan decision 7). Creates the event from the beat's own
+// fields, copies its involves list, and marks the beat promoted -- the beat itself stays in place
+// so the lane keeps a record of the story's plan.
+export async function promoteBeatToEventAction(beatId: number): Promise<{ ok: boolean; eventCode?: string; error?: string }> {
+  try {
+    const [beat] = await appDb.select().from(schema.beats).where(eq(schema.beats.id, beatId)).limit(1)
+    if (!beat) return { ok: false, error: 'This beat no longer exists.' }
+    if (beat.state === 'promoted' && beat.promotedToEventId) {
+      const [existing] = await appDb.select({ code: schema.events.code }).from(schema.events).where(eq(schema.events.id, beat.promotedToEventId)).limit(1)
+      return { ok: true, eventCode: existing?.code }
+    }
+
+    const created = await createEntityAction('events', {
+      name: beat.name,
+      summary: beat.summary,
+      startYear: beat.startYear,
+      yearLabel: beat.yearLabel,
+    })
+    if (created.error || !created.id) return { ok: false, error: created.error }
+
+    const involvesRows = await appDb.select({
+      entryCollection: schema.beatInvolves.entryCollection, entryId: schema.beatInvolves.entryId,
+    }).from(schema.beatInvolves).where(eq(schema.beatInvolves.beatId, beatId))
+    if (involvesRows.length > 0) {
+      await appDb.insert(schema.eventInvolves).values(
+        involvesRows.map(r => ({ eventId: created.id, entryCollection: r.entryCollection, entryId: r.entryId }))
+      )
+      await syncLinksForRecord('events', created.id)
+    }
+
+    await appDb.update(schema.beats)
+      .set({ state: 'promoted', promotedToEventId: created.id, updatedAt: new Date() })
+      .where(eq(schema.beats.id, beatId))
+    await syncLinksForRecord('beats', beatId)
+
+    revalidatePath('/stories')
+    revalidatePath('/timeline')
+    revalidatePath('/events')
+    return { ok: true, eventCode: created.code }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
 // ─── searchForEntry ───────────────────────────────────────────────────────────
 export async function searchForEntry(query: string): Promise<{ code: string; collection: string } | null> {
   const { resolveCodeLookup } = await import('@/lib/world/queries')
@@ -232,6 +337,36 @@ export async function createEntityAction(
 }
 
 // ─── updateFieldAction ────────────────────────────────────────────────────────
+// Label check (step S7, no AI): a numeric yearLabel that disagrees with startYear is a data
+// inconsistency the app can catch deterministically, with no model call. Flagged through the
+// same reviewNote + UNK mechanism every other best guess uses (hard rule 13), not a new table.
+async function checkEventLabelMismatch(id: number): Promise<void> {
+  const [row] = await appDb.select({
+    startYear: schema.events.startYear,
+    yearLabel: schema.events.yearLabel,
+    reviewNote: schema.events.reviewNote,
+    tagIds: schema.events.tagIds,
+  }).from(schema.events).where(eq(schema.events.id, id)).limit(1)
+  if (!row || row.startYear == null || !row.yearLabel) return
+
+  const numbers = [...row.yearLabel.matchAll(/-?\d+/g)].map((m) => Number(m[0]))
+  if (numbers.length === 0 || numbers.includes(row.startYear)) return
+
+  const note = `Year label "${row.yearLabel}" does not match the start year (${row.startYear}).`
+  const existingNote = row.reviewNote ?? ''
+  if (existingNote.includes(note)) return
+
+  const unkId = await getUnkTagId()
+  const tagIds = [...((row.tagIds as number[] | null) ?? [])]
+  if (unkId && !tagIds.includes(unkId)) tagIds.push(unkId)
+
+  await appDb.update(schema.events).set({
+    reviewNote: existingNote ? `${existingNote}\n${note}` : note,
+    tagIds,
+    updatedAt: new Date(),
+  }).where(eq(schema.events.id, id))
+}
+
 export async function updateFieldAction(
   collection: string,
   id: number,
@@ -250,6 +385,10 @@ export async function updateFieldAction(
       await syncLinksForRecord(collection, id)
     }
 
+    if (collection === 'events' && (field === 'startYear' || field === 'yearLabel')) {
+      await checkEventLabelMismatch(id)
+    }
+
     revalidatePath(`/${collection}`)
     return { ok: true }
   } catch (err) {
@@ -257,13 +396,52 @@ export async function updateFieldAction(
   }
 }
 
+// ─── details rows ─────────────────────────────────────────────────────────────
+type DetailRow = { label: string; value: string; inInfobox: boolean; id?: string }
+
+async function readDetails(collection: string, id: number): Promise<DetailRow[] | null> {
+  const table = getTable(collection)
+  if (!table) return null
+  const rows = await appDb.select({ details: table.details }).from(table as never).where(eq(table.id, id)).limit(1)
+  const row = (rows as { details: DetailRow[] | null }[])[0]
+  return row ? (row.details ?? []) : null
+}
+
+const isSheetRow = (r: DetailRow) => typeof r.id === 'string' && r.id.startsWith(SHEET_ROW_PREFIX)
+
 // ─── updateDetailsAction ──────────────────────────────────────────────────────
+// Saves the free-form detail rows. Sheet answers (character sheet, questionnaire, plot outline)
+// live in the same column and are kept as they are, since the details editor never shows them.
 export async function updateDetailsAction(
   collection: string,
   id: number,
-  details: { label: string; value: string; inInfobox: boolean; id?: string }[]
+  details: DetailRow[]
 ): Promise<{ ok: boolean; error?: string }> {
-  return updateFieldAction(collection, id, 'details', details)
+  const current = await readDetails(collection, id)
+  const keep = (current ?? []).filter(isSheetRow)
+  return updateFieldAction(collection, id, 'details', [...details.filter((d) => !isSheetRow(d)), ...keep])
+}
+
+// ─── saveSheetAnswerAction ────────────────────────────────────────────────────
+// Saves one answer on a sheet. An empty answer removes its row.
+export async function saveSheetAnswerAction(
+  collection: string,
+  id: number,
+  key: string,
+  label: string,
+  value: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const current = await readDetails(collection, id)
+    if (current === null) return { ok: false, error: `Not found: ${collection} ${id}` }
+    const rowId = `${SHEET_ROW_PREFIX}${key}`
+    const rest = current.filter((r) => r.id !== rowId)
+    const trimmed = value.trim()
+    const next = trimmed ? [...rest, { id: rowId, label, value: trimmed, inInfobox: false }] : rest
+    return await updateFieldAction(collection, id, 'details', next)
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
 }
 
 // ─── checkDeleteConflictsAction ───────────────────────────────────────────────
@@ -327,6 +505,13 @@ export async function checkDeleteConflictsAction(
     }
   }
 
+  // Beats planned for this story
+  if (collection === 'stories') {
+    const beatRows = await appDb.select({ id: schema.beats.id, code: schema.beats.code, name: schema.beats.name })
+      .from(schema.beats).where(eq(schema.beats.storyId, id))
+    for (const b of beatRows) conflicts.push({ collection: 'beats', code: b.code, name: b.name })
+  }
+
   // Stories that dramatize this event
   if (collection === 'events') {
     const dramatizeRows = await appDb.select({ storyId: schema.storyDramatizes.storyId })
@@ -364,6 +549,8 @@ export async function deleteEntityAction(
     } else if (collection === 'events') {
       await appDb.delete(schema.eventInvolves).where(eq(schema.eventInvolves.eventId, id))
       await appDb.delete(schema.eventPins).where(eq(schema.eventPins.eventId, id))
+    } else if (collection === 'beats') {
+      await appDb.delete(schema.beatInvolves).where(eq(schema.beatInvolves.beatId, id))
     } else if (collection === 'maps') {
       const pins = await appDb.select({ id: schema.mapPins.id, code: schema.mapPins.code })
         .from(schema.mapPins).where(eq(schema.mapPins.mapId, id))

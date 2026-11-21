@@ -25,6 +25,7 @@ export const NODE_KINDS: Record<string, NodeKind> = {
   boards: { color: '#475569', icon: 'LayoutDashboard' },
   tables: { color: '#0369a1', icon: 'Table' },
   compilations: { color: '#78716c', icon: 'BookMarked' },
+  beats: { color: '#db2777', icon: 'ListTodo' },
 }
 
 export const DEFAULT_NODE_KIND: NodeKind = { color: '#71717a', icon: 'Circle' }

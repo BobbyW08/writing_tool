@@ -37,6 +37,7 @@ const TABLES: Record<string, AnyTable> = {
   chronicles: schema.chronicles as unknown as AnyTable,
   boards: schema.boards as unknown as AnyTable,
   tables: schema.tables as unknown as AnyTable,
+  beats: schema.beats as unknown as AnyTable,
 }
 
 const COLLECTIONS = Object.keys(TABLES)

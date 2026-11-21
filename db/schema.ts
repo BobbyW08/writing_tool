@@ -205,6 +205,10 @@ export const stories = pgTable('stories', {
   yearLabel: text('year_label'),
   floating: boolean('floating').default(false),
   catalogNumber: integer('catalog_number'),
+  // Plot outline answers live here as `sheet:` rows, the same way the character sheet does.
+  details: jsonb('details')
+    .$type<{ label: string; value: string; inInfobox: boolean; id?: string }[]>()
+    .default(sql`'[]'::jsonb`),
 }, (t) => [
   index('stories_code_idx').on(t.code),
   index('stories_legacy_idx').on(t.legacyId),
@@ -225,6 +229,35 @@ export const storyDramatizes = pgTable('story_dramatizes', {
   eventId: integer('event_id').notNull(),
 }, (t) => [
   unique().on(t.storyId, t.eventId),
+])
+
+// ─── Beats (new, step S5, code B) ────────────────────────────────────────────
+// A planned story beat on the Story Builder's lane view. Becomes an event only when Bobby
+// promotes it (promotedToEventId); until then it is plan, not canon, and never appears on the
+// timeline. involves mirrors eventInvolves (hard rule 5: never flatten it).
+
+export const beats = pgTable('beats', {
+  ...worldSharedCols(),
+  storyId: integer('story_id').notNull(),
+  order: integer('order').notNull().default(0),
+  startYear: integer('start_year'),
+  yearLabel: text('year_label'),
+  state: text('state').notNull().default('idea'), // idea | planned | promoted
+  promotedToEventId: integer('promoted_to_event_id'),
+}, (t) => [
+  index('beats_code_idx').on(t.code),
+  index('beats_story_idx').on(t.storyId),
+])
+
+export const beatInvolves = pgTable('beat_involves', {
+  id: serial('id').primaryKey(),
+  beatId: integer('beat_id').notNull(),
+  entryCollection: text('entry_collection').notNull(),
+  entryId: integer('entry_id').notNull(),
+}, (t) => [
+  unique().on(t.beatId, t.entryCollection, t.entryId),
+  index('beat_involves_beat_idx').on(t.beatId),
+  index('beat_involves_entry_idx').on(t.entryCollection, t.entryId),
 ])
 
 // ─── Writing ─────────────────────────────────────────────────────────────────
@@ -324,6 +357,19 @@ export const links = pgTable('links', {
   index('links_broken_idx').on(t.broken),
 ])
 
+// ─── Code history ─────────────────────────────────────────────────────────────
+
+// When an entry moves to another type it gets a new code. The old code is kept here and always
+// points at the current code, so text, bookmarks and old links that still use it keep resolving.
+export const codeHistory = pgTable('code_history', {
+  id: serial('id').primaryKey(),
+  oldCode: text('old_code').unique().notNull(),
+  newCode: text('new_code').notNull(),
+  movedAt: timestamp('moved_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('code_history_new_idx').on(t.newCode),
+])
+
 // ─── Tags ─────────────────────────────────────────────────────────────────────
 
 export const tags = pgTable('tags', {
@@ -380,7 +426,7 @@ export const counters = pgTable('counters', {
 // kind: conflict | possible_change (decisions, wait for Bobby) | new_record | new_detail
 // (updates, already applied with his own words, shown with Undo). status: open | resolved.
 // choice (once resolved): keep_canon | update_canon | both_true | changed_over_time |
-// decide_later | acknowledged | undone. See traveler-wiki-build-plan.md / PLAN_WRITING_AND_AI.md S7
+// decide_later | acknowledged | undone. See traveler-wiki-build-plan.md, S7
 // and CLAUDE.md hard rule 1.
 
 export const continuity = pgTable('continuity', {
@@ -565,6 +611,79 @@ export const compilations = pgTable('compilations', {
 }, (t) => [
   index('compilations_code_idx').on(t.code),
   index('compilations_parent_idx').on(t.parentId),
+])
+
+// ─── AI layer (step S4) ───────────────────────────────────────────────────────
+// All AI calls go through lib/ai/. Nothing here is canon by itself (hard rule 1): an ai_proposals
+// row only reaches a record's real field through the Accept and Reject inbox, via the same write
+// functions as everything else (lib/world/actions.ts), which keep the link index and tags in sync.
+
+// Which Claude model each AI task uses. One row per task key, upserted on first read like
+// timeline_settings, so a fresh database always has a working default.
+export const aiSettings = pgTable('ai_settings', {
+  id: serial('id').primaryKey(),
+  task: text('task').unique().notNull(), // quick_suggestions | deep_suggestions
+  model: text('model').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// One AI suggestion, pending Bobby's decision in the Accept and Reject inbox. kind says what
+// accepting it does: field (set a column), detail (add/replace a details row), beat (create a
+// beats row, step S5). targetCode is null for a proposed new beat with no record yet.
+export const aiProposals = pgTable('ai_proposals', {
+  id: serial('id').primaryKey(),
+  task: text('task').notNull(),
+  targetCollection: text('target_collection'),
+  targetId: integer('target_id'),
+  targetCode: text('target_code'),
+  kind: text('kind').notNull(), // field | detail | beat
+  fieldLabel: text('field_label'), // details label, field name, or section name shown in the tray
+  proposedValue: jsonb('proposed_value').$type<unknown>().notNull(),
+  model: text('model').notNull(),
+  state: text('state').notNull().default('pending'), // pending | accepted | rejected
+  contextCodes: jsonb('context_codes').$type<string[]>().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+}, (t) => [
+  index('ai_proposals_state_idx').on(t.state),
+  index('ai_proposals_target_idx').on(t.targetCollection, t.targetId),
+])
+
+// One checkable fact found in a piece of writing, tied to the record and field it depends on
+// (step S7). Metadata, not canon: nothing here is read as the record's own value, only as a
+// trace of what a piece of writing claimed and in what state (Draft or Canon) it claimed it.
+// sourceCanonState is the writing's canonState at the moment of the check that produced this row,
+// which is how "Draft never spreads" (O7) stays checkable after the fact.
+export const claims = pgTable('claims', {
+  id: serial('id').primaryKey(),
+  writingId: integer('writing_id').notNull(),
+  entryCollection: text('entry_collection').notNull(),
+  entryId: integer('entry_id').notNull(),
+  fieldLabel: text('field_label').notNull(),
+  quote: text('quote').notNull(),
+  impliedValue: text('implied_value').notNull(),
+  sourceCanonState: text('source_canon_state').notNull(),
+  kind: text('kind').notNull(), // match | new_detail | new_record | conflict | possible_change
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('claims_entry_idx').on(t.entryCollection, t.entryId),
+  index('claims_writing_idx').on(t.writingId),
+])
+
+// The prompts menu (step S6). One row per question. group is the topic heading shown in the menu
+// (for example "Presentation", "Origins"). detailLabel is the details row an answer is written
+// into, whether answered by hand or accepted from an AI proposal.
+export const promptSets = pgTable('prompt_sets', {
+  id: serial('id').primaryKey(),
+  collection: text('collection').notNull(),
+  group: text('group').notNull(),
+  label: text('label').notNull(),
+  question: text('question').notNull(),
+  detailLabel: text('detail_label').notNull(),
+  order: integer('order').notNull().default(0),
+  active: boolean('active').notNull().default(true),
+}, (t) => [
+  index('prompt_sets_collection_idx').on(t.collection),
 ])
 
 // ─── Cultures join tables (kept as denorm columns in world tables, not separate) ─

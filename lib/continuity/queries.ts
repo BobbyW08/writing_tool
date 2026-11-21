@@ -169,9 +169,12 @@ export interface CheckSummary {
   newRecords: number
   newDetails: number
   confirmed: number
+  claims: number
 }
 
-// Counts for one piece of writing's most recent check, shown next to the editor.
+// Counts for one piece of writing's most recent check, shown next to the editor. claims is the
+// honest-limit count (step S7): how many checkable facts the check actually found, so a thin
+// result reads as "checked, little found" rather than silence.
 export async function getCheckSummary(writingId: number): Promise<CheckSummary> {
   const rows = await appDb.select({ kind: schema.continuity.kind, status: schema.continuity.status })
     .from(schema.continuity).where(eq(schema.continuity.writingId, writingId))
@@ -180,7 +183,40 @@ export async function getCheckSummary(writingId: number): Promise<CheckSummary> 
   const newDetails = rows.filter((r) => r.kind === 'new_detail').length
   const [confirmedRow] = await appDb.select({ n: sql<number>`count(*)::int` })
     .from(schema.continuityConfirmations).where(eq(schema.continuityConfirmations.writingId, writingId))
-  return { decisions, newRecords, newDetails, confirmed: confirmedRow?.n ?? 0 }
+  const [claimsRow] = await appDb.select({ n: sql<number>`count(*)::int` })
+    .from(schema.claims).where(eq(schema.claims.writingId, writingId))
+  return { decisions, newRecords, newDetails, confirmed: confirmedRow?.n ?? 0, claims: claimsRow?.n ?? 0 }
+}
+
+export interface WritingHistoryRow {
+  id: number
+  entryCollection: string
+  entryId: number
+  entryName: string
+  entrySlug: string
+  fieldLabel: string
+  action: string
+  oldValue: string | null
+  newValue: string | null
+  createdAt: Date
+}
+
+// "Leaving Canon" (step S7): every change this piece of writing caused, across every record it
+// touched, so Bobby can see and revert them whether or not this piece is still Canon.
+export async function listHistoryForWriting(writingId: number): Promise<WritingHistoryRow[]> {
+  const rows = await appDb.select({
+    id: schema.continuityHistory.id,
+    entryCollection: schema.continuityHistory.entryCollection,
+    entryId: schema.continuityHistory.entryId,
+    fieldLabel: schema.continuityHistory.fieldLabel,
+    action: schema.continuityHistory.action,
+    oldValue: schema.continuityHistory.oldValue,
+    newValue: schema.continuityHistory.newValue,
+    createdAt: schema.continuityHistory.createdAt,
+  }).from(schema.continuityHistory)
+    .where(eq(schema.continuityHistory.writingId, writingId))
+    .orderBy(desc(schema.continuityHistory.createdAt))
+  return enrichEntries(rows)
 }
 
 export { entityHref }

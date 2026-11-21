@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { updateFieldAction } from '@/lib/world/actions'
+import { ENTRY_DRAG_TYPE, type EntryDragPayload } from '@/lib/studio/drag'
 
 type Mode = 'type' | 'story' | 'culture' | 'era'
 
@@ -85,7 +86,13 @@ function TreeNodeRow({
     <div>
       <div
         draggable
-        onDragStart={() => onDragStart(node.id)}
+        onDragStart={(e) => {
+          // Lets the row be dropped into the writing editor as a mention, and still reparent in the tree.
+          const payload: EntryDragPayload = { code: node.code, name: node.name, collection: node.collection }
+          e.dataTransfer.setData(ENTRY_DRAG_TYPE, JSON.stringify(payload))
+          e.dataTransfer.effectAllowed = 'copyMove'
+          onDragStart(node.id)
+        }}
         onDragOver={(e) => onDragOver(e, node.id)}
         onDrop={(e) => onDrop(e, node.id)}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -95,7 +102,7 @@ function TreeNodeRow({
           <img src={node.image} alt="" className="h-5 w-5 shrink-0 rounded object-cover opacity-80" />
         )}
         <span className="font-mono text-[10px] text-muted-foreground shrink-0">{node.code}</span>
-        <Link href={nodeHref(node)} className="flex-1 truncate hover:underline" onClick={(e) => e.stopPropagation()}>
+        <Link href={nodeHref(node)} draggable={false} className="flex-1 truncate hover:underline" onClick={(e) => e.stopPropagation()}>
           {node.name}
         </Link>
       </div>
@@ -161,6 +168,7 @@ export function WorldTree({ nodes }: WorldTreeProps) {
   const [mode, setMode] = useState<Mode>('type')
   const [filter, setFilter] = useState('')
   const [dragId, setDragId] = useState<number | null>(null)
+  const dragIdRef = useRef<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
   const [dragError, setDragError] = useState('')
   const router = useRouter()
@@ -177,19 +185,24 @@ export function WorldTree({ nodes }: WorldTreeProps) {
   const worldNodes = nodes.filter(n => !['events', 'stories'].includes(n.collection))
 
   function handleDragStart(id: number) {
+    dragIdRef.current = id
     setDragId(id)
     setDragError('')
   }
 
   function handleDragOver(e: React.DragEvent, id: number) {
     e.preventDefault()
+    // The row advertises copyMove (copy = editor drop, move = reparent). Say which one the tree wants.
+    e.dataTransfer.dropEffect = 'move'
     setDragOver(id)
   }
 
   async function handleDrop(e: React.DragEvent, targetId: number) {
     e.preventDefault()
     setDragOver(null)
-    if (!dragId || dragId === targetId) { setDragId(null); return }
+    // Read the drag source from the ref, not state: state may not have re-rendered since dragstart.
+    const dragId = dragIdRef.current
+    if (!dragId || dragId === targetId) { setDragId(null); dragIdRef.current = null; return }
 
     const dragged = nodes.find(n => n.id === dragId)
     const target = nodes.find(n => n.id === targetId)

@@ -2,6 +2,7 @@
 
 import { EditableField } from './editable-field'
 import { DeleteRecordButton } from './delete-record-button'
+import { MoveEntryButton } from './move-entry-button'
 import { STATUS_OPTIONS } from '@/lib/world/fields'
 import { WORLD_SLUGS } from '@/lib/codes'
 
@@ -17,6 +18,9 @@ interface RecordActionsProps {
 // Entries and events are the only collections "Export as Markdown" covers (Phase 7) -- stories,
 // writing, and the structural collections (boards, tables, maps...) don't export this way.
 const EXPORTABLE_COLLECTIONS: string[] = [...WORLD_SLUGS, 'events']
+
+// Collections an entry can change type between (lib/world/move.ts).
+const MOVABLE_COLLECTIONS: string[] = [...WORLD_SLUGS, 'events', 'stories']
 
 // One shared header-row control: step U1 in traveler-wiki-build-plan.md. Every coded collection
 // (entries, events, stories, boards, chronicles, maps, tables) carries a `status` column via
@@ -35,6 +39,7 @@ export function RecordActions({ collection, id, code, name, status, onDeleted }:
         </a>
       )}
       <EditableField collection={collection} docId={id} fieldName="status" value={status} kind="select" options={STATUS_OPTIONS} />
+      {MOVABLE_COLLECTIONS.includes(collection) && <MoveEntryButton collection={collection} id={id} name={name} />}
       <DeleteRecordButton collection={collection} id={id} code={code} name={name} onDeleted={onDeleted} />
     </div>
   )

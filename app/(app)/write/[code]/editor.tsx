@@ -3,24 +3,22 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useTransition,
 } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  $createParagraphNode,
-  $createTextNode,
+  $createRangeSelection,
   $getRoot,
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
-  type EditorConfig,
-  type LexicalEditor,
-  type NodeKey,
-  type RangeSelection,
+  $isTextNode,
+  $setSelection,
+  type LexicalNode,
   TextNode,
-  type SerializedTextNode,
-  type Spread,
 } from 'lexical'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
@@ -30,138 +28,71 @@ import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin'
 import { ListPlugin } from '@lexical/react/LexicalListPlugin'
-import { LexicalTypeaheadMenuPlugin, MenuOption, useBasicTypeaheadTriggerMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
+import { LexicalTypeaheadMenuPlugin, MenuOption, type MenuTextMatch } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $convertFromMarkdownString, $convertToMarkdownString, TRANSFORMERS } from '@lexical/markdown'
+import { $convertFromMarkdownString, $convertToMarkdownString, type Transformer } from '@lexical/markdown'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { CodeNode } from '@lexical/code-core'
 import { LinkNode } from '@lexical/link'
-import { saveWriting, searchEntities, deleteWriting, type SearchResult } from '@/lib/studio/actions'
+import { saveWriting } from '@/lib/studio/actions'
+import { listLinkableNames, type NameEntry } from '@/lib/studio/name-actions'
+import { buildIndex, findMatches, suggestForAt, suggestForTyping, type NameIndex, type Suggestion } from '@/lib/studio/name-index'
+import { ENTRY_DRAG_TYPE, type EntryDragPayload } from '@/lib/studio/drag'
+import { MentionNode, $createMentionNode, proseTransformers, SHORTCUT_TRANSFORMERS, type CodeMap } from '@/lib/studio/mention-node'
 import { type WritingRecord } from '@/lib/studio/queries'
 import { recheckWritingAction } from '@/lib/continuity/actions'
 import { SnippetCheckStatus, type CheckSummary } from '@/components/snippet-check-status'
+import { WritingHistoryPanel, type WritingHistoryRowView } from '@/components/writing-history-panel'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 
-// ─── MentionNode ──────────────────────────────────────────────────────────────
+// ─── Linking by name ──────────────────────────────────────────────────────────
 
-type SerializedMentionNode = Spread<
-  { mentionId: string; mentionCode: string },
-  SerializedTextNode
->
-
-export class MentionNode extends TextNode {
-  __mentionId: string
-  __mentionCode: string
-
-  constructor(text: string, mentionId: string, mentionCode: string, key?: NodeKey) {
-    super(text, key)
-    this.__mentionId = mentionId
-    this.__mentionCode = mentionCode
-  }
-
-  static getType() { return 'mention' as const }
-
-  static clone(node: MentionNode): MentionNode {
-    return new MentionNode(node.__text, node.__mentionId, node.__mentionCode, node.__key)
-  }
-
-  createDOM(config: EditorConfig): HTMLElement {
-    const dom = super.createDOM(config)
-    dom.style.color = 'hsl(var(--primary))'
-    dom.style.fontWeight = '600'
-    dom.setAttribute('data-mention', this.__mentionCode)
-    return dom
-  }
-
-  exportJSON(): SerializedMentionNode {
-    return {
-      ...super.exportJSON(),
-      type: 'mention',
-      mentionId: this.__mentionId,
-      mentionCode: this.__mentionCode,
-    }
-  }
-
-  static importJSON(serialized: SerializedMentionNode): MentionNode {
-    const node = new MentionNode(
-      serialized.text,
-      serialized.mentionId,
-      serialized.mentionCode,
-    )
-    node.setFormat(serialized.format)
-    node.setDetail(serialized.detail)
-    node.setMode(serialized.mode)
-    node.setStyle(serialized.style)
-    return node
-  }
-
-  isToken(): boolean { return true }
-}
-
-export function $createMentionNode(text: string, mentionId: string, mentionCode: string): MentionNode {
-  return new MentionNode(text, mentionId, mentionCode).setMode('token')
-}
-
-// ─── Mention option ───────────────────────────────────────────────────────────
-
-class EntityOption extends MenuOption {
-  result: SearchResult
-  constructor(result: SearchResult) {
-    super(result.name)
-    this.result = result
+class NameOption extends MenuOption {
+  suggestion: Suggestion
+  constructor(suggestion: Suggestion) {
+    super(suggestion.entry.code)
+    this.suggestion = suggestion
   }
 }
 
-// ─── Mention plugin ───────────────────────────────────────────────────────────
+const COLLECTION_LABEL: Record<string, string> = {
+  characters: 'Character', locations: 'Location', items: 'Item', cultures: 'Culture', factions: 'Faction',
+  races: 'Race', languages: 'Language', lore: 'Lore', events: 'Event', stories: 'Story',
+}
 
-function MentionPlugin({ onMentionsChange }: { onMentionsChange: (ids: number[]) => void }) {
+// Type a name and a short list of matching entries appears under the cursor. Tab or Enter links
+// the highlighted one, and keep typing to ignore it. Typing @ opens the whole list instead.
+function NameLinkPlugin({ index }: { index: NameIndex | null }) {
   const [editor] = useLexicalComposerContext()
   const [query, setQuery] = useState<string | null>(null)
-  const [options, setOptions] = useState<EntityOption[]>([])
-  const triggerFn = useBasicTypeaheadTriggerMatch('@', { minLength: 0 })
 
-  // Search when query changes
-  useEffect(() => {
-    if (query === null) { setOptions([]); return }
-    let active = true
-    searchEntities(query).then((results) => {
-      if (active) setOptions(results.map((r) => new EntityOption(r)))
-    })
-    return () => { active = false }
-  }, [query])
+  const triggerFn = useCallback(
+    (text: string): MenuTextMatch | null => {
+      if (!index) return null
+      const at = /(?:^|\s)(@[^\s@]*)$/.exec(text)
+      if (at) return { leadOffset: text.length - at[1].length, matchingString: at[1], replaceableString: at[1] }
+      const typing = suggestForTyping(index, text)
+      if (!typing) return null
+      return { leadOffset: typing.start, matchingString: typing.typed, replaceableString: typing.typed }
+    },
+    [index],
+  )
 
-  // Extract mention IDs whenever the editor changes
-  useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        const ids: number[] = []
-        const root = $getRoot()
-        const stack = [...root.getChildren()]
-        while (stack.length > 0) {
-          const node = stack.pop()!
-          if (node instanceof MentionNode) {
-            const numId = parseInt(node.__mentionId, 10)
-            if (!isNaN(numId)) ids.push(numId)
-          } else if ('getChildren' in node) {
-            // @ts-expect-error — ElementNode has getChildren
-            stack.push(...node.getChildren())
-          }
-        }
-        onMentionsChange([...new Set(ids)])
-      })
-    })
-  }, [editor, onMentionsChange])
+  const options = useMemo(() => {
+    if (!index || query === null) return []
+    const list = query.startsWith('@') ? suggestForAt(index, query.slice(1)) : (suggestForTyping(index, query)?.suggestions ?? [])
+    return list.map((s) => new NameOption(s))
+  }, [index, query])
 
   const onSelectOption = useCallback(
-    (option: EntityOption, nodeWithQuery: TextNode | null, closeMenu: () => void) => {
+    (option: NameOption, nodeWithQuery: TextNode | null, closeMenu: () => void) => {
       editor.update(() => {
         if (nodeWithQuery !== null) {
-          const mention = $createMentionNode(`@${option.result.name}`, option.result.id.toString(), option.result.code)
-          nodeWithQuery.replace(mention)
-          // Move cursor after the mention
-          mention.selectNext(0, 0)
+          const { entry, insertText } = option.suggestion
+          const chip = $createMentionNode(insertText, entry.code, entry.collection)
+          nodeWithQuery.replace(chip)
+          chip.selectNext(0, 0)
         }
         closeMenu()
       })
@@ -170,7 +101,7 @@ function MentionPlugin({ onMentionsChange }: { onMentionsChange: (ids: number[])
   )
 
   return (
-    <LexicalTypeaheadMenuPlugin<EntityOption>
+    <LexicalTypeaheadMenuPlugin<NameOption>
       options={options}
       onQueryChange={setQuery}
       onSelectOption={onSelectOption}
@@ -185,25 +116,185 @@ function MentionPlugin({ onMentionsChange }: { onMentionsChange: (ids: number[])
                 top: anchorElementRef.current.getBoundingClientRect().bottom + 4,
                 zIndex: 50,
               }}
-              className="min-w-48 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
+              className="min-w-56 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
             >
               {options.map((opt, i) => (
                 <div
-                  key={opt.result.id}
+                  key={opt.suggestion.entry.code}
                   onMouseEnter={() => setHighlightedIndex(i)}
                   onMouseDown={(e) => { e.preventDefault(); selectOptionAndCleanUp(opt) }}
-                  className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-sm ${selectedIndex === i ? 'bg-accent' : ''}`}
+                  className={`flex cursor-pointer items-baseline justify-between gap-4 px-3 py-2 text-sm ${selectedIndex === i ? 'bg-accent' : ''}`}
                 >
-                  <span className="font-mono text-xs text-muted-foreground">{opt.result.code}</span>
-                  <span>{opt.result.name}</span>
+                  <span>{opt.suggestion.entry.name}</span>
+                  <span className="text-xs text-muted-foreground">{COLLECTION_LABEL[opt.suggestion.entry.collection] ?? ''}</span>
                 </div>
               ))}
+              <div className="border-t px-3 py-1 text-[11px] text-muted-foreground">Tab or Enter to link, keep typing to skip</div>
             </div>
           )
           : null
       }
     />
   )
+}
+
+// ─── Names typed out but not linked yet ──────────────────────────────────────
+
+function $plainTextNodes(): TextNode[] {
+  const out: TextNode[] = []
+  const walk = (node: LexicalNode) => {
+    if ($isTextNode(node) && !(node instanceof MentionNode)) out.push(node)
+    else if ($isElementNode(node)) node.getChildren().forEach(walk)
+  }
+  $getRoot().getChildren().forEach(walk)
+  return out
+}
+
+// Lists names that appear in the writing as plain words, with a button to link each one or all of
+// them. A link keeps the words exactly as written. It only adds the connection behind them.
+function UnlinkedNamesPanel({ index }: { index: NameIndex | null }) {
+  const [editor] = useLexicalComposerContext()
+  const [found, setFound] = useState<{ entry: NameEntry; count: number }[]>([])
+
+  useEffect(() => {
+    if (!index) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const scan = () => {
+      editor.getEditorState().read(() => {
+        const counts = new Map<string, { entry: NameEntry; count: number }>()
+        for (const node of $plainTextNodes()) {
+          for (const m of findMatches(index, node.getTextContent())) {
+            const cur = counts.get(m.entry.code)
+            if (cur) cur.count += 1
+            else counts.set(m.entry.code, { entry: m.entry, count: 1 })
+          }
+        }
+        setFound([...counts.values()].sort((a, b) => a.entry.name.localeCompare(b.entry.name)))
+      })
+    }
+    scan()
+    const off = editor.registerUpdateListener(() => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(scan, 500)
+    })
+    return () => { off(); if (timer) clearTimeout(timer) }
+  }, [editor, index])
+
+  const link = useCallback(
+    (code?: string) => {
+      if (!index) return
+      editor.update(() => {
+        for (const node of $plainTextNodes()) {
+          const text = node.getTextContent()
+          const matches = findMatches(index, text).filter((m) => !code || m.entry.code === code)
+          if (matches.length === 0) continue
+          const offsets = [...new Set(matches.flatMap((m) => [m.start, m.end]))].filter((o) => o > 0 && o < text.length).sort((a, b) => a - b)
+          const parts = offsets.length > 0 ? node.splitText(...offsets) : [node]
+          const bounds = [0, ...offsets, text.length]
+          parts.forEach((part, i) => {
+            const m = matches.find((x) => x.start === bounds[i] && x.end === bounds[i + 1])
+            if (m) part.replace($createMentionNode(m.text, m.entry.code, m.entry.collection))
+          })
+        }
+      })
+    },
+    [editor, index],
+  )
+
+  if (found.length === 0) return null
+  return (
+    <div className="mt-6 rounded-md border border-dashed px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold text-muted-foreground">Names in the text that are not linked yet</span>
+        <Button variant="ghost" size="sm" onClick={() => link()}>Link all</Button>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-2">
+        {found.map((f) => (
+          <button
+            key={f.entry.code}
+            type="button"
+            onClick={() => link(f.entry.code)}
+            className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
+          >
+            Link {f.entry.name}{f.count > 1 ? ` (${f.count})` : ''}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Drop plugin (drag an entry from the world tree into the text) ───────────
+
+type CaretDocument = Document & {
+  caretRangeFromPoint?: (x: number, y: number) => Range | null
+  caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+}
+
+function caretRangeAt(x: number, y: number): Range | null {
+  const doc = document as CaretDocument
+  if (doc.caretRangeFromPoint) return doc.caretRangeFromPoint(x, y)
+  const pos = doc.caretPositionFromPoint?.(x, y)
+  if (!pos) return null
+  const range = document.createRange()
+  range.setStart(pos.offsetNode, pos.offset)
+  range.collapse(true)
+  return range
+}
+
+function DropEntryPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    const hasEntry = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes(ENTRY_DRAG_TYPE)
+
+    const onDragOver = (e: DragEvent) => {
+      if (!hasEntry(e)) return
+      e.preventDefault()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+      ;(e.currentTarget as HTMLElement).dataset.dropping = 'true'
+    }
+    const onDragLeave = (e: DragEvent) => {
+      delete (e.currentTarget as HTMLElement).dataset.dropping
+    }
+    const onDrop = (e: DragEvent) => {
+      delete (e.currentTarget as HTMLElement).dataset.dropping
+      if (!hasEntry(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      let entry: Partial<EntryDragPayload>
+      try { entry = JSON.parse(e.dataTransfer?.getData(ENTRY_DRAG_TYPE) ?? '') } catch { return }
+      if (!entry.code || !entry.name || !entry.collection) return
+      const { code, name, collection } = entry
+      const range = caretRangeAt(e.clientX, e.clientY)
+
+      editor.update(() => {
+        if (range) {
+          const selection = $createRangeSelection()
+          selection.applyDOMRange(range)
+          $setSelection(selection)
+        }
+        let selection = $getSelection()
+        if (!$isRangeSelection(selection)) {
+          $getRoot().selectEnd()
+          selection = $getSelection()
+        }
+        if ($isRangeSelection(selection)) selection.insertNodes([$createMentionNode(name, code, collection)])
+      })
+      editor.focus()
+    }
+
+    return editor.registerRootListener((root, prev) => {
+      prev?.removeEventListener('dragover', onDragOver)
+      prev?.removeEventListener('dragleave', onDragLeave)
+      prev?.removeEventListener('drop', onDrop)
+      root?.addEventListener('dragover', onDragOver)
+      root?.addEventListener('dragleave', onDragLeave)
+      root?.addEventListener('drop', onDrop)
+    })
+  }, [editor])
+
+  return null
 }
 
 // ─── Word count plugin ────────────────────────────────────────────────────────
@@ -239,11 +330,18 @@ export function WritingEditor({
   record,
   stories,
   summary,
+  codeMap,
+  history,
   onFieldsSaved,
 }: {
   record: WritingRecord
   stories: { id: number; code: string; name: string }[]
   summary: CheckSummary
+  // Names for the codes already in the saved text, so they load as chips.
+  codeMap: CodeMap
+  // Every change this piece of writing has caused (step S7, "Leaving Canon"). Optional so other
+  // embeddings of this editor (none yet) are not forced to fetch it.
+  history?: WritingHistoryRowView[]
   // Called after a successful save with the fields that changed. Lets an embedding page (the
   // story's "keep writing" section, step U3) keep its own list of this story's writing records
   // in sync without a full page reload.
@@ -267,7 +365,13 @@ export function WritingEditor({
 
   // Refs for autosave — text is stored as Markdown
   const textRef = useRef<string>(record.text)
-  const mentionIdsRef = useRef<number[]>([])
+  const [nameIndex, setNameIndex] = useState<NameIndex | null>(null)
+  useEffect(() => {
+    let active = true
+    listLinkableNames().then((names) => { if (active) setNameIndex(buildIndex(names)) })
+    return () => { active = false }
+  }, [])
+  const transformers = useMemo<Transformer[]>(() => proseTransformers(codeMap), [codeMap])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const scheduleAutoSave = useCallback(() => {
@@ -281,7 +385,6 @@ export function WritingEditor({
         startYear: startYear ? parseInt(startYear, 10) : null,
         storyId: storyId ? parseInt(storyId, 10) : null,
         text: textRef.current,
-        mentionIds: mentionIdsRef.current,
       })
       setSaveStatus(result.ok ? 'saved' : 'error')
       if (result.ok) {
@@ -304,7 +407,6 @@ export function WritingEditor({
         startYear: startYear ? parseInt(startYear, 10) : null,
         storyId: storyId ? parseInt(storyId, 10) : null,
         text: textRef.current,
-        mentionIds: mentionIdsRef.current,
         ...overrides,
       })
       setSaveStatus(result.ok ? 'saved' : 'error')
@@ -320,10 +422,6 @@ export function WritingEditor({
       }
     })
   }
-
-  const handleMentionsChange = useCallback((ids: number[]) => {
-    mentionIdsRef.current = ids
-  }, [])
 
   const handleWordCount = useCallback((n: number) => setWordCount(n), [])
 
@@ -344,7 +442,7 @@ export function WritingEditor({
       },
     },
     // CodeNode and LinkNode are required here even though this surface has no code/link toolbar
-    // button: the default TRANSFORMERS set (used by both $convertFromMarkdownString below and
+    // button: the default Markdown transformer set (used by both $convertFromMarkdownString below and
     // MarkdownShortcutPlugin) includes the CODE and LINK transformers, and each declares the node
     // type it produces as a `dependencies` entry. Lexical checks those dependencies against
     // initialConfig.nodes at registration time and throws "missing dependency ... for transformer"
@@ -353,7 +451,7 @@ export function WritingEditor({
     nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode, LinkNode, MentionNode],
     onError: (err: Error) => console.error('[Writing Editor]', err),
     editorState: () => {
-      $convertFromMarkdownString(record.text ?? '', TRANSFORMERS)
+      $convertFromMarkdownString(record.text ?? '', transformers)
     },
   }
 
@@ -440,6 +538,10 @@ export function WritingEditor({
               recheckAction={recheckWritingAction.bind(null, record.id)}
             />
           )}
+
+          {history && history.length > 0 && (
+            <WritingHistoryPanel canonState={canonState} history={history} />
+          )}
         </div>
       )}
 
@@ -475,19 +577,21 @@ export function WritingEditor({
             />
             <HistoryPlugin />
             <ListPlugin />
-            <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+            <MarkdownShortcutPlugin transformers={SHORTCUT_TRANSFORMERS} />
             <OnChangePlugin
               ignoreSelectionChange
               onChange={(editorState) => {
                 editorState.read(() => {
-                  textRef.current = $convertToMarkdownString(TRANSFORMERS)
+                  textRef.current = $convertToMarkdownString(transformers)
                 })
                 scheduleAutoSave()
               }}
             />
-            <MentionPlugin onMentionsChange={handleMentionsChange} />
+            <NameLinkPlugin index={nameIndex} />
+            <DropEntryPlugin />
             <WordCountPlugin onCount={handleWordCount} />
           </div>
+          <UnlinkedNamesPanel index={nameIndex} />
         </LexicalComposer>
       </div>
 
@@ -515,6 +619,17 @@ export function WritingEditor({
           font-size: 1.1rem;
           font-weight: 600;
           margin: 1em 0 0.3em;
+        }
+        .writing-surface .writing-mention {
+          color: var(--primary);
+          font-weight: 600;
+          background: var(--accent);
+          border-radius: 4px;
+          padding: 0 0.2em;
+        }
+        .writing-surface[data-dropping='true'] {
+          outline: 2px dashed var(--ring);
+          outline-offset: 8px;
         }
         .writing-surface .writing-quote {
           border-left: 3px solid hsl(var(--border));

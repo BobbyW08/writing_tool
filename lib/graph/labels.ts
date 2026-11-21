@@ -26,6 +26,8 @@ export const FIELD_LABELS: Record<string, FieldLabel> = {
   pins: { label: 'Pinned at', inverse: 'Marks event' },
   includesEra: { label: 'Shows era', inverse: 'Shown by chronicle' },
   showsMap: { label: 'Shows map', inverse: 'Shown by chronicle' },
+  partOfStory: { label: 'Part of story', inverse: 'Has beat' },
+  promotedTo: { label: 'Promoted to', inverse: 'Promoted from' },
 }
 
 export function fieldLabel(type: string): FieldLabel {

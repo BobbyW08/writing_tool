@@ -9,6 +9,7 @@ import * as schema from '@/db/schema'
 import { extractCodes, PREFIX_TO_SLUG } from '@/lib/codes'
 import { RELATIONSHIP_TYPES } from '@/lib/relationshipTypes'
 import { TEXT_FIELDS } from '@/lib/graph/extract'
+import { currentCodes } from '@/lib/codes-history'
 
 type AnyTable = typeof schema.characters
 
@@ -28,6 +29,7 @@ const WORLD_TABLE_MAP: Record<string, AnyTable> = {
   boards: schema.boards as unknown as AnyTable,
   tables: schema.tables as unknown as AnyTable,
   compilations: schema.compilations as unknown as AnyTable,
+  beats: schema.beats as unknown as AnyTable,
 }
 
 function getTable(collection: string) {
@@ -71,11 +73,13 @@ async function codeForId(collection: string, id: number | null | undefined): Pro
 // backing table. A code for a reserved-but-unbuilt prefix (A/B/Y/M/P/H/D/N) never resolves, so a
 // link to it is simply not created — matching "a code with no record renders as plain text".
 async function resolveCode(code: string): Promise<{ code: string; collection: string } | null> {
-  const collection = PREFIX_TO_SLUG[code[0]]
+  // A code retired by a type change resolves to the entry's current code (CLAUDE.md hard rule 6).
+  const current = (await currentCodes([code])).get(code) ?? code
+  const collection = PREFIX_TO_SLUG[current[0]]
   if (!collection) return null
   const table = getTable(collection)
   if (!table) return null
-  const rows = await appDb.select({ code: table.code }).from(table as never).where(eq(table.code, code)).limit(1)
+  const rows = await appDb.select({ code: table.code }).from(table as never).where(eq(table.code, current)).limit(1)
   if (!rows[0]) return null
   return { code: (rows[0] as { code: string }).code, collection }
 }
@@ -100,6 +104,10 @@ const SIMPLE_FIELD_LINKS: Record<string, { idField: string; toCollection: string
   'map-pins': [
     { idField: 'mapId', toCollection: 'maps', type: 'onMap' },
     { idField: 'opensMapId', toCollection: 'maps', type: 'opensMap' },
+  ],
+  beats: [
+    { idField: 'storyId', toCollection: 'stories', type: 'partOfStory' },
+    { idField: 'promotedToEventId', toCollection: 'events', type: 'promotedTo' },
   ],
 }
 
@@ -180,6 +188,13 @@ async function extractEventInvolvesLinks(ownerCode: string, eventId: number): Pr
     entryCollection: schema.eventInvolves.entryCollection, entryId: schema.eventInvolves.entryId,
   }).from(schema.eventInvolves).where(eq(schema.eventInvolves.eventId, eventId))
   return extractJoinTableLinks(ownerCode, 'events', 'involves', rows)
+}
+
+async function extractBeatInvolvesLinks(ownerCode: string, beatId: number): Promise<PendingLink[]> {
+  const rows = await appDb.select({
+    entryCollection: schema.beatInvolves.entryCollection, entryId: schema.beatInvolves.entryId,
+  }).from(schema.beatInvolves).where(eq(schema.beatInvolves.beatId, beatId))
+  return extractJoinTableLinks(ownerCode, 'beats', 'involves', rows)
 }
 
 async function extractStoryInvolvesLinks(ownerCode: string, storyId: number): Promise<PendingLink[]> {
@@ -291,6 +306,7 @@ async function extractTextLinks(
   for (const [code, fieldName] of fieldNameOf) {
     const target = await resolveCode(code)
     if (!target) continue // a code with no record is not indexed
+    if (target.code === ownerCode) continue // its own retired code
     links.push({
       key: linkKey('text', ownerCode, 'mentions', ownerCode, target.code),
       fromCode: ownerCode, fromCollection: collection,
@@ -382,6 +398,7 @@ export async function computeOwnedLinks(collection: string, id: number): Promise
     pending.push(...await extractStoryInvolvesLinks(ownerCode, record.id as number))
     pending.push(...await extractStoryDramatizesLinks(ownerCode, record.id as number))
   }
+  if (collection === 'beats') pending.push(...await extractBeatInvolvesLinks(ownerCode, record.id as number))
   if (collection === 'map-pins') pending.push(...await extractMapPinLinksLinks(ownerCode, record.id as number))
   if (collection === 'chronicles') {
     pending.push(...await extractChronicleMapPeriodsLinks(
@@ -410,6 +427,22 @@ export async function syncLinksForRecord(collection: string, id: number): Promis
   ])
   if (!ownerCode) return
   await writeOwnedLinks(ownerCode, pending)
+}
+
+// Same as syncLinksForRecord, for a caller that only has the record's code (a link row's owner).
+export async function syncLinksForCode(code: string): Promise<void> {
+  const prefix = PREFIX_TO_SLUG[code[0]]
+  if (!prefix) return
+  if (prefix === 'relationships') {
+    const rows = await appDb.select({ id: schema.relationships.id }).from(schema.relationships).where(eq(schema.relationships.code, code)).limit(1)
+    if (rows[0]) await syncLinksForRecord('relationships', rows[0].id)
+    return
+  }
+  const table = getTable(prefix)
+  if (!table) return
+  const rows = await appDb.select({ id: table.id }).from(table as never).where(eq(table.code, code)).limit(1)
+  const id = (rows[0] as { id: number } | undefined)?.id
+  if (id) await syncLinksForRecord(prefix, id)
 }
 
 // Removes the rows a deleted record owned, and marks rows elsewhere that pointed at it broken

@@ -80,7 +80,7 @@ export async function runContinuityCheck(writingId: number, analyzer: Analyzer =
     const priorAges = await loadPriorAges(mentioned.map((e) => e.id), refs, writingId)
     const plan = buildPlan({ snippet: snippetInput, mentioned, candidates, compare, priorAges })
 
-    await applyPlan(writingId, writing.name, plan, refs)
+    await applyPlan(writingId, writing.name, writing.canonState, plan, refs)
 
     const notes = plan.discarded > 0
       ? `${plan.discarded} finding${plan.discarded === 1 ? ' was' : 's were'} discarded because the exact wording could not be found in your text or in canon.`
@@ -133,7 +133,31 @@ async function loadPriorAges(codes: string[], refs: Map<string, Ref>, currentWri
   return ages
 }
 
-async function applyPlan(writingId: number, writingName: string, plan: Plan, refs: Map<string, Ref>): Promise<void> {
+// Claims ledger (step S7): one row per checkable fact, additive alongside the writes already
+// made below. sourceCanonState is the writing's own canonState, recorded so a later question
+// ("did this come from a still-Draft piece?") stays answerable after the fact (plan decision,
+// closes part of O7, "Draft never spreads").
+async function recordClaims(
+  writingId: number,
+  sourceCanonState: string,
+  rows: { collection: string; dbId: number; fieldLabel: string; quote: string; kind: string }[],
+): Promise<void> {
+  if (rows.length === 0) return
+  await appDb.insert(schema.claims).values(
+    rows.map((r) => ({
+      writingId,
+      entryCollection: r.collection,
+      entryId: r.dbId,
+      fieldLabel: r.fieldLabel,
+      quote: r.quote,
+      impliedValue: r.quote,
+      sourceCanonState,
+      kind: r.kind,
+    }))
+  )
+}
+
+async function applyPlan(writingId: number, writingName: string, sourceCanonState: string, plan: Plan, refs: Map<string, Ref>): Promise<void> {
   // A fresh check replaces what the last check of this writing left undecided. Decisions
   // already made, and the notices for changes already applied, stay.
   await appDb.delete(schema.continuity).where(and(
@@ -185,6 +209,10 @@ async function applyPlan(writingId: number, writingName: string, plan: Plan, ref
         status: 'open',
       }),
     ] as unknown as Parameters<typeof appDb.batch>[0])
+
+    await recordClaims(writingId, sourceCanonState, newEntity.details.map((d) => ({
+      collection: newEntity.type, dbId: created.id, fieldLabel: d.label, quote: d.quote, kind: 'new_record',
+    })))
   }
 
   // 2. New details on entries that already exist.
@@ -218,6 +246,10 @@ async function applyPlan(writingId: number, writingName: string, plan: Plan, ref
           kind: 'new_detail', fieldLabel: resolved, newQuote: d.quote, status: 'open',
         }),
       ] as unknown as Parameters<typeof appDb.batch>[0])
+
+      await recordClaims(writingId, sourceCanonState, [
+        { collection: ref.collection, dbId: ref.dbId, fieldLabel: resolved, quote: d.quote, kind: 'new_detail' },
+      ])
     }
 
     await updateDetailsAction(ref.collection, ref.dbId, nextDetails)
@@ -243,6 +275,10 @@ async function applyPlan(writingId: number, writingName: string, plan: Plan, ref
         }
       }).filter((row) => row.entryId !== 0),
     )
+    await recordClaims(writingId, sourceCanonState, plan.confirmations.map((c) => {
+      const ref = refs.get(c.entityId)
+      return ref ? { collection: ref.collection, dbId: ref.dbId, fieldLabel: c.fieldLabel, quote: c.quote, kind: 'match' } : null
+    }).filter((row): row is NonNullable<typeof row> => row !== null))
   }
 
   // 4. Conflicts and possible changes wait for a decision. Skip any that this writing
@@ -277,6 +313,9 @@ async function applyPlan(writingId: number, writingName: string, plan: Plan, ref
         explanation: f.explanation || null,
         status: 'open',
       })
+      await recordClaims(writingId, sourceCanonState, [
+        { collection: ref.collection, dbId: ref.dbId, fieldLabel: f.fieldLabel, quote: f.newQuote, kind: f.kind },
+      ])
     }
   }
 }

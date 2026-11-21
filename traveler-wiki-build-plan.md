@@ -52,29 +52,33 @@ index), Phase 4 (continuity check port, gaps noted under Phase 4), Phase 5 with 
 Phase 5A (U1 to U6), Phase 6 (Gaps view), Phase 7 (export and compilations, migration 0010
 applied), and Phase 8 (search and the shared password gate). Migrations 0000 to 0010.
 
-**GitHub is behind.** GitHub master was still at 7186aed (2026-11-08) on 2026-11-21, so Phases 4 to 8
-exist only on Bobby's machine, 25 commits ahead. Pushes from Claude's cloud session are refused until
-the Claude GitHub App is installed on the BobbyW08 account, so Bobby pushes from PowerShell.
+**GitHub is behind, but less than feared.** The branch `claude/writing-drives-world` itself is pushed and
+up to date with `origin/claude/writing-drives-world` through commit `3d9a762` (confirmed by step P0's
+audit, 2026-11-21) — Bobby has been pushing from PowerShell. `origin/master` is still at `7186aed`
+(2026-11-08), 26 commits behind that branch, because nothing has been merged yet. What is still only
+local is the working tree's uncommitted changes below.
 
-**Built on branch `claude/writing-drives-world`, not committed (found in the working tree):**
+**Built on branch `claude/writing-drives-world`, not yet committed (found in the working tree, audited
+2026-11-21 by step P0 — see "Steps S0 to S7" for the full per-item result):**
 - The writing drives the world pages (name linking, sheets, plot outlines, Change type). Ported by
-  hand 2026-11-11. Migrations `0011_story_details` and `0012_code_history` were applied to Neon by
-  Bobby on 2026-11-11 after a backup branch. `tsc`, `build`, `test:mentions`, `test:names`,
-  `test:continuity` and a link index dry run were clean on that day. The browser checklist (step P0)
-  has not been run.
-- S4, AI foundation: `lib/ai/`, `ai_settings`, `ai_proposals`, the `/ai-inbox` Accept and Reject page
-  (migration `0013_ai_foundation`). AI calls go straight to Anthropic through `@ai-sdk/anthropic` with
-  `ANTHROPIC_API_KEY` (decided 2026-11-14).
-- S5, beats: `beats` and `beat_involves`, the beats lane at `/stories/[code]/beats`, three-option beat
-  cards (migration `0014_beats`).
-- S6, Ask AI and prompts menu: the assist bar on entry and event pages, the prompts menu, `prompt_sets`
-  and `scripts/seed-prompt-sets.ts` (migration `0015_prompt_sets`).
-- S7, started: the `claims` table (migration `0016_claims`), claims written by the continuity check, and a
-  writing history panel with revert (`components/writing-history-panel.tsx`).
-- **Unverified:** whether migrations 0013 to 0016 have been applied to Neon, whether `npm run build` and the
-  tests pass on this working tree, and which parts of S5, S6 and S7 are complete. The progress log for
-  this work was lost when the old status files were replaced, so nothing here counts as done until step P0
-  checks it.
+  hand 2026-11-11. Migrations `0011_story_details` and `0012_code_history` are applied to Neon
+  (confirmed 2026-11-21). `tsc`, `build`, `test:mentions`, `test:names`, `test:continuity` and a link
+  index dry run (66 links across 359 records) are all clean as of 2026-11-21. The browser checklist
+  (step P0) has not been run.
+- S4, AI foundation: done. `lib/ai/`, `ai_settings`, `ai_proposals`, the `/ai-inbox` Accept and Reject page
+  (migration `0013_ai_foundation`, applied). AI calls go straight to Anthropic through `@ai-sdk/anthropic` with
+  `ANTHROPIC_API_KEY` (decided 2026-11-14). `ai_proposals` holds 12 real rows, `ai_settings` 1 row.
+- S5, beats: done. `beats` and `beat_involves` (migration `0014_beats`, applied, 0 rows so far), the beats
+  lane at `/stories/[code]/beats`, three-option beat cards, and promote-to-event.
+- S6, Ask AI and prompts menu: done. The assist bar on entry and event pages, the prompts menu (Answer it
+  myself / Ask AI / search), `prompt_sets` (migration `0015_prompt_sets`, applied, 40 seeded rows).
+- S7, partial: the `claims` table (migration `0016_claims`, applied, 0 rows so far — nothing has exercised
+  it live yet), claims written by the continuity check, the label check, "Leaving Canon" with
+  revert-by-history-row (`components/writing-history-panel.tsx`). Missing: the backward check (a changed
+  canon field never re-reads `claims` to flag the passages that assumed the old value) and the forward
+  check's Draft-vs-Locked priority split. See "Steps S0 to S7" for detail.
+- **No longer unverified:** migrations 0011 to 0016 are all applied, `npm run build` and every test
+  pass on this working tree, and S4 to S7 completeness is recorded above and in "Steps S0 to S7".
 
 **Not started:** Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
@@ -747,16 +751,16 @@ Continuity inbox, Field history, Confirmations).
 - [x] **S1. Writing Studio.** Complete 2026-10-20. Lexical via `@lexical/react`. Routes `/write` and `/write/[code]`. `canonState` live.
 - [x] **S2. Front end shell and rewire.** Delivered with Phase 3 and step W1.
 - [x] **S3. Timeline and node map.** Delivered with Phase 5 and step W2. Done 2026-11-09.
-- [ ] **S4. AI foundation.** Built in the working tree (`lib/ai/`, `ai_settings`, `ai_proposals`, `/ai-inbox`, migration 0013). Audit and commit in step P0. Still to confirm: the `AI suggested` tag, the context builder reading the link index.
-- [ ] **S5. Beats.** Built in the working tree (`beats`, beats lane, beat cards, migration 0014). Audit in step P0. Promote to event is unconfirmed. The visual home for beats is the Story Builder canvas (step SB).
-- [ ] **S6. Ask AI anywhere and the prompts menu.** Built in the working tree (assist bar, prompts menu, `prompt_sets`, migration 0015). Audit in step P0.
-- [ ] **S7. Canon check and change tracking.** Started (`claims`, migration 0016, history panel with revert). Phase 4 (continuity port) is done. The Draft never spreads gate, the backward check and revert by source need an audit in step P0.
+- [x] **S4. AI foundation.** Audited 2026-11-21, done. `lib/ai/model.ts` `askAI()` is the one entry point, reading the model per task from `ai_settings`. `lib/ai/context.ts` `buildAiContext()` reads the link index (`schema.links`), not hand-queried columns, and excludes Set aside writing. Every accept tags the record `UNK` and `AI suggested` (`lib/ai/actions.ts` `acceptProposalAction`, tag defined in `db/tags.ts`). `/ai-inbox` (Accept and Reject) is built. `ai_proposals` holds 12 real rows and `ai_settings` 1 row in Neon, confirming structured output works end to end with a live model call.
+- [x] **S5. Beats.** Audited 2026-11-21, done. `beats`/`beat_involves` tables (migration 0014, applied, currently empty rows). Beats lane at `app/(app)/stories/[code]/beats/page.tsx`, three-option beat cards via `lib/ai/beats.ts` (never writes until a card is picked). Promote to event, previously marked unconfirmed, is implemented: `promoteBeatToEventAction` in `lib/world/actions.ts`, wired into the link index through a `promotedTo`/`Promoted from` relation (`lib/graph/labels.ts`, `lib/graph/sync.ts`) and surfaced in `components/story-beats-lane.tsx`. The visual home for beats is still the Story Builder canvas (step SB, not started).
+- [x] **S6. Ask AI anywhere and the prompts menu.** Audited 2026-11-21, done. Assist bar (`components/ai-assist-bar.tsx`), prompts menu (`components/prompts-menu.tsx`) with search box, "Answer it myself" (blank details row, `answerPromptMyselfAction`) and "Ask AI" (three candidate answers queued as `ai_proposals`, `lib/ai/prompts.ts` `generatePromptAnswers` + `generatePromptOptionsAction`), accepted answers tagged UNK and AI suggested through the same `acceptProposalAction` as every other proposal. `prompt_sets` holds 40 seeded rows (migration 0015, applied).
+- [~] **S7. Canon check and change tracking.** Audited 2026-11-21, partial. Done: the claims ledger (`lib/continuity/run-check.ts` `recordClaims`, one row per checkable fact, tagged with `sourceCanonState`), the forward check (conflicts and possible changes become Continuity inbox flags, `buildPlan` in `lib/continuity/plan.ts`), the label check (`checkEventLabelMismatch` in `lib/world/actions.ts`, no AI, flags a `yearLabel`/`startYear` mismatch via `reviewNote` + UNK), and "Leaving Canon" (`components/writing-history-panel.tsx` + `revertHistoryRowAction`, one click revert for an appended detail; reverting a whole created record is deliberately not offered, by documented decision). Missing: the **backward check** — nothing reads the `claims` table except `recordClaims` (writes) and the count shown next to the editor (`lib/continuity/queries.ts`); no write function compares an old and new field value against existing claims to open a flag listing the passages that assumed the old value. Also missing: the forward check's priority split between "Draft contradicts Locked" and "two Drafts disagree" — `buildPlan`/`compareSchema` carry no `canonState` of the conflicting side, so every conflict is raised the same way regardless of source. Relative timing (proposing a recorded relationship from "two years after") is not built. Do not build these now; they are scoped to a future S7 continuation, not step P0.
 
 ### To verify (step P0 does these)
 
-- Structured output with the chosen Claude models works end to end, and the real cost per call.
-- That the existing Continuity inbox and Field history tables fit the new flag kinds.
-- That link index sync fires when the continuity check and accepted AI proposals write to records.
+- [x] Structured output with the chosen Claude models works end to end, and the real cost per call. Confirmed: `ai_proposals` (12 rows) and `ai_settings` (1 row) hold real data from live Anthropic calls.
+- [x] That the existing Continuity inbox and Field history tables fit the new flag kinds. Confirmed: `schema.continuity` and `schema.continuityHistory` are reused as-is by the claims/forward-check code with no shape change needed.
+- [x] That link index sync fires when the continuity check and accepted AI proposals write to records. Confirmed: both paths write through `updateDetailsAction`/`updateFieldAction` in `lib/world/actions.ts`, which call `syncLinksForRecord` for link-relevant fields.
 
 ---
 ## Story Builder canvas (step SB)
@@ -996,33 +1000,43 @@ rule 14), the patch's manuscript section, and the patch's migrations.
 6. Tell Bobby the result in a few lines.
 
 ### Bobby does by hand (PowerShell, `C:\dev\writing_tool`)
-1. If any of migrations 0013 to 0016 are pending: Neon console, the project, Branches, Create branch, name
-   it with today's date, wait for it to be ready. Then run
-   `node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.app.config.ts`
-   and wait for it to finish with no error.
-2. Run `npx tsx --env-file=.env.local scripts/seed-prompt-sets.ts` only if the prompts menu is empty.
+1. Migrations 0013 to 0016 are already applied (confirmed read-only by the 2026-11-21 audit: the Drizzle
+   ledger has 17 rows and every table they add exists). **Skip the Neon branch and `drizzle-kit migrate`
+   step** — nothing is pending.
+2. Skip `scripts/seed-prompt-sets.ts` too — `prompt_sets` already holds 40 rows.
 3. Browser checklist, pass or fail each: Tab links a name in the editor; dragging a world tree row inserts a
    chip; the unlinked names panel (Link, Link all); sheet and plot outline answers survive a reload;
    sidebar search by name; Change type on a throwaway Lore entry lands on a new I code and the old URL
-   redirects; one Ask AI proposal accepts and rejects; the beats lane shows three cards for a story.
-4. Commit and push (after the Claude GitHub App is installed, or from PowerShell, which always works):
-   `git add -A` then `git status` and confirm `_to_delete/` and `writing-drives-world.patch` are not staged
-   (move the patch into `_to_delete\`), then `git commit -m "Writing drives the world, AI foundation, beats, prompts, claims"`
-   and `git push -u origin claude/writing-drives-world`.
-5. GitHub, `BobbyW08/writing_tool`, open a pull request from that branch into master, merge it, then
-   wait for Ready on the Vercel Deployments tab.
+   redirects; one Ask AI proposal accepts and rejects; the prompts menu's Answer it myself and Ask AI both
+   work; the beats lane shows three cards for a story and Promote to event creates a real event.
+4. Commit and push. The branch `claude/writing-drives-world` is already pushed through commit `3d9a762` —
+   only the working tree's uncommitted changes need this: `git add -A` then `git status` and confirm
+   `_to_delete/` and `writing-drives-world.patch` are not staged (move the patch into `_to_delete\` first
+   if needed), then `git commit -m "Writing drives the world, AI foundation, beats, prompts, claims"`
+   and `git push`.
+5. GitHub, `BobbyW08/writing_tool`, open a pull request from `claude/writing-drives-world` into master
+   (it is now 27 commits ahead), merge it, then wait for Ready on the Vercel Deployments tab.
 
 ### Checklist
-- [ ] Audit done and recorded in this plan.
-- [ ] Build and tests pass.
-- [ ] Migrations 0013 to 0016 applied and confirmed.
-- [ ] Browser checklist run.
-- [ ] Committed, pushed, merged.
+- [x] Audit done and recorded in this plan. 2026-11-21: `tsc --noEmit` clean, `test:mentions`/`test:names`/`test:continuity`
+      all pass, `npm run build` clean (zero errors, after the Next.js security-advisory nudge was
+      acknowledged and the build retried as it instructed), link index dry run found 66 links across 359
+      records. S4 to S7 audited item by item in "Steps S0 to S7" above.
+- [x] Build and tests pass.
+- [x] Migrations 0013 to 0016 applied and confirmed. Read-only check against Neon: the Drizzle migrations
+      ledger has 17 rows (0000 to 0016) and every table/column the migrations add (`stories.details`,
+      `code_history`, `ai_proposals`, `ai_settings`, `beats`, `beat_involves`, `prompt_sets`, `claims`)
+      exists. Row counts: `ai_proposals` 12, `ai_settings` 1, `prompt_sets` 40, `code_history`/`beats`/`claims` 0.
+- [ ] Browser checklist run. Still Bobby's to do (see list below).
+- [ ] Committed, pushed, merged. Still Bobby's to do.
 - [ ] Vercel deploys automatically from GitHub (Vercel, project, Settings, Git, connect the repository).
 
 ### Known gaps left by the port (do not build now)
 - Bulk change of type is not built, by decision. Moves are one entry at a time.
 - `writing_mentions` stays in the schema, unused.
+- S7's backward check (re-reading `claims` when a canon field changes, to flag passages that assumed
+  the old value) and the forward check's Draft-vs-Locked priority split are not built. Found by the
+  2026-11-21 audit. Scope for a future S7 continuation, not this step.
 
 ---
 ## Phases
@@ -1625,6 +1639,19 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
 
+### Session 2026-11-21: step P0, audit
+Read-only audit of the uncommitted working tree. `tsc --noEmit`, all three test scripts and `npm run build`
+all pass clean (the build needed one retry after Next.js's built-in security-advisory nudge, per
+CLAUDE.md's "heed deprecation notices"). Link index dry run: 66 links across 359 records. Found that
+migrations 0011 to 0016 are all already applied to Neon (17-row Drizzle ledger, every table present;
+`ai_proposals` 12 rows, `ai_settings` 1, `prompt_sets` 40, `code_history`/`beats`/`claims` 0) — contrary
+to "unverified" in the prior write-up. Also found the branch itself was already pushed to GitHub through
+`3d9a762`; only `origin/master` is behind. Audited S4 to S7 against spec: S4, S5, S6 are done (including
+promote-to-event for S5, previously thought unconfirmed); S7 is partial — the claims ledger, forward
+check, label check and Leaving Canon revert are built, but the backward check (re-reading `claims` on a
+canon field change) and the forward check's Draft-vs-Locked priority split are not. Updated "Where things
+stand," "Steps S0 to S7," the P0 checklist and "Bobby does by hand" to match. No code changed.
+
 ### Session 2026-11-21: plan and docs rebuilt
 Story Builder canvas designed (wireframes and plan approved). The three instruction files were rewritten.
 A first rewrite built on the old GitHub copy was wrong about login, AI provider and status, and was
@@ -1778,7 +1805,7 @@ Errors are logged here when found and again when fixed.
 | 2026-11-08 | Generic entity page showed stale copy that pointed at an admin screen for relationships. | 2026-11-08 | Copy now points at the Relationships section. |
 | 2026-11-10 | A stale Admin link on the story page pointed at a route that no longer exists. | 2026-11-11 | Removed in the port. Confirm in the browser checklist. |
 | 2026-11-21 | A first rewrite of the three docs was built from the old GitHub copy and was wrong: it said no login, named the wrong AI route, treated G1 as next, and dropped Phases 4 to 8. Replacing the working-tree docs also overwrote uncommitted status for S4 to S7. | 2026-11-21 | Rebuilt from the last commit, the working tree and the migrations. Status for S4 to S7 is marked unverified until step P0. |
-| 2026-11-21 | Phases 4 to 8 were never pushed, so GitHub was 25 commits behind local. | open | Step P0 commits and pushes. |
+| 2026-11-21 | Phases 4 to 8 were thought never pushed, so GitHub was assumed 25 commits behind local. | 2026-11-21 | Corrected by the P0 audit: the branch `claude/writing-drives-world` was already pushed through commit `3d9a762`. Only `origin/master` is behind (26 commits); only the working tree's uncommitted changes still need a commit and push, which stays with Bobby. |
 
 ## Explicitly out of scope
 

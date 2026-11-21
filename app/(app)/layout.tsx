@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
-import { CodeLookup } from "@/components/code-lookup";
+import { NameSearch } from "@/components/name-search";
 import { WorldTree } from "@/components/world-tree";
 import { ContinuityBadge } from "@/components/continuity-badge";
 import { getWorldTreeNodes } from "@/lib/world/queries";
@@ -52,7 +52,7 @@ export default async function AppLayout({ children, modal }: { children: React.R
             </Link>
 
             <div>
-              <CodeLookup />
+              <NameSearch />
             </div>
 
             <section>
@@ -93,6 +93,11 @@ export default async function AppLayout({ children, modal }: { children: React.R
                   <Link href="/continuity" className="flex items-center rounded px-2 py-1 text-xs hover:bg-accent">
                     Continuity
                     <ContinuityBadge />
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/ai-inbox" className="block rounded px-2 py-1 text-xs hover:bg-accent">
+                    AI suggestions
                   </Link>
                 </li>
                 <li>

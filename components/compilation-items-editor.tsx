@@ -29,7 +29,7 @@ const ITEM_COLLECTIONS: string[] = [...WORLD_SLUGS, 'events']
 // traveler-wiki-build-plan.md "Export and compilations"). The row persists as a plain array of
 // codes (compilations.items) -- array order is the compile order, so a reorder just rewrites the
 // whole array, same pattern as DetailsEditor. DndContext needs a stable, explicit `id` once an app
-// has more than one (see BUILD_GUIDE.md's U5/U6 dnd-kit hydration note) -- `compilation-${code}`.
+// has more than one (see Error log E-13 in traveler-wiki-build-plan.md) -- `compilation-${code}`.
 function SortableItem({ item, onRemove }: { item: CompilationItem; onRemove: (code: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.code })
   const style = { transform: CSS.Transform.toString(transform), transition }

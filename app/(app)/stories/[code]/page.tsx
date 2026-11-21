@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { movedTo } from "@/lib/codes-history";
 import { getStoryByCode, getRelationshipsByCode, buildCodeMap, isUnk } from "@/lib/world/queries";
 import { getWritingListByStory, getWritingByCode, getStoryList } from "@/lib/studio/queries";
 import { getCheckSummary } from "@/lib/continuity/queries";
@@ -11,6 +12,9 @@ import { RelationshipEditor } from "@/components/relationship-editor";
 import { RecordActions } from "@/components/record-actions";
 import { WhatLinksHere } from "@/components/what-links-here";
 import { StoryKeepWriting } from "@/components/story-keep-writing";
+import { PlotOutline } from "@/components/plot-outline";
+import { PLOT_TEMPLATE_KEY } from "@/lib/sheets/templates";
+import { sheetAnswers } from "@/lib/sheets/answers";
 
 type StoryDoc = {
   id: number;
@@ -26,6 +30,7 @@ type StoryDoc = {
   floating?: boolean | null;
   beats?: { beat: string; id?: string | null }[] | null;
   gapPrompt?: string | null;
+  details?: { label: string; value?: string | null; id?: string | null }[] | null;
   tagIds?: number[] | null;
   reviewNote?: string | null;
 };
@@ -59,12 +64,17 @@ const FORMAT_OPTIONS = [
 export default async function StoryReadPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const story = await getStoryByCode(code);
-  if (!story) notFound();
+  if (!story) {
+    const moved = await movedTo(code);
+    if (moved) redirect(moved);
+    notFound();
+  }
 
   const doc = story as unknown as StoryDoc;
   const storyCode = doc.code ?? '';
   const rels = storyCode ? await getRelationshipsByCode(storyCode) : { from: [], to: [] };
-  const codeMap = await buildCodeMap([doc.summary, doc.gapPrompt, ...(doc.beats?.map(b => b.beat) ?? [])]);
+  const answers = sheetAnswers(doc.details);
+  const codeMap = await buildCodeMap([doc.summary, doc.gapPrompt, ...(doc.beats?.map(b => b.beat) ?? []), ...Object.values(answers)]);
   const unkTagged = isUnk(doc.tagIds ?? null);
 
   // Step U3: "keep writing" section. Opens the story's most recently edited writing record,
@@ -80,7 +90,8 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
     activeCode ? getWritingByCode(activeCode) : Promise.resolve(null),
     getStoryList(),
   ]);
-  const activeSummary = activeRecord ? await getCheckSummary(activeRecord.id) : { decisions: 0, newRecords: 0, newDetails: 0, confirmed: 0 };
+  const activeSummary = activeRecord ? await getCheckSummary(activeRecord.id) : { decisions: 0, newRecords: 0, newDetails: 0, confirmed: 0, claims: 0 };
+  const activeCodeMap = activeRecord ? await buildCodeMap([activeRecord.text]) : {};
 
   type RelRow = { id: number; code: string; fromCollection: string; fromCode: string; toCollection: string; toCode: string; type?: string | null; startYear?: number | null; endYear?: number | null; notes?: string | null };
   type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: 'from' | 'to'; startYear: number | null; endYear: number | null; notes: string | null };
@@ -112,6 +123,9 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
             {storyCode && <p className="font-mono text-xs text-muted-foreground">{storyCode}</p>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Link href={`/stories/${storyCode}/beats`} className="text-sm text-muted-foreground hover:underline">
+              Story Builder
+            </Link>
             <EditableField collection="stories" docId={doc.id} fieldName="stage" value={doc.stage} kind="select" options={STAGE_OPTIONS} />
             <RecordActions collection="stories" id={doc.id} code={storyCode} name={doc.name} status={(doc as Record<string, unknown>).status as string} />
           </div>
@@ -193,9 +207,16 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
           allStories={allStories}
           initialRecord={activeRecord}
           initialSummary={activeSummary}
+          initialCodeMap={activeCodeMap}
           initialList={writingList}
         />
       )}
+
+      {/* Plot outline: every story has one */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-muted-foreground">Plot outline</h2>
+        <PlotOutline docId={doc.id} templateId={answers[PLOT_TEMPLATE_KEY] ?? null} answers={answers} codeMap={codeMap} />
+      </section>
 
       {/* Relationships */}
       <RelationshipEditor myCode={storyCode} initial={relEntries} />

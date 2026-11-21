@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getWritingByCode, getStoryList } from '@/lib/studio/queries'
-import { getCheckSummary } from '@/lib/continuity/queries'
+import { getCheckSummary, listHistoryForWriting } from '@/lib/continuity/queries'
+import { buildCodeMap } from '@/lib/world/queries'
 import { WritingEditor } from './editor'
 
 export default async function WritingEditorPage({ params }: { params: Promise<{ code: string }> }) {
@@ -12,7 +13,11 @@ export default async function WritingEditorPage({ params }: { params: Promise<{ 
 
   if (!record) notFound()
 
-  const summary = await getCheckSummary(record.id)
+  const [summary, codeMap, history] = await Promise.all([
+    getCheckSummary(record.id),
+    buildCodeMap([record.text]),
+    listHistoryForWriting(record.id),
+  ])
 
-  return <WritingEditor record={record} stories={stories} summary={summary} />
+  return <WritingEditor record={record} stories={stories} summary={summary} codeMap={codeMap} history={history} />
 }
