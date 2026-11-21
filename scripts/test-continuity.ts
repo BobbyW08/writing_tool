@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildPlan, filterDetect } from "../lib/continuity/plan";
 import { buildNewRecordGapPrompt, findQuote, passageAround, replaceRange, resolveLabel, verbatim } from "../lib/continuity/text";
 import { changedReplacedFields, fieldWasReplaced, findStaleClaims } from "../lib/continuity/backward";
+import { conflictPriority } from "../lib/continuity/priority";
 import type { CompareResult, EntityForCheck } from "../lib/continuity/types";
 
 let passed = 0
@@ -314,6 +315,16 @@ test("changedReplacedFields: label matching ignores case the same way details ro
   const before = [{ label: "description", value: "warm, busy" }];
   const after = [{ label: "Description", value: "cold and silent" }];
   assert.equal(changedReplacedFields(before, after).length, 1);
+});
+
+test("conflictPriority: a conflict against a Locked entry is high priority", () => {
+  assert.equal(conflictPriority("locked"), "high");
+});
+
+test("conflictPriority: two Drafts disagreeing (entry not Locked) is normal priority", () => {
+  assert.equal(conflictPriority("in_development"), "normal");
+  assert.equal(conflictPriority("placeholder"), "normal");
+  assert.equal(conflictPriority("needs_name"), "normal");
 });
 
 console.log(`\n${passed} checks passed`);

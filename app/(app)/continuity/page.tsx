@@ -56,6 +56,11 @@ export default async function ContinuityPage({ searchParams }: { searchParams: P
               <li key={f.id}>
                 <Link href={`/continuity/${f.code}`} className="block rounded-md border border-red-500/50 px-4 py-3 text-sm hover:bg-accent">
                   <div className="flex flex-wrap items-center gap-2">
+                    {f.priority === "high" && (
+                      <Badge className="bg-red-600 text-white hover:bg-red-600 dark:bg-red-700">
+                        Against Locked canon
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="border-red-500 text-red-700 dark:text-red-400">
                       {KIND_LABELS[f.kind]}
                     </Badge>

@@ -4,6 +4,7 @@ import { appDb } from '@/db/index'
 import * as schema from '@/db/schema'
 import { DECISION_KINDS, UPDATE_KINDS } from './constants'
 import { entityHref } from './links'
+import { conflictPriority, type ConflictPriority } from './priority'
 
 // Same per-file table map convention as lib/world/queries.ts, lib/world/actions.ts and
 // lib/graph/sync.ts: the 8 world-entry tables share column shapes but not a common type,
@@ -49,28 +50,36 @@ export interface FlagRow {
   entryId: number
   entryName: string
   entrySlug: string
+  priority: ConflictPriority
 }
 
 // Looks up the world-entry name/slug for a flag's (entryCollection, entryId) across the
-// 8 world tables, since Drizzle can't join against a table chosen dynamically per row.
-async function enrichEntries<T extends { entryCollection: string; entryId: number }>(rows: T[]): Promise<(T & { entryName: string; entrySlug: string })[]> {
+// 8 world tables, since Drizzle can't join against a table chosen dynamically per row. Also
+// reads the entry's current status, so a conflict's priority (step S7's Draft-vs-Locked split)
+// always reflects what canon says now, not a snapshot from when the flag was raised.
+async function enrichEntries<T extends { entryCollection: string; entryId: number }>(rows: T[]): Promise<(T & { entryName: string; entrySlug: string; priority: ConflictPriority })[]> {
   const byCollection = new Map<string, number[]>()
   for (const r of rows) byCollection.set(r.entryCollection, [...(byCollection.get(r.entryCollection) ?? []), r.entryId])
 
-  const names = new Map<string, { name: string; slug: string }>()
+  const found = new Map<string, { name: string; slug: string; status: string }>()
   for (const [collection, ids] of byCollection) {
     const table = WORLD_TABLE_MAP[collection]
     if (!table) continue
-    const found = await appDb.select({ id: table.id, name: table.name, slug: table.slug })
+    const rowsFound = await appDb.select({ id: table.id, name: table.name, slug: table.slug, status: table.status })
       .from(table as never).where(inArray(table.id, ids))
-    for (const f of found as { id: number; name: string; slug: string }[]) {
-      names.set(`${collection}:${f.id}`, { name: f.name, slug: f.slug })
+    for (const f of rowsFound as { id: number; name: string; slug: string; status: string }[]) {
+      found.set(`${collection}:${f.id}`, { name: f.name, slug: f.slug, status: f.status })
     }
   }
 
   return rows.map((r) => {
-    const found = names.get(`${r.entryCollection}:${r.entryId}`)
-    return { ...r, entryName: found?.name ?? '(deleted entry)', entrySlug: found?.slug ?? '' }
+    const match = found.get(`${r.entryCollection}:${r.entryId}`)
+    return {
+      ...r,
+      entryName: match?.name ?? '(deleted entry)',
+      entrySlug: match?.slug ?? '',
+      priority: conflictPriority(match?.status ?? 'in_development'),
+    }
   })
 }
 
@@ -104,7 +113,13 @@ export async function listOpenDecisions(): Promise<FlagRow[]> {
   const rows = await baseFlagQuery()
     .where(and(eq(schema.continuity.status, 'open'), inArray(schema.continuity.kind, DECISION_KINDS)))
     .orderBy(schema.continuity.createdAt)
-  return enrichEntries(rows)
+  const enriched = await enrichEntries(rows)
+  // Step S7's Draft-vs-Locked split: a conflict against a Locked entry comes first. A stable
+  // sort keeps each priority group in the createdAt order the query already gave it.
+  return enriched
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => (a.r.priority === b.r.priority ? a.i - b.i : a.r.priority === 'high' ? -1 : 1))
+    .map(({ r }) => r)
 }
 
 export async function listOpenUpdates(): Promise<FlagRow[]> {

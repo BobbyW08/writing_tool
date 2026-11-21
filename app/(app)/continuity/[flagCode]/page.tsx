@@ -69,6 +69,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ flagCod
           <Badge variant="outline" className={isDecision ? "border-red-500 text-red-700 dark:text-red-400" : "border-amber-500 text-amber-700 dark:text-amber-400"}>
             {KIND_LABELS[flag.kind]}
           </Badge>
+          {isDecision && flag.priority === "high" && (
+            <Badge className="bg-red-600 text-white hover:bg-red-600 dark:bg-red-700">Against Locked canon</Badge>
+          )}
         </div>
         {flag.explanation && <p className="mt-2 text-sm text-muted-foreground">{flag.explanation}</p>}
         {flag.kind === "possible_change" && <p className="mt-2 text-sm text-muted-foreground">This piece sits later on the timeline than the canon it differs from, so it may be intentional development.</p>}
