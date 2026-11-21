@@ -88,9 +88,10 @@ local is the working tree's uncommitted changes below.
 - Next.js security upgrade (16.4.2 to 16.4.6), previously isolated in a worktree/branch, merged into
   this branch 2026-11-21 (commit `d3581d0`). Worktree and branch removed. The build's recurring
   security-advisory nudge is gone.
-- UX1, Home launcher, done 2026-11-21: see the Step UX checklist and the 2026-11-21 working-log entry.
+- UX1, Home launcher; UX2, the type-page AI gap finder; and UX3, the stories picker and per-story
+  actions screen, done 2026-11-21: see the Step UX checklist and the 2026-11-21 working-log entries.
 
-**Not started:** UX2 to UX6 of the start flow and page redesign (step UX, designed 2026-11-21),
+**Not started:** UX4 to UX6 of the start flow and page redesign (step UX, designed 2026-11-21),
 Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
 
@@ -994,10 +995,29 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
       `lib/world/queries.ts`, and `app/(app)/page.tsx` rewritten to the five-card launcher. Verified live
       via Playwright at two viewport widths; fixed a flex-wrap/overlap bug in the gap list found during
       that check (`components/gap-recommender.tsx`).
-- [ ] **UX2.** Type page with the AI gap finder (board 2). It reuses the UX1 ranking, filtered to this type
-      first, and Open it can leave the type page when the biggest gap is elsewhere.
-- [ ] **UX3.** Stories picker and the "what do you want to do" screen, with the Review availability rule
-      (boards 3 and 4).
+- [x] **UX2.** Type page with the AI gap finder (board 2). It reuses the UX1 ranking, filtered to this type
+      first, and Open it can leave the type page when the biggest gap is elsewhere. Done 2026-11-21:
+      `getTopGapsAction(limit, collection)` filters candidates to the collection first, falling back to
+      the global ranking (with a note) when the type has none open; `<GapRecommender collection={...} />`
+      wired into `app/(app)/[entityType]/page.tsx`. Verified live on `/characters`, `/factions` and
+      `/races` (the fallback path).
+- [x] **UX3.** Stories picker and the "what do you want to do" screen, with the Review availability rule
+      (boards 3 and 4). Done 2026-11-21: new, additive routes `/story-builder` (picker) and
+      `/story-builder/[code]` (actions screen) rather than touching `/stories` or `/stories/[code]`,
+      which keep their existing, different purpose. `lib/story-builder/queries.ts` (`getStoryStats`,
+      `getAllStoryStats`, `getStoryPickerList`) computes word/beat/linked-entry counts from `writing`,
+      `beats` and `beat_involves` in one pass each; `lib/story-builder/actions.ts`
+      (`createBlankStoryAction`) reuses `createEntityAction` (hard rule 10). Only "Blank" is wired on
+      the New story panel; "An idea I already logged" and "AI suggests seed questions" stay visible but
+      disabled (no defined source for either yet, and seeding AI text without an accept would break
+      hard rule 1). The actions screen reuses the existing get-or-create writing flow from
+      `/stories/[code]/page.tsx` for "Write it myself", and the existing `/stories/[code]/beats`
+      fallback convention for "Use the Story Builder". Review is greyed until `hasProse` (a non-empty,
+      non-set-aside `writing` row), then links to `/stories/[code]` until UX4 exists. Added the sidebar
+      "Story Builder" nav link and pointed Home's "Open Story Builder" button at `/story-builder`.
+      Verified live via Playwright: picker renders real counts, new-story creation redirects to the
+      actions screen, "Write it myself" opens a real writing record, Review correctly greys/un-greys.
+      `tsc --noEmit` and `npm run build` clean.
 - [ ] **UX4.** Review what I have so far screen (board 6). Idea generation is not a UX step: it is built
       inside the Story Builder as part of SB7.
 - [ ] **UX5.** Editor: unlinked names panel placement and the world tree rail (board 7). The linking and
@@ -1486,7 +1506,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
-| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1 done 2026-11-21. **Next: UX2** |
+| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2 and UX3 done 2026-11-21. **Next: UX4** |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
@@ -1786,6 +1806,40 @@ to just the longest word's width at narrower viewports, visually overlapping the
 a sibling panel and failing a Playwright click. Fixed by switching the `<li>` to `flex-wrap items-start`
 so the button row wraps below the text on narrow widths instead of squeezing it; confirmed fixed at
 both 1280x720 and 1440x900. Committed as `fee3007`.
+
+### Session 2026-11-21: step UX2, type-page AI gap finder
+Reused rather than rebuilt, per hard rule 10: added an optional `collection` parameter to
+`getTopGapsAction` that filters the already-computed candidates to that collection before ranking,
+falling back to the full candidate list (and a note in `GapRecommender`, "Work on this may leave this
+screen") when the type has no open gaps of its own — exactly what the plan asks for ("filtered to
+this type first... Open it can leave the type page when the biggest gap is elsewhere"). Wired
+`<GapRecommender collection={entityType} />` into the single dynamic type-page route,
+`app/(app)/[entityType]/page.tsx`, which already serves all eight world collections. Verified live:
+`/characters` and `/factions` both return gaps scoped to their own collection; `/races` (no open
+gaps) correctly falls back to the global ranking with the note shown. `tsc --noEmit` and
+`npm run build` clean. Commit `a7cb9f7`.
+
+### Session 2026-11-21: step UX3, stories picker and per-story actions screen
+Read `project/StoryPicker.dc.html` and `project/StoryActions.dc.html` (boards 3 and 4) and the
+existing `/stories` family of routes before writing anything. `/stories` (full CRUD, `CollectionViewSwitch`)
+and `/stories/[code]` (rich infobox with inline `StoryKeepWriting`, beats, plot outline, relationships)
+serve a different, already-complete purpose, so UX3 landed as new, additive routes instead of touching
+them: `app/(app)/story-builder/page.tsx` (the picker: a dashed "New story" panel plus a recency-ordered
+list of existing stories with live word/beat counts) and `app/(app)/story-builder/[code]/page.tsx` (the
+three-card "what do you want to do" screen). `lib/story-builder/queries.ts` computes stats from `writing`,
+`beats` and `beat_involves` in one query each, grouped in JS (no stored word-count column, same approach
+as `getWritingList`). `lib/story-builder/actions.ts`'s `createBlankStoryAction` is a thin wrapper around
+the existing `createEntityAction` (hard rule 10) — no new story-creation path duplicated. "Write it
+myself" reuses the exact get-or-create writing logic already in `/stories/[code]/page.tsx`; "Use the
+Story Builder" reuses that page's own `/stories/[code]/beats` fallback convention. Only "Blank" is wired
+on the New story panel's "Start from" chips; "An idea I already logged" and "AI suggests seed questions"
+are shown disabled rather than guessed at (hard rules 1 and 4). Added the sidebar's bold "Story Builder"
+nav link and repointed Home's "Open Story Builder" button from `/stories` to `/story-builder`. Verified
+live via Playwright: the picker shows real counts for existing stories; creating a blank story redirects
+to its actions screen with all-zero stats and Review correctly greyed; choosing an existing story with
+written prose shows Review enabled with the right word count; "Write it myself" opens a real `/write/[code]`
+record with no console errors. Cleaned up the test story and its test writing record afterward via the
+existing UI. `tsc --noEmit` and `npm run build` clean throughout.
 
 ### Session 2026-11-21: step S7, wired the backward check into the data layer
 `lib/continuity/backward.ts`'s `fieldWasReplaced`/`findStaleClaims` were tested but never called.

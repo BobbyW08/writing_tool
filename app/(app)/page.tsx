@@ -90,7 +90,7 @@ export default async function HomePage() {
             <p className="text-sm text-muted-foreground">Nothing edited yet.</p>
           )}
           <div className="mt-auto flex gap-2.5">
-            <Link href="/stories">
+            <Link href="/story-builder">
               <span className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
                 Open Story Builder
               </span>

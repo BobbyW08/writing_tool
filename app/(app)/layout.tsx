@@ -55,6 +55,13 @@ export default async function AppLayout({ children, modal }: { children: React.R
               <NameSearch />
             </div>
 
+            <Link
+              href="/story-builder"
+              className="block rounded bg-blue-600 px-2 py-1.5 text-center text-xs font-semibold text-white hover:bg-blue-500"
+            >
+              Story Builder
+            </Link>
+
             <section>
               <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">World</p>
               <ul className="space-y-0.5">
