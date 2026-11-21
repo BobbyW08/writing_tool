@@ -6,23 +6,22 @@ events, items, factions, cultures, races, languages, lore, story ideas, and the 
 all stored in a Neon Postgres database via Drizzle ORM. Every record has a permanent ID code
 (C10, L4, E27, S12) and those codes are how entries are referenced in text, notes and prompts.
 All creating, editing and writing happens in the frontend, in place, with no separate edit mode.
-A single shared password gates the whole app at the edge (hard rule 12) — there are no user
-accounts and no per-user login. The frontend adds the views that are hard to do in a table: a world tree
-with an infobox on every entry, a timeline with eras and lanes, image maps with pins, chronicles,
+One shared password gates the whole app at the edge (hard rule 12), with no user accounts. The frontend adds the views that are hard to do in a table: a world tree
+with an infobox on every entry, the Story Builder canvas, a timeline with eras and lanes, image maps with pins, chronicles,
 node maps, family and causality trees, whiteboards, interactive tables, a writing studio, and
 relationship views. A backend link index records every connection between every record, and every
 view reads from it. The tool also acts as a lightweight creative assistant (suggestions, a prompts
 menu, placeholder and gap tracking, a continuity check on new writing), and all AI runs on Claude.
 It never writes narrative prose for the user.
 
-Full plan, table specs, link index spec, migration steps, phases and the master build order:
-`traveler-wiki-build-plan.md` (v3). Writing Studio, AI layer and canon check:
-`docs/PLAN_WRITING_AND_AI.md`. Working log and current state: `BUILD_GUIDE.md`. Read all three
-before starting a phase or step. This file is the quick-reference and hard-rules layer on top of
-them, not a replacement.
+The repo keeps exactly three instruction files: this one (hard rules), `next.md` (the next task),
+and `traveler-wiki-build-plan.md` (v4: the full plan, table specs, link index spec, Writing Studio
+and AI layer, Story Builder canvas, build order, progress checklist, working log, decisions and
+error log). Read all three before starting a phase or step. This file is the quick-reference and
+hard-rules layer on top of the plan, not a replacement. Never create any other guide, handoff,
+status or session file.
 
-**This is not:** a ghostwriter, a project/task manager, or a multi-user product. One user, no
-accounts, no per-user login — just one shared password gating the whole app (hard rule 12).
+**This is not:** a ghostwriter, a project/task manager, or a multi-user product. One user, one shared password, no accounts.
 
 ---
 
@@ -41,23 +40,22 @@ accounts, no per-user login — just one shared password gating the whole app (h
 | Media | `media` table, `sharp` for sizes |
 | Timeline (single-line) | `react-calendar-timeline` pinned at `0.30.0-beta.19` |
 | Timeline (multi-lane convergence) | `i-storyline-js` for layout math, custom SVG render |
-| Node map, trees and relationship views | React Flow (`@xyflow/react`) |
-| Image maps with pins | `leaflet` (`1.9.4`) + `react-leaflet` (`5.0.0`) with `CRS.Simple` for pixel-based, non-geographic maps. Drawing/editing toolbar: `@geoman-io/leaflet-geoman-free` (`2.20.6`) |
-| Whiteboards | `tldraw` (`tldraw@5.6.0`). React 19 SDK, infinite canvas, sticky notes/shapes/images/frames built in, scene persisted via `editor.getSnapshot()`/`loadSnapshot()` as opaque JSON in the board's `scene` column |
-| Table grid | `@tanstack/react-table` (`8.21.3` — pinned to the stable v8 line; v9 is a recent, differently-shaped rewrite), headless — custom cell rendering per column type (text/number/date/link/tag), own Tailwind styling. CSV import/export via `papaparse` (`5.7.0`) |
+| Node map, trees, relationship views and the Story Builder canvas | React Flow (`@xyflow/react`) |
+| Image maps with pins | One library, chosen by the step W3 spike and recorded in this row |
+| Whiteboards | One library, chosen by the step W5 spike and recorded in this row |
+| Table grid | One library, chosen by the step W6 spike and recorded in this row |
 | Sidebar multi-select | `shadcn-multi-select-component` (copy-paste shadcn) |
-| List reordering and drag and drop | `dnd-kit` (`@dnd-kit/sortable` and `@dnd-kit/core`): compilations, status boards, the story board |
-| AI | All AI runs on Claude: the `ai` package through Vercel AI Gateway, plain `anthropic/...` model strings, behind one module (`lib/ai/`). Covers suggestions, the prompts menu and the continuity check |
+| Compilation reordering | `dnd-kit` (`@dnd-kit/sortable`) |
+| AI | All AI runs on Claude: the `ai` package with `@ai-sdk/anthropic`, calling Anthropic directly with `ANTHROPIC_API_KEY`, behind one module (`lib/ai/`). Covers suggestions, the prompts menu and the continuity check |
 | Deployment | Vercel |
 
 ## Route layout
 - `app/(app)/` holds all frontend views: home, world tree and read pages for entries, the writing
   studio (`/write`), timeline, maps, chronicles, node map, trees, boards, tables, continuity inbox,
-  link health. Collection list pages have List, Table and Board views. A record can open as a
-  large popup over the page it was clicked from, rendering the same read page components.
-- There is no admin route. A single shared-password gate (`proxy.ts` + `/login`, hard rule 12) sits
-  in front of everything else; beyond that, all reads and writes go through server components and
-  server actions using `appDb`.
+  link health.
+- There is no admin route. A single shared-password gate (`proxy.ts` and `app/(auth)/login`, hard rule 12)
+  sits in front of everything else. All reads and writes go through server components and server actions
+  using `appDb`.
 - Connections between records come from the link index.
 
 ---
@@ -82,24 +80,29 @@ accounts, no per-user login — just one shared password gating the whole app (h
 | M | `maps` | Image maps (step W3) |
 | P | `map-pins` | One marker, label, line, circle or polygon on a map (step W3) |
 | H | `chronicles` | A timeline paired with maps (step W4) |
-| D | `boards` | Saved node maps, trees, story maps and whiteboards (step W5) |
+| D | `boards` | Saved node maps, trees, story maps, whiteboards (step W5) and Story Builder canvases (step SB) |
 | N | `tables` | Interactive tables (step W6) |
-| A | `compilations` | An ordered group of entries for combined export (Phase 7) |
+| A | `compilations` | Reserved for Phase 7 |
 | X | `relationships` | A link between two entries |
 | Q | `continuity-flags` | A continuity question or notice |
 | T | `tags` | A tag (UNK is built in, and so is AI suggested) |
 
+A code can retire when an entry changes type. Retired codes live in `code_history` and still resolve.
+
 The user types a code (C10) in his writing. Anything that reads his text should resolve codes
-through `extractCodes()` in `lib/codes.ts` and `GET /api/codes/:code`. Step G1 adds the new prefix
-letters to the code pattern. A code with no record renders as plain text, never as a broken link.
+through `extractCodes()` in `lib/codes.ts` and `GET /api/codes/:code`. The code pattern takes every prefix in
+the table above. A code with no record renders as plain text, never as a broken link.
 
 ---
 
 ## Hard rules, never broken
 
 1. **No AI-generated prose insertion, anywhere.** The suggestion pane returns options, questions,
-   or tensions, never a written scene. Nothing is auto-inserted into any entry field without the
-   user explicitly accepting it.
+   or tensions, never a written scene, chapter, snippet or new paragraph. Nothing is auto-inserted
+   into any entry field without the user explicitly accepting it. The one allowed form of AI text in
+   writing is Review writing: a single suggested edit to a sentence Bobby already wrote (grammar,
+   style, vocabulary, flow), shown as a before and after, in his voice, applied only when he accepts
+   that one suggestion.
    The one automatic write is the writing continuity check (`lib/continuity/`). When a piece of
    writing is saved, details Bobby wrote that are not in canon yet are added to entry details as
    **verbatim quotes of his own text**, and a named place or character that was never logged gets
@@ -118,25 +121,30 @@ letters to the code pattern. A code with no record renders as plain text, never 
    Creating a stub must generate a `gapPrompt`.
 5. **An event's `involves` list is required machinery, not optional.** "Every event involving X",
    the timeline filter, and the convergence view all depend on it. Never flatten it.
-6. **Codes are permanent.** Assigned automatically on create (inside the data layer write
-   function), never edited, never reused, never changed by a rename or a delete. Do not build any
-   feature that renumbers records.
+6. **A code is never edited in place and never reused.** Codes are assigned automatically on create
+   (inside the data layer write function) and a rename or delete never changes one. The only way a
+   code changes is a type change (`moveEntryAction` in `lib/world/move.ts`, the Change type button on
+   an entry): the entry gets a new code in the new type, the old code is written to `code_history`
+   and keeps resolving to the entry for good, and everything that pointed at it is repointed.
+   Counters never go backwards. Do not build any feature that renumbers records in bulk. Anything
+   that resolves a code must go through `currentCodes()` in `lib/codes-history.ts` first.
 7. **`APP_DATABASE_URL` is the only database written to.** `DATABASE_URL` is the old v1 database,
    read-only and used only by `scripts/copy-from-payload.ts`. Never use it in any app code path.
 8. **Imports upsert, never duplicate.** Key on `legacyId` or `sourceDocId` plus the code.
    Re-running any import or migration script must produce identical results.
-9. **Codes render as links, raw link syntax is never shown.** In read views, an ID code in text
-   renders as a real link showing the entry's name. The old `[[Type#Name|Label]]` syntax exists
+9. **Codes render as links, raw link syntax is never shown.** Writing stores a mention as
+   `[words as written](C4)`. In read views the link shows the words as written, a bare code shows the
+   entry's name, and nobody types or searches by code. The old `[[Type#Name|Label]]` syntax exists
    only in the legacy data and is converted during the migration.
 10. **Try the off-the-shelf library before hand-rolling.** The stack table above is the
     pre-selected list. Fall back to a custom build only if integration genuinely does not fit.
 11. **`npm run build` must pass with zero errors before every commit.**
 12. **One shared password gate, nothing more.** This is a personal single-user tool running on
     Vercel at a public URL, so it needs one lock on the front door, not real authentication.
-    `proxy.ts` checks a `session` cookie against `APP_SECRET`. `/api/login` checks a
-    submitted password against `APP_PASSWORD` and sets that cookie. No user accounts, no
-    per-user sessions, no OAuth, no password reset flow, no admin UI. Do not grow this into real
-    auth or reuse it for anything beyond gating the whole app at the edge.
+    `proxy.ts` checks a `session` cookie against `APP_SECRET`. `/api/login` checks a submitted
+    password against `APP_PASSWORD` and sets that cookie. No user accounts, no per-user sessions,
+    no OAuth, no password reset flow, no admin UI. Do not grow this into real auth or reuse it for
+    anything beyond gating the whole app at the edge.
 13. **UNK means "double check this".** Any record, link or piece of writing can carry tags.
     Whenever the data layer, an import, or the migration fills something in on a best guess (a
     matched name, a guessed era or format, a rewritten link, an auto-created record), it applies
@@ -156,13 +164,35 @@ letters to the code pattern. A code with no record renders as plain text, never 
     screen positions or zoom-dependent values.
 17. **The look and the wording are our own.** World Anvil is a behavior reference only. Never
     reuse its code, artwork, icons, names or prompt text.
+18. **Every Story Builder box is a record.** A typed box is saved as a beat (state `idea`), a dragged
+    box is an existing entry. Horizontal position on the canvas is the record's year and is never
+    stored. Vertical position, size and groups belong to the board (rule 15). Moving a box
+    horizontally changes `startYear` or `endYear` only, never `yearLabel` (rule 3). Dates are whole years.
+19. **A merge on the canvas writes nothing until Bobby picks what it means, and each merge can be
+    undone.** Only a confirmed merge creates a relationship, through the data layer. Drawing or
+    grouping on the canvas never creates links in the link index.
+20. **Themes are questions, and each comes with its inverse.** A theme row stores its question, and a
+    themed pair is linked by `inverseThemeId` on both rows. Pressure themes (Hunger, Restriction,
+    Belonging) have no inverse. (Step AR.)
+21. **Arc, theme and scope links are always optional and never block a save.** Missing links appear
+    as flags in the coverage view only. They are never validation errors. (Step AR.)
+22. **Only era, arc and story scales live in the `arcs` table.** A promoted beat is an event, and arc
+    and theme links attach to events. Planned beats (the `beats` table) are linked when promoted.
+    Motifs are entries of `type = 'motif'`, linked through the existing event links. (Step AR.)
+23. **AI-proposed arc, theme or scope links apply only after the user accepts them.** This extends
+    rule 1 to the story-architecture layer.
+24. **Documentation is exactly three files:** `CLAUDE.md`, `next.md` and `traveler-wiki-build-plan.md`.
+    Progress is checked off in the plan, and errors are logged in the plan's error log when found and
+    again when fixed.
 
 ---
 
 ## Data model
 Tables are defined in `db/schema.ts`. That file is the source of truth and is kept in sync with
-the table listings in `traveler-wiki-build-plan.md`. Tables marked new in that plan have no code
-yet, and their field lists there are the spec. The link index and the node and edge shape are
+the table listings in `traveler-wiki-build-plan.md`. Tables the plan marks as not built have no code
+yet, and their field lists there are the spec. Step AR tables (`arcs`, `themes`, `event_arcs`,
+`arc_themes`, `event_themes`, the `motif` entry type and `events.scope`) are specified in the plan and
+are not in `db/schema.ts` until that step is built. Add them to the schema and migration together. The link index and the node and edge shape are
 specified in the same plan ("Link index"). Do not duplicate field lists here.
 
 All reads and writes go through `lib/world/queries.ts` (entity fetchers), `lib/world/actions.ts`
@@ -174,22 +204,23 @@ from `db/index.ts`.
 ## Session start protocol
 1. Read this file.
 2. Read `traveler-wiki-build-plan.md` for the current phase or step, including "Build order".
-3. Read `BUILD_GUIDE.md` (working log: current state, decisions made, what is next).
-4. If the step is labeled S, read `docs/PLAN_WRITING_AND_AI.md`. If a handoff file is named, read it fully.
-5. State the current phase or step and sub-task before writing code.
+3. Read `next.md` for the task to do now. Do only that task.
+4. State the current phase or step and sub-task before writing code.
 
 ## Session end protocol
-1. Update `BUILD_GUIDE.md` with what was done and what is next.
-2. Run `npm run build`, zero errors.
-3. Re-check the hard rules above against anything touched this session.
-4. If a relationship column or table changed, confirm its edges are in the link index
-   (`scripts/rebuild-links.ts` dry run, once step G1 exists).
+1. In `traveler-wiki-build-plan.md`: check off finished items, add anything learned to the working
+   log, and log any error found or fixed in the error log.
+2. Replace the contents of `next.md` with the instructions for whatever comes next.
+3. Run `npm run build`, zero errors.
+4. Re-read the changes and recheck the original instructions and the hard rules above, to confirm
+   everything was followed.
+5. If a relationship column or table changed, confirm its edges are in the link index
+   (`scripts/rebuild-links.ts` dry run).
 
 ## When in doubt
 `traveler-wiki-build-plan.md` is the source of truth for tables, the data model, and phase scope.
-Do not invent a different data model, and do not add real multi-user auth, user accounts, or
-per-user permissions. This app is intentionally single-user — the shared password gate (hard
-rule 12) is the full extent of auth here, nothing more.
+Do not invent a different data model, and do not grow the shared password gate into real auth or
+multi-user patterns. This app is intentionally single-user.
 
 # This is NOT the Next.js you know
 
