@@ -12,14 +12,18 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 // Every live connection touching a record, read from the link index (lib/graph/queries.ts).
-export async function WhatLinksHere({ code }: { code: string }) {
-  const entries = await getLinksForCode(code);
+// `sources` narrows to a subset of SOURCE_ORDER (the entry page's tabs use this to split
+// "Mentions" from writing out from the rest, without a second query).
+export async function WhatLinksHere({ code, sources, heading, emptyText }: { code: string; sources?: string[]; heading?: string; emptyText?: string }) {
+  const all = await getLinksForCode(code);
+  const entries = sources ? all.filter((e) => sources.includes(e.edge.source)) : all;
+  const title = heading ?? "What links here";
 
   if (entries.length === 0) {
     return (
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-muted-foreground">What links here</h2>
-        <p className="text-sm italic text-muted-foreground">Nothing links here yet.</p>
+        <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+        <p className="text-sm italic text-muted-foreground">{emptyText ?? "Nothing links here yet."}</p>
       </section>
     );
   }
@@ -33,7 +37,7 @@ export async function WhatLinksHere({ code }: { code: string }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold text-muted-foreground">What links here</h2>
+      <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
       <div className="space-y-4">
         {SOURCE_ORDER.filter((s) => bySource.has(s)).map((source) => (
           <div key={source} className="space-y-1.5">

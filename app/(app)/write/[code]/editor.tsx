@@ -615,38 +615,47 @@ export function WritingEditor({
       {/* Editor surface */}
       <div className={`flex-1 ${focusMode ? 'px-8 py-4' : ''}`}>
         <LexicalComposer initialConfig={initialConfig}>
-          <div className="relative mx-auto max-w-[720px]">
-            <RichTextPlugin
-              contentEditable={
-                <ContentEditable
-                  className="writing-surface min-h-[60vh] outline-none"
-                  aria-label="Writing surface"
-                />
-              }
-              placeholder={
-                <div className="pointer-events-none absolute left-0 top-0 text-muted-foreground">
-                  Start writing...
-                </div>
-              }
-              ErrorBoundary={LexicalErrorBoundary}
-            />
-            <HistoryPlugin />
-            <ListPlugin />
-            <MarkdownShortcutPlugin transformers={SHORTCUT_TRANSFORMERS} />
-            <OnChangePlugin
-              ignoreSelectionChange
-              onChange={(editorState) => {
-                editorState.read(() => {
-                  textRef.current = $convertToMarkdownString(transformers)
-                })
-                scheduleAutoSave()
-              }}
-            />
-            <NameLinkPlugin index={nameIndex} />
-            <DropEntryPlugin />
-            <WordCountPlugin onCount={handleWordCount} />
+          <div className="mx-auto max-w-[720px]">
+            <div className="relative">
+              <RichTextPlugin
+                contentEditable={
+                  <ContentEditable
+                    className="writing-surface min-h-[60vh] outline-none"
+                    aria-label="Writing surface"
+                  />
+                }
+                placeholder={
+                  <div className="pointer-events-none absolute left-0 top-0 text-muted-foreground">
+                    Start writing...
+                  </div>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+              <HistoryPlugin />
+              <ListPlugin />
+              <MarkdownShortcutPlugin transformers={SHORTCUT_TRANSFORMERS} />
+              <OnChangePlugin
+                ignoreSelectionChange
+                onChange={(editorState) => {
+                  editorState.read(() => {
+                    textRef.current = $convertToMarkdownString(transformers)
+                  })
+                  scheduleAutoSave()
+                }}
+              />
+              <NameLinkPlugin index={nameIndex} />
+              <DropEntryPlugin />
+              <WordCountPlugin onCount={handleWordCount} />
+            </div>
+            <UnlinkedNamesPanel index={nameIndex} />
+            {!focusMode && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Drag an entry from the world tree on the left into the text, or type its name and press
+                Tab to link it. Linked names act like links: click opens the entry, Ctrl-click opens a
+                new tab.
+              </p>
+            )}
           </div>
-          <UnlinkedNamesPanel index={nameIndex} />
         </LexicalComposer>
       </div>
 

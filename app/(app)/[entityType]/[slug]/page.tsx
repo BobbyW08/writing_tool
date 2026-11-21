@@ -20,6 +20,9 @@ import { WhatLinksHere } from "@/components/what-links-here";
 import { RelationshipView } from "@/components/relationship-view";
 import { nodeKindFor } from "@/lib/nodeKinds";
 import { AiAssistBar } from "@/components/ai-assist-bar";
+import { EntryTabs } from "@/components/entry-tabs";
+
+const CONNECTION_SOURCES = ["relationship", "field", "parent", "pin"];
 
 const WORLD_COLLECTIONS: Record<string, string> = {
   characters: "Characters",
@@ -191,7 +194,7 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
           )}
         </div>
 
-        <div className="mt-1 flex flex-wrap items-start gap-3">
+        <div className="mt-1 flex items-start gap-2">
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold">
@@ -210,169 +213,209 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
               </p>
             )}
           </div>
-          <RecordActions collection={entityType} id={doc.id} code={code} name={doc.name} status={doc.status} />
-        </div>
-
-        <div className="mt-2">
-          <EditableField collection={entityType} docId={doc.id} fieldName="summary" value={doc.summary} kind="textarea" placeholder="Click to add summary" className="text-sm" />
         </div>
       </div>
 
-      <AiAssistBar
-        collection={entityType}
-        code={code}
-        docId={doc.id}
-        currentDetails={(doc.details ?? []).map(d => ({ label: d.label, value: d.value ?? "" }))}
-      />
+      <EntryTabs
+        actions={<RecordActions collection={entityType} id={doc.id} code={code} name={doc.name} status={doc.status} />}
+        tabs={[
+          {
+            id: "overview",
+            label: "Overview",
+            content: (
+              <>
+                <EditableField collection={entityType} docId={doc.id} fieldName="summary" value={doc.summary} kind="textarea" placeholder="Click to add summary" className="text-sm" />
 
-      {unkTagged && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
-          <span className="font-semibold">Check this: </span>
-          <EditableField collection={entityType} docId={doc.id} fieldName="reviewNote" value={doc.reviewNote} kind="textarea" placeholder="Add review note" />
-        </div>
-      )}
+                <AiAssistBar
+                  collection={entityType}
+                  code={code}
+                  docId={doc.id}
+                  currentDetails={(doc.details ?? []).map(d => ({ label: d.label, value: d.value ?? "" }))}
+                />
 
-      <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Still to decide</p>
-        <EditableField collection={entityType} docId={doc.id} fieldName="gapPrompt" value={doc.gapPrompt} kind="textarea" placeholder="What still needs deciding?" className="text-sm" />
-      </div>
+                {unkTagged && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
+                    <span className="font-semibold">Check this: </span>
+                    <EditableField collection={entityType} docId={doc.id} fieldName="reviewNote" value={doc.reviewNote} kind="textarea" placeholder="Add review note" />
+                  </div>
+                )}
 
-      {collFields.length > 0 && (
-        <div className="space-y-3">
-          {collFields.map(f => (
-            <div key={f.name} className="flex items-baseline gap-2">
-              <span className="w-32 shrink-0 text-xs font-semibold text-muted-foreground">{f.label}</span>
-              {f.kind !== "relationship" ? (
-                <EditableField
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Still to decide</p>
+                  <EditableField collection={entityType} docId={doc.id} fieldName="gapPrompt" value={doc.gapPrompt} kind="textarea" placeholder="What still needs deciding?" className="text-sm" />
+                </div>
+
+                {collFields.length > 0 && (
+                  <div className="space-y-3">
+                    {collFields.map(f => (
+                      <div key={f.name} className="flex items-baseline gap-2">
+                        <span className="w-32 shrink-0 text-xs font-semibold text-muted-foreground">{f.label}</span>
+                        {f.kind !== "relationship" ? (
+                          <EditableField
+                            collection={entityType}
+                            docId={doc.id}
+                            fieldName={f.name}
+                            value={(doc as Record<string, unknown>)[f.name] as string | number | boolean | null | undefined}
+                            kind={f.kind}
+                            options={f.options}
+                            placeholder="Click to add"
+                            className="flex-1 text-sm"
+                          />
+                        ) : (
+                          <span className="flex-1 text-sm text-muted-foreground italic">
+                            set via Relationships below
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {sheet && (
+                  <section className="space-y-2">
+                    <h2 className="text-sm font-semibold text-muted-foreground">{sheet.title}</h2>
+                    <SheetEditor
+                      collection={entityType}
+                      docId={doc.id}
+                      sections={sheet.sections}
+                      answers={answers}
+                      codeMap={codeMap}
+                      openFirst={entityType === "characters"}
+                      credit={sheet.credit}
+                    />
+                  </section>
+                )}
+
+                <DetailsEditor
                   collection={entityType}
                   docId={doc.id}
-                  fieldName={f.name}
-                  value={(doc as Record<string, unknown>)[f.name] as string | number | boolean | null | undefined}
-                  kind={f.kind}
-                  options={f.options}
-                  placeholder="Click to add"
-                  className="flex-1 text-sm"
+                  initial={nonSheetRows(doc.details).map(d => ({
+                    id: d.id ?? undefined,
+                    label: d.label,
+                    value: d.value ?? "",
+                    inInfobox: d.inInfobox ?? false,
+                  }))}
                 />
-              ) : (
-                <span className="flex-1 text-sm text-muted-foreground italic">
-                  set via Relationships below
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
 
-      {sheet && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">{sheet.title}</h2>
-          <SheetEditor
-            collection={entityType}
-            docId={doc.id}
-            sections={sheet.sections}
-            answers={answers}
-            codeMap={codeMap}
-            openFirst={entityType === "characters"}
-            credit={sheet.credit}
-          />
-        </section>
-      )}
-
-      <DetailsEditor
-        collection={entityType}
-        docId={doc.id}
-        initial={nonSheetRows(doc.details).map(d => ({
-          id: d.id ?? undefined,
-          label: d.label,
-          value: d.value ?? "",
-          inInfobox: d.inInfobox ?? false,
-        }))}
-      />
-
-      {doc.body && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">Notes</h2>
-          <pre className="whitespace-pre-wrap rounded-md border p-3 text-sm font-sans leading-relaxed">
-            {doc.body}
-          </pre>
-        </div>
-      )}
-
-      {subItems.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">Sub-items</h2>
-          <ul className="divide-y rounded-md border">
-            {(subItems as EntryDoc[]).map(s => (
-              <li key={s.id}>
-                <Link href={`/${entityType}/${s.code ?? s.id}`} className="flex items-center gap-2 p-2.5 hover:bg-accent">
-                  <span className="font-mono text-xs text-muted-foreground">{s.code}</span>
-                  <span className="text-sm">{s.name}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {entityType === "characters" && placeEntries.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">Places</h2>
-          <ul className="divide-y rounded-md border">
-            {placeEntries.map(p => (
-              <li key={p.id} className="flex items-center gap-2 p-2.5 text-sm">
-                <Link href={`/locations/${p.code}`} className="flex-1 hover:underline">
-                  <span className="font-mono text-xs text-muted-foreground">{p.code}</span>{" "}
-                  {placeCodeMap[p.code]?.name ?? p.code}
-                </Link>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {RELATIONSHIP_TYPES.find(t => t.value === p.type)?.label ?? p.type}
-                </span>
-                {placeYearRangeText(p.startYear, p.endYear) && (
-                  <span className="shrink-0 text-xs text-muted-foreground">{placeYearRangeText(p.startYear, p.endYear)}</span>
+                {doc.body && (
+                  <div className="space-y-2">
+                    <h2 className="text-sm font-semibold text-muted-foreground">Notes</h2>
+                    <pre className="whitespace-pre-wrap rounded-md border p-3 text-sm font-sans leading-relaxed">
+                      {doc.body}
+                    </pre>
+                  </div>
                 )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
-      <RelationshipEditor myCode={code} initial={relEntries} />
+                {subItems.length > 0 && (
+                  <section className="space-y-2">
+                    <h2 className="text-sm font-semibold text-muted-foreground">Sub-items</h2>
+                    <ul className="divide-y rounded-md border">
+                      {(subItems as EntryDoc[]).map(s => (
+                        <li key={s.id}>
+                          <Link href={`/${entityType}/${s.code ?? s.id}`} className="flex items-center gap-2 p-2.5 hover:bg-accent">
+                            <span className="font-mono text-xs text-muted-foreground">{s.code}</span>
+                            <span className="text-sm">{s.name}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </>
+            ),
+          },
+          {
+            id: "connections",
+            label: "Connections",
+            content: (
+              <>
+                {entityType === "characters" && placeEntries.length > 0 && (
+                  <section className="space-y-2">
+                    <h2 className="text-sm font-semibold text-muted-foreground">Places</h2>
+                    <ul className="divide-y rounded-md border">
+                      {placeEntries.map(p => (
+                        <li key={p.id} className="flex items-center gap-2 p-2.5 text-sm">
+                          <Link href={`/locations/${p.code}`} className="flex-1 hover:underline">
+                            <span className="font-mono text-xs text-muted-foreground">{p.code}</span>{" "}
+                            {placeCodeMap[p.code]?.name ?? p.code}
+                          </Link>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {RELATIONSHIP_TYPES.find(t => t.value === p.type)?.label ?? p.type}
+                          </span>
+                          {placeYearRangeText(p.startYear, p.endYear) && (
+                            <span className="shrink-0 text-xs text-muted-foreground">{placeYearRangeText(p.startYear, p.endYear)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
 
-      {(linkedEvents as EventRow[]).length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">Events</h2>
-          <ul className="divide-y rounded-md border">
-            {(linkedEvents as EventRow[]).map(ev => (
-              <li key={ev.id}>
-                <Link href={`/events/${ev.code ?? ev.id}`} className="flex items-center gap-2 p-2.5 hover:bg-accent">
-                  {ev.yearLabel && <span className="font-mono text-xs text-muted-foreground">{ev.yearLabel}</span>}
-                  <span className="text-sm">{ev.name}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                <RelationshipEditor myCode={code} initial={relEntries} />
 
-      {locationMaps.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">Maps</h2>
-          <ul className="flex flex-wrap gap-2">
-            {locationMaps.map(m => (
-              <li key={m.id}>
-                <Link href={`/maps/${m.code}`} className="rounded border px-2 py-1 text-sm hover:bg-accent">
-                  {m.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          {firstLocationMap && <MapCanvas map={firstLocationMap as unknown as MapData} editable={false} />}
-        </section>
-      )}
+                <RelationshipView code={code} name={doc.name} color={nodeKindFor(entityType).color} icon={nodeKindFor(entityType).icon} />
 
-      <RelationshipView code={code} name={doc.name} color={nodeKindFor(entityType).color} icon={nodeKindFor(entityType).icon} />
+                <WhatLinksHere code={code} sources={CONNECTION_SOURCES} />
+              </>
+            ),
+          },
+          {
+            id: "timeline",
+            label: "Timeline",
+            content: (
+              <>
+                {(linkedEvents as EventRow[]).length > 0 && (
+                  <section className="space-y-2">
+                    <h2 className="text-sm font-semibold text-muted-foreground">Events</h2>
+                    <ul className="divide-y rounded-md border">
+                      {(linkedEvents as EventRow[]).map(ev => (
+                        <li key={ev.id}>
+                          <Link href={`/events/${ev.code ?? ev.id}`} className="flex items-center gap-2 p-2.5 hover:bg-accent">
+                            {ev.yearLabel && <span className="font-mono text-xs text-muted-foreground">{ev.yearLabel}</span>}
+                            <span className="text-sm">{ev.name}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
 
-      <WhatLinksHere code={code} />
+                {(linkedEvents as EventRow[]).length === 0 && locationMaps.length === 0 && (
+                  <p className="text-sm italic text-muted-foreground">Nothing on the timeline yet.</p>
+                )}
+
+                {locationMaps.length > 0 && (
+                  <section className="space-y-2">
+                    <h2 className="text-sm font-semibold text-muted-foreground">Maps</h2>
+                    <ul className="flex flex-wrap gap-2">
+                      {locationMaps.map(m => (
+                        <li key={m.id}>
+                          <Link href={`/maps/${m.code}`} className="rounded border px-2 py-1 text-sm hover:bg-accent">
+                            {m.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    {firstLocationMap && <MapCanvas map={firstLocationMap as unknown as MapData} editable={false} />}
+                  </section>
+                )}
+              </>
+            ),
+          },
+          {
+            id: "writing",
+            label: "Writing",
+            content: (
+              <WhatLinksHere
+                code={code}
+                sources={["text"]}
+                heading="Mentioned in writing"
+                emptyText="Not mentioned in any writing yet."
+              />
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

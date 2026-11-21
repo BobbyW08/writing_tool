@@ -88,10 +88,12 @@ local is the working tree's uncommitted changes below.
 - Next.js security upgrade (16.4.2 to 16.4.6), previously isolated in a worktree/branch, merged into
   this branch 2026-11-21 (commit `d3581d0`). Worktree and branch removed. The build's recurring
   security-advisory nudge is gone.
-- UX1, Home launcher; UX2, the type-page AI gap finder; and UX3, the stories picker and per-story
-  actions screen, done 2026-11-21: see the Step UX checklist and the 2026-11-21 working-log entries.
+- UX1 (Home launcher), UX2 (type-page AI gap finder), UX3 (stories picker and per-story actions
+  screen), UX5 (editor panel placement) and UX6 (entry page tabs and toolbar) done 2026-11-21: see
+  the Step UX checklist and the 2026-11-21 working-log entries.
 
-**Not started:** UX4 to UX6 of the start flow and page redesign (step UX, designed 2026-11-21),
+**Not started:** UX4 of the start flow and page redesign (step UX, designed 2026-11-21; held for
+Bobby's review of the Review writing / Review facts AI behavior before building it),
 Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
 
@@ -1020,9 +1022,35 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
       `tsc --noEmit` and `npm run build` clean.
 - [ ] **UX4.** Review what I have so far screen (board 6). Idea generation is not a UX step: it is built
       inside the Story Builder as part of SB7.
-- [ ] **UX5.** Editor: unlinked names panel placement and the world tree rail (board 7). The linking and
-      drop behavior arrive in UX0.
-- [ ] **UX6.** Entry page header and toolbar (board 9).
+- [x] **UX5.** Editor: unlinked names panel placement and the world tree rail (board 7). The linking and
+      drop behavior arrive in UX0. Done 2026-11-21: the unlinked-names panel now sits in the same
+      `max-w-[720px]` column as the writing surface (it previously stretched full width, outside that
+      column); added a hint line under it ("Drag an entry from the world tree... or type its name and
+      press Tab to link it"), hidden in focus mode. The world tree rail itself is the existing global
+      sidebar `<WorldTree>` (`components/world-tree.tsx`), which already supports drag-and-drop into
+      the editor (`DropEntryPlugin`, wired in UX0) — kept as the single drag source (hard rule 10, hard
+      rule 15) rather than building a second, editor-local tree to match the wireframe's right-side
+      placement literally.
+- [x] **UX6.** Entry page header and toolbar (board 9). Done 2026-11-21: the generic entry page
+      (`app/(app)/[entityType]/[slug]/page.tsx`, covering all eight world collections) now puts the
+      title and badges on their own row and a separate toolbar row below it with four tabs (Overview,
+      Connections, Timeline, Writing) on the left and `RecordActions` on the right. New
+      `components/entry-tabs.tsx` (`EntryTabs`) switches between already-rendered panes client-side
+      (no re-fetch, no route change); all panes stay mounted so in-progress edits in one tab are not
+      lost switching to another. Content regrouped, nothing dropped: Overview = summary, AI assist bar,
+      UNK banner, gap prompt, collection fields, character sheet, details editor, notes, sub-items;
+      Connections = place history (characters), the relationship editor, the relationship graph, and
+      `WhatLinksHere` filtered to non-text sources; Timeline = linked events and maps (locations);
+      Writing = `WhatLinksHere` filtered to `source: "text"` only (prose that mentions this entry,
+      labelled "Mentioned in writing"). `WhatLinksHere` gained optional `sources`/`heading`/`emptyText`
+      props for this, defaulting to its old behavior everywhere else it is used (boards, chronicles,
+      events, maps, stories, tables — all untouched). `RecordActions` tucks the destructive Delete
+      button under a new "More" popover (built on the already-installed `@radix-ui/react-popover`, no
+      new dependency), matching "rarely used actions go under More"; Export as Markdown, the status
+      select and Change type stay directly visible. Verified live via Playwright on a character
+      (C1: all four tabs, the More popover) and a location (L2: Timeline tab's empty state) with no
+      console errors; a hydration mismatch seen mid-edit cleared after a dev-server restart (stale
+      cached SSR output, not a real bug). `tsc --noEmit` and `npm run build` clean.
 - [ ] **Gate UX:** build passes, every card reaches its screen in the browser, Review is greyed on a story
       with no prose and on after prose is saved, no AI result saves without a click.
 
@@ -1506,7 +1534,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
-| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2 and UX3 done 2026-11-21. **Next: UX4** |
+| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2, UX3, UX5 and UX6 done 2026-11-21. **Next: UX4** (held for Bobby's review) |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
@@ -1840,6 +1868,32 @@ to its actions screen with all-zero stats and Review correctly greyed; choosing 
 written prose shows Review enabled with the right word count; "Write it myself" opens a real `/write/[code]`
 record with no console errors. Cleaned up the test story and its test writing record afterward via the
 existing UI. `tsc --noEmit` and `npm run build` clean throughout.
+
+### Session 2026-11-21: steps UX5 and UX6, editor panel placement and entry page tabs
+Done with UX4 held back for Bobby to review tonight (Review writing/Review facts is the first real
+use of hard rule 1's one carve-out, so it gets a focused pass with him rather than an autonomous one).
+UX5: the unlinked-names panel (`app/(app)/write/[code]/editor.tsx`) was stretching full width of its
+container instead of sitting in the same column as the writing surface; wrapped both in the same
+`mx-auto max-w-[720px]` div and added a one-line hint about dragging from the world tree or typing a
+name and pressing Tab, hidden in focus mode. Confirmed the "world tree rail" the wireframe shows
+is already the existing global `<WorldTree>` sidebar — it already sets the drag payload the editor's
+`DropEntryPlugin` already consumes (both built in UX0) — so nothing new was needed there; building a
+second, editor-local tree just to match the wireframe's right-side placement would have duplicated
+working functionality (hard rules 10 and 15).
+UX6: restructured `app/(app)/[entityType]/[slug]/page.tsx` (the generic entry page for all eight
+world collections) to match board 9: title and badges on their own row, a separate toolbar row below
+with four tabs (Overview, Connections, Timeline, Writing) and `RecordActions` on the right. Built
+`components/entry-tabs.tsx` to switch between already-rendered panes client-side, keeping every pane
+mounted (so switching tabs never loses in-progress edits elsewhere on the page). Grouped existing
+content into the four tabs without dropping anything (see the UX6 checklist entry for the exact
+mapping). Gave `WhatLinksHere` an optional `sources` filter (plus `heading`/`emptyText`) so the same
+link-index query backs both the Connections tab's non-text links and the new Writing tab's
+text-source mentions, instead of two separate queries; every other caller (six other pages) keeps its
+old, unfiltered behavior. Gave `RecordActions` a "More" popover for the Delete button, built on the
+already-installed `@radix-ui/react-popover` rather than adding a new dropdown-menu dependency.
+Verified live via Playwright on a character and a location, all four tabs and the More popover, no
+console errors (one hydration-mismatch console error seen mid-edit was a stale dev-server SSR cache,
+confirmed gone after a restart, not a real bug). `tsc --noEmit` and `npm run build` clean.
 
 ### Session 2026-11-21: step S7, wired the backward check into the data layer
 `lib/continuity/backward.ts`'s `fieldWasReplaced`/`findStaleClaims` were tested but never called.
