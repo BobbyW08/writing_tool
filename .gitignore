@@ -12,3 +12,4 @@ cookies.txt
 dev-server.log
 dev-server-err.log
 /public/media
+.playwright-mcp
