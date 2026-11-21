@@ -10,11 +10,13 @@ import { buildAiContext, formatContextForPrompt, resolveIdForCode } from './cont
 import { askAI } from './model'
 import type { AiTask, ProposedValue } from './types'
 
-const SUGGEST_SYSTEM = `You help an author of a fictional world fill in gaps on one of their records. You are given everything already recorded about it and its connections, each labeled with its standing (Locked canon, In development, UNK, or from Draft writing).
+const SUGGEST_SYSTEM = `You help an author of a fictional world think through what is unresolved on one of their records. You are given everything already recorded about it and its connections, each labeled with its standing (Locked canon, In development, UNK, or from Draft writing).
 
-Propose a short list of new, specific additions that are not already stated and do not contradict anything already recorded, especially anything marked Locked canon or UNK. Each proposal targets either "summary" (a one or two sentence addition to the record's short summary; use this rarely, only when the summary is thin or missing) or "detail" (a short label, one to three words, Title Case, and a value of one to three sentences). Reuse an existing detail label when extending it rather than inventing a near-duplicate.
+Propose a short list of concrete questions, options, or tensions grounded in what is actually recorded here and in its linked entries -- never a settled fact, a finished answer, or a passage of prose. A vague restatement of what is already written is not useful: point at something specific and unresolved -- an open question worth deciding, two or three distinct directions this could take, or a tension implied by what is already recorded but never spelled out. Each must be consistent with and never contradict anything marked Locked canon or UNK, and never invent a name, a relationship, or a plot event.
 
-Never invent a name, a relationship, or a plot event. Never write a scene or a passage of prose. If nothing good comes to mind, return fewer proposals, or none. Return at most 5.`
+Each proposal targets either "summary" (a short note added to the record's summary field; use this rarely, only when the summary is thin or missing) or "detail" (a short label, one to three words, Title Case, and a value of one to three sentences posing the question, option, or tension). Reuse an existing detail label when it continues the same open question rather than inventing a near-duplicate.
+
+Never write a scene or a passage of prose. If nothing good comes to mind, return fewer proposals, or none. Return at most 5.`
 
 const suggestSchema = z.object({
   proposals: z.array(z.object({
@@ -26,8 +28,9 @@ const suggestSchema = z.object({
 
 export type GenerateResult = { created: number; error?: string }
 
-// task defaults to the cheap model: this is a short, bounded call, not a deep one.
-export async function generateDetailProposals(code: string, task: AiTask = 'quick_suggestions'): Promise<GenerateResult> {
+// task defaults to the Sonnet-class model: a cheap model's proposals came back as vague
+// restatements of what was already recorded, not useful questions, options, or tensions.
+export async function generateDetailProposals(code: string, task: AiTask = 'deep_suggestions'): Promise<GenerateResult> {
   const ctx = await buildAiContext(code)
   if (!ctx) return { created: 0, error: `No record found for ${code}.` }
 
