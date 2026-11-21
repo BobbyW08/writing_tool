@@ -64,7 +64,8 @@ local is the working tree's uncommitted changes below.
   hand 2026-11-11. Migrations `0011_story_details` and `0012_code_history` are applied to Neon
   (confirmed 2026-11-21). `tsc`, `build`, `test:mentions`, `test:names`, `test:continuity` and a link
   index dry run (66 links across 359 records) are all clean as of 2026-11-21. The browser checklist
-  (step P0) has not been run.
+  (step P0) was run 2026-11-21: reload persistence, sidebar search, Change type, Ask AI accept and reject
+  and the beats cards pass. Five defects were found (see step UX0 and the error log).
 - S4, AI foundation: done. `lib/ai/`, `ai_settings`, `ai_proposals`, the `/ai-inbox` Accept and Reject page
   (migration `0013_ai_foundation`, applied). AI calls go straight to Anthropic through `@ai-sdk/anthropic` with
   `ANTHROPIC_API_KEY` (decided 2026-11-14). `ai_proposals` holds 12 real rows, `ai_settings` 1 row.
@@ -76,11 +77,13 @@ local is the working tree's uncommitted changes below.
   it live yet), claims written by the continuity check, the label check, "Leaving Canon" with
   revert-by-history-row (`components/writing-history-panel.tsx`). Missing: the backward check (a changed
   canon field never re-reads `claims` to flag the passages that assumed the old value) and the forward
-  check's Draft-vs-Locked priority split. See "Steps S0 to S7" for detail.
+  check's Draft-vs-Locked priority split. See "Steps S0 to S7" for detail. Uncommitted and not yet wired:
+  `lib/continuity/backward.ts` (pure functions `fieldWasReplaced`, `findStaleClaims`, 25 of 25 checks pass in
+  `npm run test:continuity`). No write function, flag or screen calls it yet.
 - **No longer unverified:** migrations 0011 to 0016 are all applied, `npm run build` and every test
   pass on this working tree, and S4 to S7 completeness is recorded above and in "Steps S0 to S7".
 
-**Not started:** Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
+**Not started:** the start flow and page redesign (step UX, designed 2026-11-21), Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
 
 **Documentation:** exactly three files. The old the old build guide (see Working log), `SESSION.md` and
@@ -539,14 +542,15 @@ its connections from the link index and its nodes and edges from the shared `Gra
 - **World tree (left panel).** A searchable tree of everything. Modes: by type (collection, then
   `parent` hierarchy), by story, by culture, by era. A filter box, a button to add an entry or a
   group, and drag to re-parent within a collection (changes `parent` only).
-- **Home.** Quick-create tiles per collection, counts, open continuity items, placeholders waiting,
-  recent edits.
+- **Home.** One question, "What do you want to work on?", with five answers: Characters, Locations,
+  Stories, Events, Timeline. Beside them: Ask AI to recommend a gap, Continue where you left off, and
+  Open Story Builder (step UX1).
 - **Entry read pages.** The **infobox** sits at the top right of the page, above the text, like an
   encyclopedia: image, the fixed fields for that collection, and any detail rows marked `inInfobox`.
   Below it: details, notes, linked events, relationships (read from both ends), sub-items, and
   **What links here** from the link index. ID codes in any text render as links showing the entry's name.
-- **Record actions.** Status and delete sit in the top right of every read page header, next to
-  the title (step U1).
+- **Record actions.** Status and badges sit beside the title, and the actions sit on their own toolbar
+  row under it, with rarely used ones under More (steps U1 and UX6).
 - **Collection list pages.** Each collection page has a List, Table and Board view. The table sorts,
   filters and edits in place, with bulk actions. The board groups records into status columns and
   cards drag between them (step U4).
@@ -768,13 +772,12 @@ Continuity inbox, Field history, Confirmations).
 Designed 2026-11-21 from wireframes (home hub, canvas, expanded box). Goal: freedom to build and
 rearrange stories and the master timeline by moving boxes around one endless canvas.
 
-### Home hub and menu
+### Menu and entry point
 
-The home page is a hub in the dark theme: page title, a name search box, two shortcut tiles
-(Open Story Builder, Continue where you left off), then a card gallery per collection with a blue
-New button and a dashed "+ New page" card. The left menu is the lookup menu. Its top item is
-**Story Builder**, highlighted, then Home, Characters, Locations, Events, Stories, Items and Lore,
-Master Timeline, Manuscript, Ideas.
+The left menu is the lookup menu. Its top item is **Story Builder**, highlighted, then Home, Characters,
+Locations, Events, Stories, Items and Lore, Master Timeline, Manuscript, Ideas. The home page is a
+launcher, not a gallery: see "Start flow and page redesign (step UX)". The old per-collection card
+galleries move onto each type page.
 
 ### Canvas
 
@@ -880,19 +883,102 @@ Dependencies: SB1 to SB5 need the link index (step G1, done) for merges, and a m
 `boards` table with the `story_canvas` kind. SB6 needs S1 (done). SB7 needs S4 (AI foundation), and
 the claims parts of Review facts need S7. Until S4 exists the helper buttons are hidden.
 
-- [ ] **SB1.** Home hub in the gallery layout and the new left menu order. Story Builder route exists.
+- [ ] **SB1.** The new left menu order and the Story Builder route. (The home screen is step UX1.)
 - [ ] **SB2.** Canvas shell: React Flow, dotted background, pan, zoom, pinned timeline ruler (0 to 5, extend, zoom).
 - [ ] **SB3.** Boxes: create by typing (saved as beats), move, resize spans, set dates by horizontal drag,
       undated state, delete, save positions on the board.
 - [ ] **SB4.** Shelf: drag existing entries onto the canvas. Convert a typed box to an entry type.
 - [ ] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
 - [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
-- [ ] **SB7.** AI helpers: Review writing, Review facts, What happens next, then the chips.
+- [ ] **SB7.** AI helpers: Review writing, Review facts, What happens next, then the chips. Idea generation
+      also works from a selected box on the canvas: results show as dashed ghost boxes to its right, with
+      Add to canvas and Dismiss (see step UX).
 - [ ] **SB8.** Polish: Fit to view, N shortcut, keyboard moves, narrow screen behavior.
 - [ ] **Gate SB:** build passes, merges verified against the link index, a drag changes only `startYear`
       and `endYear`, no AI result applies without an accept.
 
 ---
+## Start flow and page redesign (step UX)
+
+Designed 2026-11-21 after Bobby ran the browser checklist. The data and features work. The flow does not:
+the app opens on a wall of cards and asks him to find his own way. He wants to be asked what he is
+working on, then shown the list, then offered the ways to work on the thing he picked.
+
+Wireframes: the canvas "Story Builder Wireframes" (Claude artifact), boards 1 to 4 (start flow), 5 and 8
+(Story Builder, step SB, including idea generation), 6 and 7 (review, editor) and 9 (entry page). Build to those boards. The look
+stays the dark theme already in use. The wording and layout are our own (hard rule 17).
+
+### The flow
+
+1. **Home.** "What do you want to work on?" with five large answers. Below: **Ask AI to recommend a gap**
+   (works across all types), **Continue where you left off**, **Open Story Builder**, and small links to
+   Items and Lore, Factions and Cultures, Manuscript and Ideas.
+2. **Type page** (Characters, Locations, Events). A list with status chips (Locked, In development, Needs
+   name, Placeholder, UNK) and a name filter. Two buttons: **New** and **Ask AI to recommend a gap**.
+   The AI panel lists three suggestions, each with Open it (jumps to the empty field) and Not now. The
+   existing List, Table and Board views stay available on this page (step U4).
+3. **Stories.** Two choices: **New story** (title optional, a stub is allowed, start blank, from a logged
+   idea, or with AI seed questions) or **pick an existing story**. Each row shows written words and beats.
+4. **Story: what do you want to do?** Three cards:
+   - **Write it myself:** the writing studio on this story.
+   - **Use the Story Builder:** the canvas filtered to this story. Idea generation lives here (see
+     below). Until SB3 exists this opens the story's beats page.
+   - **Review what I have so far:** greyed out and explained until the story has written prose.
+5. **Ideas live in the Story Builder, not on their own screen.** Decided 2026-11-21: ideas depend on what
+   comes next in the story being built, so they hang off the selected box. Selecting a box shows an
+   "Ideas for this box" bar with lenses (what happens next, loose ends, ripple effects, foreshadowing, ask
+   anything). Results appear as dashed ghost boxes to the right of the selected box, each a question, a
+   tension and the entries it draws from, with **Add to canvas** and **Dismiss**. Reuses the S5 beat cards
+   and the S6 prompts menu. With nothing selected, the same lenses work on the whole story.
+6. **Review what I have so far.** The written pieces with word counts. Review writing (one before and after
+   at a time), Review facts (claims ledger, steps S4 and S7), and the Continuity inbox.
+7. **Write it myself.** The editor with linking behavior defined below, the unlinked names panel directly
+   under the page, and the world tree rail.
+8. **Entry page.** Title row, badges beside it, a toolbar row with tabs and actions, the UNK banner, fields
+   edited in place on the left, the infobox on the right.
+
+### Rules for this step
+
+- **Review is available only when the story has written prose.** Written prose means non-empty `writing`
+  rows linked to the story that are not Set aside. Beats, notes, details and links do not count. A greyed card says why. It is never hidden.
+- **Ask AI to recommend a gap only reads.** It looks at records whose `status` is not `locked`, empty
+  fields, missing timeline years and stories with beats but no written prose. It returns suggestions. It
+  creates and changes nothing (hard rules 1 and 4).
+- **Generated ideas are questions, options and tensions only.** Never a scene, paragraph or chapter
+  (hard rule 1). Ghost boxes are not records. Add to canvas saves a beat in state `idea`, attached to the
+  story and undated until Bobby drags it to a year (hard rule 18). Dismiss discards it. Nothing is saved
+  before the click, and an accepted idea carries `UNK` and `AI suggested` (hard rule 13).
+- **A linked name looks and acts like a link.** The saved Markdown is unchanged: `[words as written](C4)`
+  (hard rule 9). In the editor the name is clearly styled, hover shows its type and name, a click opens
+  the entry and Ctrl-click opens a new tab.
+- **Autocomplete ranks by exact name first, then by type:** Characters, Locations, Events, Factions,
+  Cultures, Items, Lore last. Tab links, Escape keeps plain text.
+- **Dropping an entry into the text** inserts at the drop point, snaps to the nearest word boundary, adds
+  spaces around it, and never lands inside an existing linked name.
+- **The unlinked names panel** sits directly under the writing page and shows whenever a full entry name
+  appears in the text without a link, with Link and Link all.
+- **Suggestions model.** Ask AI, ideas and review suggestions run on a Sonnet-class model, set per task in
+  `ai_settings`. Prompts ask for questions and tensions grounded in Bobby's own text and linked entries.
+
+### Step UX checklist
+
+- [ ] **UX0.** Fix the five defects from the 2026-11-21 browser checklist (see the error log): linked names
+      clickable and ranked, drag drop position, editor placeholder hydration mismatch, entry header
+      overlap, suggestion model and prompt. One commit each.
+- [ ] **UX1.** Home launcher (board 1).
+- [ ] **UX2.** Type page with the AI gap finder (board 2).
+- [ ] **UX3.** Stories picker and the "what do you want to do" screen, with the Review availability rule
+      (boards 3 and 4).
+- [ ] **UX4.** Review what I have so far screen (board 6). Idea generation is not a UX step: it is built
+      inside the Story Builder as part of SB7.
+- [ ] **UX5.** Editor: unlinked names panel placement and the world tree rail (board 7). The linking and
+      drop behavior arrive in UX0.
+- [ ] **UX6.** Entry page header and toolbar (board 9).
+- [ ] **Gate UX:** build passes, every card reaches its screen in the browser, Review is greyed on a story
+      with no prose and on after prose is saved, no AI result saves without a click.
+
+---
+
 ## Story architecture (step AR: arcs, themes and motifs)
 
 Decided 2026-11-12. Held until other components are built. Not started, nothing is in `db/schema.ts` yet.
@@ -1368,14 +1454,17 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 6 | W3 to W6 | Maps and pins, chronicles, boards, interactive tables. Done 2026-11-09 |
 | 7 | Phases 6 to 8 | Gaps view, export, compilations, search, password gate. Done. Open: switch from dev schema push to migrations before deploy |
 | 8 | Writing drives the world port | Name linking, sheets, plot outlines, Change type. Done 2026-11-11, uncommitted, browser checklist not run |
-| 9 | **P0** | Audit, verify, commit and push the port and the S4 to S7 work. **Next** |
-| 10 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, claims and canon check. Built in the working tree, finish whatever the audit finds missing |
-| 11 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
-| 12 | AR | Arcs, themes, motifs. Held until Bobby says go |
-| 13 | Phase 9 | Cartographer studio design. Only after every item above is closed |
+| 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
+| 10 | **UX0** | Fix the five browser-checklist defects. **Next** |
+| 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu done. Finish S7: the backward check and the Draft-vs-Locked priority split |
+| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header) |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
+| 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
+| 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
-Items 1 to 9 stay in this order. Bobby may reorder items 10 to 12. SB1 to SB5 only need the link index (done)
-and a minimal `boards` table with the `story_canvas` kind.
+Items 1 to 10 stay in this order. Bobby may reorder items 11 to 14. SB1 to SB5 only need the link index (done)
+and a minimal `boards` table with the `story_canvas` kind. UX3's "Use the Story Builder" card links to the
+beats page until SB3 exists. Idea generation ships with SB7, not with a UX step.
 
 ---
 ## Step G1: link index
@@ -1639,6 +1728,16 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
 
+### Session 2026-11-21: browser checklist and start flow design
+Bobby ran the browser checklist. Passing: reload persistence for sheets and plot outlines, sidebar search,
+Change type with redirect, Ask AI accept and reject, the beats page. Five defects logged (error log, step
+UX0). His main finding is about flow, not features: the app should ask what he wants to work on, then offer
+the list or an AI gap suggestion, and for stories offer Write it myself, Use the Story Builder, Review what I
+have so far (greyed until written prose exists) and Generate new ideas. Wireframed as boards 1 to 9
+of the wireframe canvas and specified as step UX. Later the same day he asked that idea generation live inside the
+Story Builder, tied to the selected box, instead of on its own screen. The wireframes and the plan were changed to match. Reviewed `backward.ts` and its tests: logic sound, tests
+pass, not wired into any write function yet.
+
 ### Session 2026-11-21: step P0, audit
 Read-only audit of the uncommitted working tree. `tsc --noEmit`, all three test scripts and `npm run build`
 all pass clean (the build needed one retry after Next.js's built-in security-advisory nudge, per
@@ -1806,6 +1905,11 @@ Errors are logged here when found and again when fixed.
 | 2026-11-10 | A stale Admin link on the story page pointed at a route that no longer exists. | 2026-11-11 | Removed in the port. Confirm in the browser checklist. |
 | 2026-11-21 | A first rewrite of the three docs was built from the old GitHub copy and was wrong: it said no login, named the wrong AI route, treated G1 as next, and dropped Phases 4 to 8. Replacing the working-tree docs also overwrote uncommitted status for S4 to S7. | 2026-11-21 | Rebuilt from the last commit, the working tree and the migrations. Status for S4 to S7 is marked unverified until step P0. |
 | 2026-11-21 | Phases 4 to 8 were thought never pushed, so GitHub was assumed 25 commits behind local. | 2026-11-21 | Corrected by the P0 audit: the branch `claude/writing-drives-world` was already pushed through commit `3d9a762`. Only `origin/master` is behind (26 commits); only the working tree's uncommitted changes still need a commit and push, which stays with Bobby. |
+| 2026-11-21 | Linked names in the editor are plain styled text: not clickable, not recognisable as links. Autocomplete for "sero" listed a Lore entry before the Character, so Tab linked the wrong record. | open | Step UX0. |
+| 2026-11-21 | Dragging an entry from the world tree inserts at the cursor, even mid-word, and broke a neighbouring linked name. | open | Step UX0. |
+| 2026-11-21 | Hydration error on a story page from the editor's "Start writing..." placeholder in `app/(app)/write/[code]/editor.tsx`. | open | Step UX0, find the cause before changing it. |
+| 2026-11-21 | On an entry page the title overlaps the Export as Markdown button and the UNK badge. | open | Step UX0, final layout in step UX6. |
+| 2026-11-21 | Ask AI proposals are vague restatements. The task runs on a small model and the prompt does not demand a question or tension. | open | Step UX0. |
 
 ## Explicitly out of scope
 

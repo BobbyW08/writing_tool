@@ -5,62 +5,76 @@ the rules in `CLAUDE.md`. Do only what is written here. At the end of every sess
 file with the instructions for whatever comes after. The repo keeps exactly three instruction files:
 `CLAUDE.md`, `next.md` and `traveler-wiki-build-plan.md`.
 
-## Task: finish what step P0's audit found missing in S7
+## Task: step UX0, fix the five browser-checklist defects
 
-Read "Where things stand", "Steps S0 to S7" and "Step P0" in `traveler-wiki-build-plan.md` first.
-Step P0 (audit, verify, commit and push) is done: `tsc`, build and all tests are clean, the link
-index dry run found 66 links across 359 records, migrations 0011 to 0016 are confirmed already
-applied to Neon, and the branch is confirmed already pushed through commit `3d9a762`. S4, S5 and S6
-are confirmed done. S7 (canon check and change tracking) is partial. This task finishes it.
+Read "Start flow and page redesign (step UX)", "Step P0" and the error log in
+`traveler-wiki-build-plan.md` first. Before touching any code, read the relevant guide in
+`node_modules/next/dist/docs/` (CLAUDE.md says this Next.js has breaking changes). Do only the five
+fixes below, in this order, one commit each. Do not start UX1 or later, and do not start S7 or the
+Story Builder.
 
-### What is already built (do not redo)
-- The claims ledger: `recordClaims()` in `lib/continuity/run-check.ts`, one row per checkable fact,
-  tagged with `sourceCanonState`.
-- The forward check: conflicts and possible changes become Continuity inbox flags (`buildPlan` in
-  `lib/continuity/plan.ts`).
-- The label check: `checkEventLabelMismatch()` in `lib/world/actions.ts`, no AI, flags a `yearLabel`
-  that disagrees with `startYear`.
-- "Leaving Canon": `components/writing-history-panel.tsx` + `revertHistoryRowAction`, one click
-  revert for an appended detail. Reverting a whole created record is deliberately not offered.
+### The defects, with what is already known
 
-### What is missing (this task builds it)
-1. **The backward check.** The data layer write function for every coded table should compare old
-   and new values. When a field with dependent claims changes (an event year from 22 to 21), it
-   opens a Continuity inbox flag listing every passage (via the `claims` table, which already
-   records `writingId`, `entryCollection`, `entryId`, `fieldLabel` and `quote`) that assumed the old
-   value. For each: edit the passage, accept it as outdated, or revert the change. Right now nothing
-   reads `claims` except `recordClaims()` (writes) and the count shown next to the editor
-   (`lib/continuity/queries.ts`).
-2. **The forward check's Draft-vs-Locked priority split.** "A Draft that contradicts a Locked record
-   is a flag. Two Drafts that disagree is a lower priority flag." `buildPlan`/`compareSchema` in
-   `lib/continuity/plan.ts` and `lib/continuity/types.ts` carry no `canonState` for the conflicting
-   side, so every conflict is raised the same way today. Add that distinction, keeping hard rule 1
-   (nothing is applied without Bobby's decision).
-3. **Relative timing.** "Two years after the arrival" can only be tracked if the link is a recorded
-   relationship between events. The check should propose recording it when it finds one. Not built
-   at all yet; add it if 1 and 2 leave room, otherwise note it as still open.
+1. **Linked names are not links, and autocomplete ranks badly.** `MentionNode` in
+   `lib/studio/mention-node.ts` is a text node with a `writing-mention` class and no click behavior.
+   Make a linked name clearly styled, with hover showing its type and name, click opening the entry and
+   Ctrl-click opening a new tab. The saved Markdown must stay `[words as written](C4)` (hard rule 9).
+   Rank autocomplete by exact name match first, then by type: Characters, Locations, Events, Factions,
+   Cultures, Items, Lore last. Write the ranking as a pure function with a test first.
+2. **Dragging from the world tree breaks neighbouring links.** `DropEntryPlugin` inserts at the cursor.
+   Insert at the drop point instead, snap to the nearest word boundary, add spaces around the new link,
+   and never land inside an existing linked name. Write the position logic as a pure function with tests
+   first, including a drop in the middle of a word and a drop on a linked name.
+3. **Hydration mismatch** from the `RichTextPlugin` placeholder in `app/(app)/write/[code]/editor.tsx`
+   (the "Start writing..." div). Find the actual cause first (use `superpowers:systematic-debugging`),
+   then fix it. Do not guess. Confirm the console is clean on a story page.
+4. **Entry page header overlap.** The title collides with the Export as Markdown button and the UNK badge.
+   Give the title its own row, put badges beside it, and put the actions on a separate toolbar row with
+   tabs. Rarely used actions go under More. Match board 9 of the wireframes.
+5. **Ask AI quality.** Proposals ran on claude-haiku-4-5 and came back as vague restatements. Set the
+   suggestion task to a Sonnet-class model in `ai_settings` (through the existing settings path, not a
+   hard-coded model) and rewrite its prompt so each proposal is a concrete question, option or tension
+   grounded in Bobby's own text and linked entries. It must never contain a written scene or paragraph
+   (hard rule 1).
 
 ### Constraints
-- Keep hard rule 1: the AI never writes prose, only proposals; the one automatic write stays the
-  continuity check writing verbatim quotes tagged UNK.
-- Reuse the existing `continuity`, `continuityHistory` and `claims` tables. Do not add a new table
-  unless the audit's confirmed shape genuinely cannot hold this (it likely can).
-- Follow TDD (`superpowers:test-driven-development`) for the comparison logic, the same way
-  `scripts/test-continuity.ts` tests `buildPlan` today — extend that script rather than starting a
-  new one, unless the new logic is clearly a separate concern.
-- `npm run build` must pass with zero errors before you are done (hard rule 11). If Next.js shows its
-  security-advisory nudge, retry the same build command once, per CLAUDE.md's "heed deprecation
-  notices" note — that is expected on this version, not a real failure.
+- Keep hard rules 1, 9 and 13. Nothing is applied to an entry without Bobby accepting it.
+- Follow `superpowers:test-driven-development` for the two pure functions.
+- Do not touch `lib/continuity/backward.ts` or `scripts/test-continuity.ts`. They are uncommitted on
+  purpose and belong to the S7 task. Do not stage them.
+- Run `npm run build`, `npm run test:continuity`, `npm run test:mentions` and `npm run test:names` after
+  each fix. If Next.js shows its security-advisory nudge, retry the same build once.
+- No migration is needed. If one seems necessary, stop and ask.
 
 ### When this is done
-1. Check off the relevant item in "Steps S0 to S7" (S7) in the plan, record what was built and
-   where, and log anything learned in the working log.
+1. Check off UX0 in the plan, move each of the five error log rows to fixed with the date and the fix, and
+   add a working log entry.
 2. Re-read the changes and recheck this task and `CLAUDE.md`'s hard rules.
 3. Run `npm run build`, zero errors.
-4. Replace this file with the next task. Ask Bobby before starting the Story Builder canvas (step
-   SB), story architecture (step AR), or anything in Phase 9 — none of those are authorized yet.
+4. Replace this file with the next task, which is the rest of S7 (see below). Ask Bobby before starting
+   UX1 or anything after it.
+
+### Bobby retests by hand (PowerShell, then the browser)
+1. `cd C:\dev\writing_tool`, then `npm run dev`, and open `http://localhost:3000`.
+2. Open a story, then its editor. Type "ser", watch the list, press Tab. The Character should come first.
+3. Click the linked name. The entry opens. Hover shows its type.
+4. Drag a character from the world tree into the middle of a word and next to a linked name. Nothing
+   breaks and no link is split.
+5. Type a full character name and press Escape. The "Names that look like entries" panel appears under
+   the page. Try Link and Link all.
+6. Open the story page and check the browser console. There is no hydration warning.
+7. Open "Third Companion". The title, badges and buttons no longer overlap.
+8. Use Ask AI on an entry. The proposals are specific questions or tensions.
+Wait for each step to pass before the next.
+
+## After this: finish S7 (next task, not this one)
+`lib/continuity/backward.ts` already holds the pure comparison (`fieldWasReplaced`, `findStaleClaims`,
+tested). Still to build: call it from the data layer write function for every coded table when a canon field
+is replaced, open a Continuity inbox flag per stale claim (edit the passage, accept as outdated, or revert
+the change), and add the Draft-vs-Locked priority split to `buildPlan` and `compareSchema`. Relative timing
+stays optional. Full detail is in "Steps S0 to S7", item S7.
 
 ## Do not
-Do not start the Story Builder canvas, story architecture (AR) or Phase 9. Do not add any file other
-than what this task needs. Do not commit to Neon anything except through a migration Bobby applies by
-hand — this task can generate a migration file but must not run `drizzle-kit migrate`.
+Do not start UX1 to UX6, the Story Builder canvas (SB), story architecture (AR) or Phase 9. Do not add any
+file other than what this task needs. Do not commit to Neon anything except through a migration Bobby
+applies by hand.
