@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'next/navigation'
 import {
   $createRangeSelection,
+  $createTextNode,
   $getRoot,
   $getSelection,
   $isElementNode,
@@ -18,6 +19,7 @@ import {
   $isTextNode,
   $setSelection,
   type LexicalNode,
+  type RangeSelection,
   TextNode,
 } from 'lexical'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
@@ -39,6 +41,7 @@ import { saveWriting } from '@/lib/studio/actions'
 import { listLinkableNames, type NameEntry } from '@/lib/studio/name-actions'
 import { buildIndex, findMatches, suggestForAt, suggestForTyping, type NameIndex, type Suggestion } from '@/lib/studio/name-index'
 import { ENTRY_DRAG_TYPE, type EntryDragPayload } from '@/lib/studio/drag'
+import { snapToWordBoundary, nearerSide, needsSpace } from '@/lib/studio/drop-position'
 import { MentionNode, $createMentionNode, proseTransformers, SHORTCUT_TRANSFORMERS, COLLECTION_LABEL, type CodeMap } from '@/lib/studio/mention-node'
 import { type WritingRecord } from '@/lib/studio/queries'
 import { recheckWritingAction } from '@/lib/continuity/actions'
@@ -237,6 +240,27 @@ function caretRangeAt(x: number, y: number): Range | null {
   return range
 }
 
+// The characters immediately either side of a (collapsed) selection point, so the caller can tell
+// whether a space is already there without re-deriving it from node/offset bookkeeping twice.
+function charsAroundSelection(selection: RangeSelection): { before?: string; after?: string } {
+  const anchor = selection.anchor
+  const node = anchor.getNode()
+  if (anchor.type === 'text' && $isTextNode(node)) {
+    const text = node.getTextContent()
+    return { before: text[anchor.offset - 1], after: text[anchor.offset] }
+  }
+  if ($isElementNode(node)) {
+    const children = node.getChildren()
+    const before = children[anchor.offset - 1]
+    const after = children[anchor.offset]
+    return {
+      before: before && $isTextNode(before) ? before.getTextContent().slice(-1) : undefined,
+      after: after && $isTextNode(after) ? after.getTextContent().slice(0, 1) : undefined,
+    }
+  }
+  return {}
+}
+
 function DropEntryPlugin() {
   const [editor] = useLexicalComposerContext()
 
@@ -262,19 +286,46 @@ function DropEntryPlugin() {
       if (!entry.code || !entry.name || !entry.collection) return
       const { code, name, collection } = entry
       const range = caretRangeAt(e.clientX, e.clientY)
+      const dropX = e.clientX
 
       editor.update(() => {
         if (range) {
-          const selection = $createRangeSelection()
-          selection.applyDOMRange(range)
-          $setSelection(selection)
+          const domSelection = $createRangeSelection()
+          domSelection.applyDOMRange(range)
+          $setSelection(domSelection)
         }
-        let selection = $getSelection()
-        if (!$isRangeSelection(selection)) {
+        let selectionOrNull = $getSelection()
+        if (!$isRangeSelection(selectionOrNull)) {
           $getRoot().selectEnd()
-          selection = $getSelection()
+          selectionOrNull = $getSelection()
         }
-        if ($isRangeSelection(selection)) selection.insertNodes([$createMentionNode(name, code, collection)])
+        if (!$isRangeSelection(selectionOrNull)) return
+        let selection: RangeSelection = selectionOrNull
+
+        // Never drop inside a linked name: land just before or after it instead, whichever side
+        // the pointer is nearer to.
+        const anchorNode = selection.anchor.getNode()
+        if (anchorNode instanceof MentionNode) {
+          const dom = editor.getElementByKey(anchorNode.getKey())
+          const rect = dom?.getBoundingClientRect()
+          const side = rect ? nearerSide(dropX, rect.left, rect.width) : 'before'
+          selection = side === 'before' ? anchorNode.selectPrevious() : anchorNode.selectNext()
+        } else if (selection.anchor.type === 'text') {
+          const node = selection.anchor.getNode()
+          if ($isTextNode(node)) {
+            const snapped = snapToWordBoundary(node.getTextContent(), selection.anchor.offset)
+            if (snapped !== selection.anchor.offset) {
+              selection.anchor.set(node.getKey(), snapped, 'text')
+              selection.focus.set(node.getKey(), snapped, 'text')
+            }
+          }
+        }
+
+        const { before, after } = charsAroundSelection(selection)
+        const nodes: LexicalNode[] = [$createMentionNode(name, code, collection)]
+        if (needsSpace(after)) nodes.push($createTextNode(' '))
+        if (needsSpace(before)) nodes.unshift($createTextNode(' '))
+        selection.insertNodes(nodes)
       })
       editor.focus()
     }
