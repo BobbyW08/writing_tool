@@ -85,8 +85,13 @@ local is the working tree's uncommitted changes below.
 - **No longer unverified:** migrations 0011 to 0016 are all applied, `npm run build` and every test
   pass on this working tree, and S4 to S7 completeness is recorded above and in "Steps S0 to S7".
   Everything in this section is committed on `claude/writing-drives-world`; nothing is left uncommitted.
+- Next.js security upgrade (16.4.2 to 16.4.6), previously isolated in a worktree/branch, merged into
+  this branch 2026-11-21 (commit `d3581d0`). Worktree and branch removed. The build's recurring
+  security-advisory nudge is gone.
+- UX1, Home launcher, done 2026-11-21: see the Step UX checklist and the 2026-11-21 working-log entry.
 
-**Not started:** the start flow and page redesign (step UX, designed 2026-11-21), Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
+**Not started:** UX2 to UX6 of the start flow and page redesign (step UX, designed 2026-11-21),
+Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
 
 **Documentation:** exactly three files. The old the old build guide (see Working log), `SESSION.md` and
@@ -981,8 +986,14 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
       clickable and ranked, drag drop position, editor placeholder hydration mismatch, entry header
       overlap, suggestion model and prompt. One commit each. Done 2026-11-21 (five commits:
       `1f05d6c`, `0c49669`, `3a03944`, `9427a7a`, `a3d0c78`).
-- [ ] **UX1.** Home launcher (board 1), including the gap ranking query behind Ask AI to recommend a gap
-      (the ranking is deterministic and tested, the model only words it).
+- [x] **UX1.** Home launcher (board 1), including the gap ranking query behind Ask AI to recommend a gap
+      (the ranking is deterministic and tested, the model only words it). Done 2026-11-21: `lib/gaps/`
+      (types, rank.ts with 12 passing tests in `scripts/test-gaps.ts`, queries.ts reading `gapPrompt` and
+      the `links` table per hard rule 14, actions.ts wording the top 3 via `askAI`), `GapRecommender` in
+      `components/gap-recommender.tsx` (reusable for UX2), `getCollectionNeedsAttentionCount` in
+      `lib/world/queries.ts`, and `app/(app)/page.tsx` rewritten to the five-card launcher. Verified live
+      via Playwright at two viewport widths; fixed a flex-wrap/overlap bug in the gap list found during
+      that check (`components/gap-recommender.tsx`).
 - [ ] **UX2.** Type page with the AI gap finder (board 2). It reuses the UX1 ranking, filtered to this type
       first, and Open it can leave the type page when the biggest gap is elsewhere.
 - [ ] **UX3.** Stories picker and the "what do you want to do" screen, with the Review availability rule
@@ -1475,7 +1486,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
-| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). **Next** |
+| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1 done 2026-11-21. **Next: UX2** |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
@@ -1745,6 +1756,36 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-21: Next.js worktree merge, then step UX1 (Home launcher)
+Per Bobby's go-ahead to do the worktree merge and any migrations without asking first, merged
+`chore/nextjs-security-upgrade` (commit `18e32a2`) into this branch with `git merge --no-edit`: clean,
+no conflicts. Verified with `npm install`, `npx next --version` (16.4.6), a clean `npm run build` (the
+security-advisory nudge is gone for good) and the full test suite. Removed the worktree and its branch.
+
+Then built UX1 test-first: `lib/gaps/types.ts` (`GapCandidate`/`RankedGap`), `lib/gaps/rank.ts`'s pure
+`rankGaps`/`explainGap` (written against `scripts/test-gaps.ts`, confirmed RED then GREEN, 12 checks,
+`npm run test:gaps`), then `lib/gaps/queries.ts`'s `computeGapCandidates()` — gap candidates come from
+`gapPrompt` on a non-Locked world entry or event (hard rule 4), and from a story with planned beats but
+no written prose. Ranking is a strict 3-tier lexicographic sort (active stories touching it > finished
+stories touching it > beats touching it), counted by reading the `links` table for `writing`-collection
+mentions, never a hand query (hard rule 14; the `writingMentions` table stays dead). `lib/gaps/actions.ts`'s
+`getTopGapsAction` calls `askAI` only to reword the top 3 results' "Why first" line (falls back to the
+deterministic template on any AI failure or missing key) — the ranking itself never comes from the model,
+and nothing here writes anything (hard rules 1 and 4). Added `getCollectionNeedsAttentionCount` to
+`lib/world/queries.ts` and the `GapRecommender` client component (`components/gap-recommender.tsx`,
+reusable for UX2's type-page panel), then rewrote `app/(app)/page.tsx` to the five-card "What do you want
+to work on?" launcher from wireframe board 1 (`Main.dc.html`), wiring in `GapRecommender` and a
+"Continue where you left off" panel from `getRecentEdits`.
+
+Verified live with Playwright (per the standing testing instruction): card counts match the live DB,
+"Ask AI to recommend a gap" returns real ranked results worded by the model, "Work on this" and "Not
+now" route and dismiss correctly. Found and fixed a real bug this way: the gap list's `<li>` used
+`flex items-center` with a `whitespace-nowrap` shrink-0 button column, which squeezed the text column
+to just the longest word's width at narrower viewports, visually overlapping the "Not now" button with
+a sibling panel and failing a Playwright click. Fixed by switching the `<li>` to `flex-wrap items-start`
+so the button row wraps below the text on narrow widths instead of squeezing it; confirmed fixed at
+both 1280x720 and 1440x900. Committed as `fee3007`.
 
 ### Session 2026-11-21: step S7, wired the backward check into the data layer
 `lib/continuity/backward.ts`'s `fieldWasReplaced`/`findStaleClaims` were tested but never called.
