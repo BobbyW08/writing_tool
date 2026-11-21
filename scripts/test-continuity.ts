@@ -3,9 +3,10 @@
 import assert from "node:assert/strict";
 import { buildPlan, filterDetect } from "../lib/continuity/plan";
 import { buildNewRecordGapPrompt, findQuote, passageAround, replaceRange, resolveLabel, verbatim } from "../lib/continuity/text";
+import { changedReplacedFields, fieldWasReplaced, findStaleClaims } from "../lib/continuity/backward";
 import type { CompareResult, EntityForCheck } from "../lib/continuity/types";
 
-let passed = 0;
+let passed = 0
 function test(name: string, fn: () => void) {
   fn();
   passed++;
@@ -216,6 +217,103 @@ test("labels and gap prompts", () => {
   assert.equal(resolveLabel([], "physical layout"), "Physical Layout");
   const gap = buildNewRecordGapPrompt("Chapter 3", ["Appearance", "Layout", "Climate"], ["appearance"]);
   assert.equal(gap, 'Created automatically from "Chapter 3". Everything recorded here is quoted from that snippet. Not yet described: Layout, Climate.');
+});
+
+test("fieldWasReplaced: no change is not a replacement", () => {
+  assert.equal(fieldWasReplaced("warm, busy", "warm, busy"), false);
+  assert.equal(fieldWasReplaced("warm, busy", "  warm,   busy  "), false, "whitespace-only differences do not count");
+});
+
+test("fieldWasReplaced: appending to the old wording is not a replacement", () => {
+  assert.equal(fieldWasReplaced("warm, busy", "warm, busy\n\nAlso smells of brine."), false);
+});
+
+test("fieldWasReplaced: nothing existed before, so nothing could have been assumed", () => {
+  assert.equal(fieldWasReplaced("", "warm, busy"), false);
+  assert.equal(fieldWasReplaced("   ", "warm, busy"), false);
+});
+
+test("fieldWasReplaced: swapping the old wording out for new wording is a replacement", () => {
+  assert.equal(fieldWasReplaced("warm, busy", "cold and silent"), true);
+});
+
+test("findStaleClaims: a claim on a changed field becomes a stale flag", () => {
+  const stale = findStaleClaims({
+    changed: [{ label: "description", oldValue: "warm, busy", newValue: "cold and silent" }],
+    claims: [{ writingId: 1, fieldLabel: "Description", quote: "He remembered how warm the city had felt." }],
+    alreadyFlagged: new Set(),
+  });
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].writingId, 1);
+  assert.equal(stale[0].fieldLabel, "Description");
+  assert.equal(stale[0].oldValue, "warm, busy");
+  assert.equal(stale[0].newValue, "cold and silent");
+  assert.equal(stale[0].quote, "He remembered how warm the city had felt.");
+});
+
+test("findStaleClaims: a claim on a field that did not change is not flagged", () => {
+  const stale = findStaleClaims({
+    changed: [{ label: "description", oldValue: "warm, busy", newValue: "cold and silent" }],
+    claims: [{ writingId: 1, fieldLabel: "Climate", quote: "The harbor stayed warm all year." }],
+    alreadyFlagged: new Set(),
+  });
+  assert.equal(stale.length, 0);
+});
+
+test("findStaleClaims: an already-flagged claim is not flagged again", () => {
+  const claim = { writingId: 1, fieldLabel: "Description", quote: "He remembered how warm the city had felt." };
+  const changed = [{ label: "description", oldValue: "warm, busy", newValue: "cold and silent" }];
+  const already = findStaleClaims({ changed, claims: [claim], alreadyFlagged: new Set() }).map(
+    (s) => `${s.writingId}|description|he remembered how warm the city had felt.`,
+  );
+  const stale = findStaleClaims({ changed, claims: [claim], alreadyFlagged: new Set(already) });
+  assert.equal(stale.length, 0);
+});
+
+test("findStaleClaims: two claims on the same changed field each get their own flag", () => {
+  const stale = findStaleClaims({
+    changed: [{ label: "description", oldValue: "warm, busy", newValue: "cold and silent" }],
+    claims: [
+      { writingId: 1, fieldLabel: "Description", quote: "He remembered how warm the city had felt." },
+      { writingId: 2, fieldLabel: "description", quote: "The busy streets never slept." },
+    ],
+    alreadyFlagged: new Set(),
+  });
+  assert.equal(stale.length, 2);
+});
+
+test("changedReplacedFields: a detail row's wording was swapped out", () => {
+  const before = [{ label: "Description", value: "warm, busy" }];
+  const after = [{ label: "Description", value: "cold and silent" }];
+  assert.deepEqual(changedReplacedFields(before, after), [
+    { label: "Description", oldValue: "warm, busy", newValue: "cold and silent" },
+  ]);
+});
+
+test("changedReplacedFields: appending to a detail row is not a replacement", () => {
+  const before = [{ label: "Description", value: "warm, busy" }];
+  const after = [{ label: "Description", value: "warm, busy\n\nAlso smells of brine." }];
+  assert.deepEqual(changedReplacedFields(before, after), []);
+});
+
+test("changedReplacedFields: a brand new detail row has no old value to have been assumed", () => {
+  const before = [{ label: "Description", value: "warm, busy" }];
+  const after = [{ label: "Description", value: "warm, busy" }, { label: "Climate", value: "Mediterranean" }];
+  assert.deepEqual(changedReplacedFields(before, after), []);
+});
+
+test("changedReplacedFields: an unchanged row among others is left out", () => {
+  const before = [{ label: "Description", value: "warm, busy" }, { label: "Climate", value: "Mediterranean" }];
+  const after = [{ label: "Description", value: "cold and silent" }, { label: "Climate", value: "Mediterranean" }];
+  assert.deepEqual(changedReplacedFields(before, after), [
+    { label: "Description", oldValue: "warm, busy", newValue: "cold and silent" },
+  ]);
+});
+
+test("changedReplacedFields: label matching ignores case the same way details rows do", () => {
+  const before = [{ label: "description", value: "warm, busy" }];
+  const after = [{ label: "Description", value: "cold and silent" }];
+  assert.equal(changedReplacedFields(before, after).length, 1);
 });
 
 console.log(`\n${passed} checks passed`);

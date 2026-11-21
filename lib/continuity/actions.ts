@@ -210,6 +210,47 @@ export async function revertHistoryRowAction(historyId: number): Promise<ActionR
   return { ok: true }
 }
 
+// Step S7, the backward check: reverts a stale_claim flag by putting the field back to the
+// wording it had before the canon change that raised it, using the continuity_history row the
+// backward check wrote alongside the flag (action 'changed'). Guarded like revertHistoryRowAction:
+// if the field has changed again since, it is left alone rather than overwriting that newer edit.
+export async function revertStaleClaimAction(flagCode: string): Promise<ActionResult> {
+  const [flag] = await appDb.select().from(schema.continuity).where(and(
+    eq(schema.continuity.code, flagCode.toUpperCase()),
+    eq(schema.continuity.status, 'open'),
+    eq(schema.continuity.kind, 'stale_claim'),
+  )).limit(1)
+  if (!flag) return { ok: false, error: 'This item was already handled.' }
+
+  const [history] = await appDb.select().from(schema.continuityHistory).where(eq(schema.continuityHistory.flagId, flag.id)).limit(1)
+  if (!history) return { ok: false, error: 'No record of what changed, so this cannot be reverted automatically.' }
+
+  const table = WORLD_TABLE_MAP[flag.entryCollection]
+  if (!table) return { ok: false, error: 'The entry this refers to no longer exists.' }
+  const [entry] = await appDb.select({ details: table.details }).from(table as never).where(eq(table.id, flag.entryId)).limit(1)
+  if (!entry) return { ok: false, error: 'The entry this refers to no longer exists.' }
+
+  const details = [...(((entry as { details: DetailRow[] }).details) ?? [])]
+  const idx = details.findIndex((d) => d.label.trim().toLowerCase() === flag.fieldLabel.trim().toLowerCase())
+  const currentValue = idx >= 0 ? details[idx].value : null
+  if (currentValue === null || currentValue !== history.newValue) {
+    return { ok: false, error: 'That field has changed since, so it was left alone. Edit it on the entry page.' }
+  }
+
+  details[idx] = { ...details[idx], value: history.oldValue ?? '' }
+  await updateDetailsAction(flag.entryCollection, flag.entryId, details)
+  await appDb.insert(schema.continuityHistory).values({
+    entryCollection: flag.entryCollection, entryId: flag.entryId, fieldLabel: flag.fieldLabel,
+    action: 'reverted', oldValue: history.newValue, newValue: history.oldValue, writingId: flag.writingId, flagId: flag.id,
+  })
+  await appDb.update(schema.continuity)
+    .set({ status: 'resolved', choice: 'reverted', resolvedAt: new Date(), updatedAt: new Date() })
+    .where(eq(schema.continuity.id, flag.id))
+
+  refresh()
+  return { ok: true }
+}
+
 // Manual fallback: run the check on demand, outside the automatic save-time trigger.
 export async function triggerContinuityCheckAction(writingId: number): Promise<ActionResult> {
   const { claimCheck, runContinuityCheck } = await import('./run-check')

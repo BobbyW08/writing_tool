@@ -7,12 +7,13 @@ import { WORLD_SLUGS } from "@/lib/codes";
 export const ENTITY_DB_TYPES = WORLD_SLUGS;
 export type EntityDbType = (typeof ENTITY_DB_TYPES)[number];
 
-export type FlagKind = "conflict" | "possible_change" | "new_record" | "new_detail";
+export type FlagKind = "conflict" | "possible_change" | "new_record" | "new_detail" | "stale_claim";
 
-// Conflicts need a decision. New records and new details are applied automatically and
-// only need to be acknowledged (or undone).
+// Conflicts need a decision. New records, new details and stale claims are raised
+// automatically (nothing is applied to a writing record, hard rule 1) and only need to be
+// acknowledged (accepted as outdated) or undone (reverted).
 export const DECISION_KINDS: FlagKind[] = ["conflict", "possible_change"];
-export const UPDATE_KINDS: FlagKind[] = ["new_record", "new_detail"];
+export const UPDATE_KINDS: FlagKind[] = ["new_record", "new_detail", "stale_claim"];
 
 export type ResolutionChoice = "keep_canon" | "update_canon" | "both_true" | "changed_over_time" | "decide_later";
 
@@ -31,6 +32,7 @@ export const KIND_LABELS: Record<string, string> = {
   possible_change: "Possible change",
   new_record: "New record",
   new_detail: "New detail",
+  stale_claim: "Stale claim",
 };
 
 // What each kind of entity usually needs described. Used only to word the gap prompt on

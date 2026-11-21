@@ -9,6 +9,8 @@ import { PREFIX_TO_SLUG } from '@/lib/codes'
 import { SHEET_ROW_PREFIX } from '@/lib/sheets/templates'
 import { syncLinksForRecord, removeRecordLinks, isLinkRelevantField } from '@/lib/graph/sync'
 import { getUnkTagId } from '@/lib/world/queries'
+import { changedReplacedFields } from '@/lib/continuity/backward'
+import { flagStaleClaims } from '@/lib/continuity/backward-check'
 
 // ─── Table map ───────────────────────────────────────────────────────────────
 type AnyTable = typeof schema.characters
@@ -419,7 +421,14 @@ export async function updateDetailsAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const current = await readDetails(collection, id)
   const keep = (current ?? []).filter(isSheetRow)
-  return updateFieldAction(collection, id, 'details', [...details.filter((d) => !isSheetRow(d)), ...keep])
+  const nextDetails = [...details.filter((d) => !isSheetRow(d)), ...keep]
+  const result = await updateFieldAction(collection, id, 'details', nextDetails)
+
+  if (result.ok) {
+    const changed = changedReplacedFields(current ?? [], nextDetails)
+    if (changed.length > 0) await flagStaleClaims(collection, id, changed)
+  }
+  return result
 }
 
 // ─── saveSheetAnswerAction ────────────────────────────────────────────────────
