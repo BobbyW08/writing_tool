@@ -65,7 +65,8 @@ local is the working tree's uncommitted changes below.
   (confirmed 2026-11-21). `tsc`, `build`, `test:mentions`, `test:names`, `test:continuity` and a link
   index dry run (66 links across 359 records) are all clean as of 2026-11-21. The browser checklist
   (step P0) was run 2026-11-21: reload persistence, sidebar search, Change type, Ask AI accept and reject
-  and the beats cards pass. Five defects were found (see step UX0 and the error log).
+  and the beats cards pass. Five defects were found and fixed 2026-11-21 (step UX0, five commits, see
+  the error log).
 - S4, AI foundation: done. `lib/ai/`, `ai_settings`, `ai_proposals`, the `/ai-inbox` Accept and Reject page
   (migration `0013_ai_foundation`, applied). AI calls go straight to Anthropic through `@ai-sdk/anthropic` with
   `ANTHROPIC_API_KEY` (decided 2026-11-14). `ai_proposals` holds 12 real rows, `ai_settings` 1 row.
@@ -974,9 +975,10 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
 
 ### Step UX checklist
 
-- [ ] **UX0.** Fix the five defects from the 2026-11-21 browser checklist (see the error log): linked names
+- [x] **UX0.** Fix the five defects from the 2026-11-21 browser checklist (see the error log): linked names
       clickable and ranked, drag drop position, editor placeholder hydration mismatch, entry header
-      overlap, suggestion model and prompt. One commit each.
+      overlap, suggestion model and prompt. One commit each. Done 2026-11-21 (five commits:
+      `1f05d6c`, `0c49669`, `3a03944`, `9427a7a`, `a3d0c78`).
 - [ ] **UX1.** Home launcher (board 1), including the gap ranking query behind Ask AI to recommend a gap
       (the ranking is deterministic and tested, the model only words it).
 - [ ] **UX2.** Type page with the AI gap finder (board 2). It reuses the UX1 ranking, filtered to this type
@@ -1469,8 +1471,8 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 7 | Phases 6 to 8 | Gaps view, export, compilations, search, password gate. Done. Open: switch from dev schema push to migrations before deploy |
 | 8 | Writing drives the world port | Name linking, sheets, plot outlines, Change type. Done 2026-11-11, uncommitted, browser checklist not run |
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
-| 10 | **UX0** | Fix the five browser-checklist defects. **Next** |
-| 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu done. Finish S7: the backward check and the Draft-vs-Locked priority split |
+| 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
+| 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu done. Finish S7: the backward check and the Draft-vs-Locked priority split. **Next** |
 | 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header) |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
@@ -1742,6 +1744,27 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
 
+### Session 2026-11-21: step UX0, fixed the five browser-checklist defects
+Fixed and committed all five, in order, one commit each, with `npm run build` and `npm run test:continuity`
+clean after every commit (`lib/continuity/backward.ts` and `scripts/test-continuity.ts`'s S7 work left
+untouched and unstaged throughout). (1) `MentionNode` is now a styled, hoverable link — type and name in
+the tooltip, plain click follows it in place, Ctrl/Cmd-click opens a new tab — and `lib/studio/name-index.ts`
+ranks autocomplete by exact match, then type order, then prefix, then alphabetically. (2) `DropEntryPlugin`'s
+word-boundary and linked-name-avoidance logic moved to pure functions in the new `lib/studio/drop-position.ts`
+(tested first in the new `scripts/test-drop-position.ts`, wired up as `npm run test:drop-position`). (3) The
+hydration mismatch's actual cause: the markdown-populated initial editor state commits on a deferred
+microtask, so SSR's synchronous render and client hydration disagreed on whether the placeholder should
+show; fixed with `$flushSyncAfterUpdate()` right after the markdown conversion, confirmed clean in the
+browser console on `/stories/S16`. (4) The header overlap's actual cause: the title row had no min-width
+override, so flex-shrink used its unwrapped content width as a floor on the title column; fixed by letting
+the header row wrap and dropping the title column's `min-w-0`, verified with live DOM measurements on a
+short title with a wide actions bar (C62), a long title (C1), and a title with room to spare (S16) — the
+dedicated toolbar-with-tabs layout from the wireframes is still step UX6, not this fix. (5) `generateDetailProposals`'s
+default task moved from `quick_suggestions` to `deep_suggestions` (through the existing `ai_settings` task
+routing) and its prompt now asks for concrete questions, options or tensions instead of settled additions;
+verified live that a fresh Ask AI run on C62 comes back on `claude-sonnet-4-5` reading as open questions.
+Commits: `1f05d6c`, `0c49669`, `3a03944`, `9427a7a`, `a3d0c78`.
+
 ### Session 2026-11-21: browser checklist and start flow design
 Bobby ran the browser checklist. Passing: reload persistence for sheets and plot outlines, sidebar search,
 Change type with redirect, Ask AI accept and reject, the beats page. Five defects logged (error log, step
@@ -1922,11 +1945,11 @@ Errors are logged here when found and again when fixed.
 | 2026-11-10 | A stale Admin link on the story page pointed at a route that no longer exists. | 2026-11-11 | Removed in the port. Confirm in the browser checklist. |
 | 2026-11-21 | A first rewrite of the three docs was built from the old GitHub copy and was wrong: it said no login, named the wrong AI route, treated G1 as next, and dropped Phases 4 to 8. Replacing the working-tree docs also overwrote uncommitted status for S4 to S7. | 2026-11-21 | Rebuilt from the last commit, the working tree and the migrations. Status for S4 to S7 is marked unverified until step P0. |
 | 2026-11-21 | Phases 4 to 8 were thought never pushed, so GitHub was assumed 25 commits behind local. | 2026-11-21 | Corrected by the P0 audit: the branch `claude/writing-drives-world` was already pushed through commit `3d9a762`. Only `origin/master` is behind (26 commits); only the working tree's uncommitted changes still need a commit and push, which stays with Bobby. |
-| 2026-11-21 | Linked names in the editor are plain styled text: not clickable, not recognisable as links. Autocomplete for "sero" listed a Lore entry before the Character, so Tab linked the wrong record. | open | Step UX0. |
-| 2026-11-21 | Dragging an entry from the world tree inserts at the cursor, even mid-word, and broke a neighbouring linked name. | open | Step UX0. |
-| 2026-11-21 | Hydration error on a story page from the editor's "Start writing..." placeholder in `app/(app)/write/[code]/editor.tsx`. | open | Step UX0, find the cause before changing it. |
-| 2026-11-21 | On an entry page the title overlaps the Export as Markdown button and the UNK badge. | open | Step UX0, final layout in step UX6. |
-| 2026-11-21 | Ask AI proposals are vague restatements. The task runs on a small model and the prompt does not demand a question or tension. | open | Step UX0. |
+| 2026-11-21 | Linked names in the editor are plain styled text: not clickable, not recognisable as links. Autocomplete for "sero" listed a Lore entry before the Character, so Tab linked the wrong record. | 2026-11-21 | `MentionNode` now renders as a styled, hoverable link (type and name in the tooltip); plain click follows it in place, Ctrl/Cmd-click opens a new tab. `suggestForAt`/`suggestForTyping` rank by exact match, then type order (Characters, Locations, Events, Factions, Cultures, Items, Lore last), then prefix, then alphabetically. Commit `1f05d6c`. |
+| 2026-11-21 | Dragging an entry from the world tree inserts at the cursor, even mid-word, and broke a neighbouring linked name. | 2026-11-21 | `DropEntryPlugin` now snaps to the nearer edge of the word it would split, lands just before/after an existing linked name instead of inside it, and adds a space only where one is not already there. Logic extracted to `lib/studio/drop-position.ts` (pure, tested in `scripts/test-drop-position.ts`). Commit `0c49669`. |
+| 2026-11-21 | Hydration error on a story page from the editor's "Start writing..." placeholder in `app/(app)/write/[code]/editor.tsx`. | 2026-11-21 | Root cause: the markdown-populated initial editor state commits on a deferred microtask, so SSR's synchronous render and client hydration disagreed on whether the placeholder should show. Fixed by calling `$flushSyncAfterUpdate()` right after the markdown conversion in `editorState`, forcing a synchronous commit. Confirmed clean in the browser console on `/stories/S16`. Commit `3a03944`. |
+| 2026-11-21 | On an entry page the title overlaps the Export as Markdown button and the UNK badge. | 2026-11-21 | Root cause: the title row had no min-width override, so flex-shrink used its unwrapped content width as a floor on the title column. Fixed by letting the header row wrap (`flex-wrap`) and dropping the title column's `min-w-0` override, so the actions bar now wraps to its own line under the title whenever both don't fit, instead of the title overflowing into it. Verified on a short title with a wide actions bar, a long title, and a title with room to spare. The dedicated toolbar-with-tabs layout from the wireframes is still step UX6, not this fix. Commit `9427a7a`. |
+| 2026-11-21 | Ask AI proposals are vague restatements. The task runs on a small model and the prompt does not demand a question or tension. | 2026-11-21 | `generateDetailProposals`'s default task changed from `quick_suggestions` to `deep_suggestions` (through the existing `ai_settings` task routing, no hard-coded model), and its system prompt now explicitly asks for concrete questions, options, or tensions grounded in the record's own text and linked entries, never a settled fact. `generatePromptAnswers`/`generateBeatCards` untouched. Verified live: fresh proposals on C62 show `claude-sonnet-4-5` and read as open questions. Commit `a3d0c78`. |
 
 ## Explicitly out of scope
 
