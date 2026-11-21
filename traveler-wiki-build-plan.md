@@ -911,11 +911,12 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
 ### The flow
 
 1. **Home.** "What do you want to work on?" with five large answers. Below: **Ask AI to recommend a gap**
-   (works across all types), **Continue where you left off**, **Open Story Builder**, and small links to
+   (works across all types and screens, ranked by impact, see the gap rule below), **Continue where you left off**, **Open Story Builder**, and small links to
    Items and Lore, Factions and Cultures, Manuscript and Ideas.
 2. **Type page** (Characters, Locations, Events). A list with status chips (Locked, In development, Needs
    name, Placeholder, UNK) and a name filter. Two buttons: **New** and **Ask AI to recommend a gap**.
-   The AI panel lists three suggestions, each with Open it (jumps to the empty field) and Not now. The
+   The AI panel lists three suggestions in impact order, each with why it ranks there, Open it (jumps to
+   the empty field, on whichever screen it lives) and Not now. The
    existing List, Table and Board views stay available on this page (step U4).
 3. **Stories.** Two choices: **New story** (title optional, a stub is allowed, start blank, from a logged
    idea, or with AI seed questions) or **pick an existing story**. Each row shows written words and beats.
@@ -929,7 +930,8 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
    "Ideas for this box" bar with lenses (what happens next, loose ends, ripple effects, foreshadowing, ask
    anything). Results appear as dashed ghost boxes to the right of the selected box, each a question, a
    tension and the entries it draws from, with **Add to canvas** and **Dismiss**. Reuses the S5 beat cards
-   and the S6 prompts menu. With nothing selected, the same lenses work on the whole story.
+   and the S6 prompts menu. With nothing selected, the same lenses work relative to the story at hand (the story the canvas is open
+   on), never the whole world. A scope switch lets Bobby narrow to the selected box or widen back to the story.
 6. **Review what I have so far.** The written pieces with word counts. Review writing (one before and after
    at a time), Review facts (claims ledger, steps S4 and S7), and the Continuity inbox.
 7. **Write it myself.** The editor with linking behavior defined below, the unlinked names panel directly
@@ -944,6 +946,16 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
 - **Ask AI to recommend a gap only reads.** It looks at records whose `status` is not `locked`, empty
   fields, missing timeline years and stories with beats but no written prose. It returns suggestions. It
   creates and changes nothing (hard rules 1 and 4).
+- **Gaps are ranked by impact on the stories, biggest first.** The gap can be on any screen: a character or
+  location with missing information, an empty stretch of the timeline, or a story with beats and no
+  prose. The destination is shown on each suggestion and Open it goes there, at the empty field. The ranking
+  is computed from the link index and the claims table, not by the model, so it can be checked: a gap
+  ranks higher the more it touches (1) stories being written now (recently edited, not finished), then
+  (2) stories already written, counted by the written pieces that link to the record or whose claims
+  depend on the missing field, and (3) beats and events that cannot be placed without it. A placeholder or
+  `needs_name` record in an active story outranks a missing detail on a record no story uses. The model
+  only words the explanation ("Why first: ...") and groups ties. A record Bobby marks Not now drops out
+  of the list for that session.
 - **Generated ideas are questions, options and tensions only.** Never a scene, paragraph or chapter
   (hard rule 1). Ghost boxes are not records. Add to canvas saves a beat in state `idea`, attached to the
   story and undated until Bobby drags it to a year (hard rule 18). Dismiss discards it. Nothing is saved
@@ -965,8 +977,10 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
 - [ ] **UX0.** Fix the five defects from the 2026-11-21 browser checklist (see the error log): linked names
       clickable and ranked, drag drop position, editor placeholder hydration mismatch, entry header
       overlap, suggestion model and prompt. One commit each.
-- [ ] **UX1.** Home launcher (board 1).
-- [ ] **UX2.** Type page with the AI gap finder (board 2).
+- [ ] **UX1.** Home launcher (board 1), including the gap ranking query behind Ask AI to recommend a gap
+      (the ranking is deterministic and tested, the model only words it).
+- [ ] **UX2.** Type page with the AI gap finder (board 2). It reuses the UX1 ranking, filtered to this type
+      first, and Open it can leave the type page when the biggest gap is elsewhere.
 - [ ] **UX3.** Stories picker and the "what do you want to do" screen, with the Review availability rule
       (boards 3 and 4).
 - [ ] **UX4.** Review what I have so far screen (board 6). Idea generation is not a UX step: it is built
@@ -1735,7 +1749,10 @@ UX0). His main finding is about flow, not features: the app should ask what he w
 the list or an AI gap suggestion, and for stories offer Write it myself, Use the Story Builder, Review what I
 have so far (greyed until written prose exists) and Generate new ideas. Wireframed as boards 1 to 9
 of the wireframe canvas and specified as step UX. Later the same day he asked that idea generation live inside the
-Story Builder, tied to the selected box, instead of on its own screen. The wireframes and the plan were changed to match. Reviewed `backward.ts` and its tests: logic sound, tests
+Story Builder, tied to the selected box, instead of on its own screen, and that with nothing selected it
+still work relative to the story at hand. He also asked that gap recommendations be able to point to any
+screen and start with the decisions that most affect stories being written or already written. The
+wireframes and the plan were changed to match. Reviewed `backward.ts` and its tests: logic sound, tests
 pass, not wired into any write function yet.
 
 ### Session 2026-11-21: step P0, audit
