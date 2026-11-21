@@ -4,6 +4,7 @@ import { acknowledgeAllUpdatesAction, acknowledgeFlagAction } from "@/lib/contin
 import { CHOICE_LABELS, KIND_LABELS } from "@/lib/continuity/constants";
 import { entityHref, shortDate } from "@/lib/continuity/links";
 import { UndoDetailButton } from "@/components/undo-detail-button";
+import { RevertStaleClaimButton } from "@/components/revert-stale-claim-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -96,15 +97,21 @@ export default async function ContinuityPage({ searchParams }: { searchParams: P
                         <Link href={entityHref(f.entryCollection, f.entrySlug)} className="font-medium hover:underline">
                           {f.entryName}
                         </Link>
-                        {f.kind === "new_detail" && <span className="text-muted-foreground">{f.fieldLabel}</span>}
+                        {(f.kind === "new_detail" || f.kind === "stale_claim") && (
+                          <span className="text-muted-foreground">{f.fieldLabel}</span>
+                        )}
                         <span className="text-muted-foreground">
                           from <Link href={`/write/${f.writingCode}`} className="hover:underline">{f.writingName}</Link>
                         </span>
                       </div>
                       <p className="mt-1 break-words">&ldquo;{f.newQuote}&rdquo;</p>
+                      {f.kind === "stale_claim" && f.explanation && (
+                        <p className="mt-1 text-muted-foreground">{f.explanation}</p>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center">
                       {f.kind === "new_detail" && <UndoDetailButton flagCode={f.code} />}
+                      {f.kind === "stale_claim" && <RevertStaleClaimButton flagCode={f.code} />}
                       <form action={acknowledgeFlagAction.bind(null, f.code)}>
                         <Button type="submit" size="sm" variant="ghost">
                           Got it

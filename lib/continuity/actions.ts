@@ -238,14 +238,18 @@ export async function revertStaleClaimAction(flagCode: string): Promise<ActionRe
   }
 
   details[idx] = { ...details[idx], value: history.oldValue ?? '' }
-  await updateDetailsAction(flag.entryCollection, flag.entryId, details)
-  await appDb.insert(schema.continuityHistory).values({
-    entryCollection: flag.entryCollection, entryId: flag.entryId, fieldLabel: flag.fieldLabel,
-    action: 'reverted', oldValue: history.newValue, newValue: history.oldValue, writingId: flag.writingId, flagId: flag.id,
-  })
-  await appDb.update(schema.continuity)
-    .set({ status: 'resolved', choice: 'reverted', resolvedAt: new Date(), updatedAt: new Date() })
-    .where(eq(schema.continuity.id, flag.id))
+  try {
+    await updateDetailsAction(flag.entryCollection, flag.entryId, details)
+    await appDb.insert(schema.continuityHistory).values({
+      entryCollection: flag.entryCollection, entryId: flag.entryId, fieldLabel: flag.fieldLabel,
+      action: 'reverted', oldValue: history.newValue, newValue: history.oldValue, writingId: flag.writingId, flagId: flag.id,
+    })
+    await appDb.update(schema.continuity)
+      .set({ status: 'resolved', choice: 'reverted', resolvedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.continuity.id, flag.id))
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not revert that field.' }
+  }
 
   refresh()
   return { ok: true }
