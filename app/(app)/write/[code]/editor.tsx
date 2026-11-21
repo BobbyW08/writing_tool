@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import {
   $createRangeSelection,
   $createTextNode,
+  $flushSyncAfterUpdate,
   $getRoot,
   $getSelection,
   $isElementNode,
@@ -498,6 +499,14 @@ export function WritingEditor({
     onError: (err: Error) => console.error('[Writing Editor]', err),
     editorState: () => {
       $convertFromMarkdownString(record.text ?? '', transformers)
+      // Lexical's own initializer wraps this call in a non-discrete editor.update(), whose commit
+      // is deferred to a microtask. RichTextPlugin's placeholder reads the *committed* state
+      // without flushing pending updates, so on the server the synchronous render pass serializes
+      // before that microtask runs (placeholder shown even for non-empty text) while the client,
+      // hydrating slightly later, sees the already-committed state (placeholder hidden) --
+      // a hydration mismatch on every piece of writing that already has text. Forcing a synchronous
+      // commit here keeps the two passes consistent.
+      $flushSyncAfterUpdate()
     },
   }
 
