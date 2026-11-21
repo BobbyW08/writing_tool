@@ -5,76 +5,78 @@ the rules in `CLAUDE.md`. Do only what is written here. At the end of every sess
 file with the instructions for whatever comes after. The repo keeps exactly three instruction files:
 `CLAUDE.md`, `next.md` and `traveler-wiki-build-plan.md`.
 
-## Task: step UX0, fix the five browser-checklist defects
+## Task: step S7, wire the backward check into the data layer
 
-Read "Start flow and page redesign (step UX)", "Step P0" and the error log in
-`traveler-wiki-build-plan.md` first. Before touching any code, read the relevant guide in
-`node_modules/next/dist/docs/` (CLAUDE.md says this Next.js has breaking changes). Do only the five
-fixes below, in this order, one commit each. Do not start UX1 or later, and do not start S7 or the
-Story Builder.
+Read "Steps S0 to S7" (item S7) in `traveler-wiki-build-plan.md` first. `lib/continuity/backward.ts`
+already holds the pure comparison, tested in `scripts/test-continuity.ts`:
+- `fieldWasReplaced(oldValue, newValue)`: true only when the new wording actually replaces the old
+  (not when `appendToField` adds to it).
+- `findStaleClaims({ changed, claims, alreadyFlagged })`: one `StaleFlag` per claim whose quote
+  assumed wording a field no longer has, skipping anything in `alreadyFlagged`.
 
-### The defects, with what is already known
+Nothing calls either function yet. This task wires them into the one place every coded table's field
+changes go through: `updateFieldAction` and `updateDetailsAction` in `lib/world/actions.ts`.
 
-1. **Linked names are not links, and autocomplete ranks badly.** `MentionNode` in
-   `lib/studio/mention-node.ts` is a text node with a `writing-mention` class and no click behavior.
-   Make a linked name clearly styled, with hover showing its type and name, click opening the entry and
-   Ctrl-click opening a new tab. The saved Markdown must stay `[words as written](C4)` (hard rule 9).
-   Rank autocomplete by exact name match first, then by type: Characters, Locations, Events, Factions,
-   Cultures, Items, Lore last. Write the ranking as a pure function with a test first.
-2. **Dragging from the world tree breaks neighbouring links.** `DropEntryPlugin` inserts at the cursor.
-   Insert at the drop point instead, snap to the nearest word boundary, add spaces around the new link,
-   and never land inside an existing linked name. Write the position logic as a pure function with tests
-   first, including a drop in the middle of a word and a drop on a linked name.
-3. **Hydration mismatch** from the `RichTextPlugin` placeholder in `app/(app)/write/[code]/editor.tsx`
-   (the "Start writing..." div). Find the actual cause first (use `superpowers:systematic-debugging`),
-   then fix it. Do not guess. Confirm the console is clean on a story page.
-4. **Entry page header overlap.** The title collides with the Export as Markdown button and the UNK badge.
-   Give the title its own row, put badges beside it, and put the actions on a separate toolbar row with
-   tabs. Rarely used actions go under More. Match board 9 of the wireframes.
-5. **Ask AI quality.** Proposals ran on claude-haiku-4-5 and came back as vague restatements. Set the
-   suggestion task to a Sonnet-class model in `ai_settings` (through the existing settings path, not a
-   hard-coded model) and rewrite its prompt so each proposal is a concrete question, option or tension
-   grounded in Bobby's own text and linked entries. It must never contain a written scene or paragraph
-   (hard rule 1).
+### What to build
+1. A new `lib/continuity/backward-check.ts` (or similar) exporting a function that, given a
+   collection, entry id, and the field's label, old value and new value, does the following when
+   `fieldWasReplaced` is true:
+   - Reads the entry's claims from the `claims` table (`entryCollection`, `entryId`, `fieldLabel`),
+     mapped to `ClaimRef`.
+   - Reads existing `stale_claim` continuity flags for this entry (any status) and builds the
+     `alreadyFlagged` set with `staleClaimKey`.
+   - Calls `findStaleClaims` and, for each `StaleFlag`, inserts one `continuity` row: `kind:
+     'stale_claim'`, `fieldLabel`, `existingExcerpt` = the field's new wording (what canon now says),
+     `newQuote` = the claim's quote (the passage that assumed the old wording), `status: 'open'`,
+     coded with `assignNextCode('Q')` like every other flag (see `lib/continuity/run-check.ts` for the
+     pattern). Add `'stale_claim'` to the `FlagKind` type and to `UPDATE_KINDS` in
+     `lib/continuity/constants.ts` (it is raised automatically, like `new_detail`, not a decision Bobby
+     has to make before anything is applied) and a `KIND_LABELS` entry ("Stale claim" or similar).
+2. Wire it into `updateFieldAction`: before the `appDb.update(...)`, read the field's current value
+   (one select), and after the write, if the field is one `claims.fieldLabel` can reference (named
+   columns like `summary`, not `details` — `updateDetailsAction` covers that), call the new function
+   with the old and new value.
+3. Wire it into `updateDetailsAction`: it already has the current `details` array (via `readDetails`)
+   before calling `updateFieldAction('details', ...)`. Diff the incoming `details` against the current
+   one by label (matching how `resolveLabel`/`appendToField` key rows in `run-check.ts`) to get a list
+   of `ChangedField` (label, oldValue, newValue), and call the new function once per changed label.
+4. A revert action for a `stale_claim` flag, alongside `acknowledgeFlagAction` (accept as outdated) in
+   `lib/continuity/actions.ts`: `revertStaleClaimAction(flagCode)` that puts the named field or detail
+   row back to the flag's recorded old value, the same way `revertHistoryRowAction` does, but keyed by
+   the continuity flag (not a `continuityHistory` row) since this flag is raised outside a writing-save
+   check. Guard it the same way: only revert if the field's current value still matches what triggered
+   the flag, otherwise say it changed since and leave it alone.
+
+### Tests first
+Add cases to `scripts/test-continuity.ts` (or a new `scripts/test-backward-check.ts` if the DB-touching
+parts need separating from the pure ones) covering: a field replaced with no claims (nothing happens),
+a field replaced with one matching claim (one flag), two claims on the same field (two flags, each
+revertible independently), a field *appended to* via `appendToField` (`fieldWasReplaced` false, no
+flag), and a claim already flagged (not flagged again, matching `findStaleClaims`'s own test).
 
 ### Constraints
-- Keep hard rules 1, 9 and 13. Nothing is applied to an entry without Bobby accepting it.
-- Follow `superpowers:test-driven-development` for the two pure functions.
-- Do not touch `lib/continuity/backward.ts` or `scripts/test-continuity.ts`. They are uncommitted on
-  purpose and belong to the S7 task. Do not stage them.
-- Run `npm run build`, `npm run test:continuity`, `npm run test:mentions` and `npm run test:names` after
-  each fix. If Next.js shows its security-advisory nudge, retry the same build once.
-- No migration is needed. If one seems necessary, stop and ask.
+- Keep hard rules 1, 9 and 13. A stale-claim flag only ever surfaces a question for Bobby (edit the
+  passage himself, accept it as outdated, or revert the canon change) — nothing here writes to a
+  `writing` record.
+- Do not touch the forward check (`buildPlan`, `lib/continuity/plan.ts`) or `compareSchema` — the
+  Draft-vs-Locked priority split on those is a separate, later task (see below).
+- No migration: `claims` and `continuity` already carry every column this needs. If one seems
+  necessary, stop and ask.
+- Run `npm run build` and `npm run test:continuity` after the wiring is in; run `npm run test:continuity`
+  after the test cases are added, before the wiring, per TDD.
 
 ### When this is done
-1. Check off UX0 in the plan, move each of the five error log rows to fixed with the date and the fix, and
-   add a working log entry.
-2. Re-read the changes and recheck this task and `CLAUDE.md`'s hard rules.
+1. Check off S7's backward-check bullet in the plan's "Steps S0 to S7", add a working log entry, and
+   note in the error log if anything unexpected turned up.
+2. Re-read the changes against this task and `CLAUDE.md`'s hard rules.
 3. Run `npm run build`, zero errors.
-4. Replace this file with the next task, which is the rest of S7 (see below). Ask Bobby before starting
-   UX1 or anything after it.
-
-### Bobby retests by hand (PowerShell, then the browser)
-1. `cd C:\dev\writing_tool`, then `npm run dev`, and open `http://localhost:3000`.
-2. Open a story, then its editor. Type "ser", watch the list, press Tab. The Character should come first.
-3. Click the linked name. The entry opens. Hover shows its type.
-4. Drag a character from the world tree into the middle of a word and next to a linked name. Nothing
-   breaks and no link is split.
-5. Type a full character name and press Escape. The "Names that look like entries" panel appears under
-   the page. Try Link and Link all.
-6. Open the story page and check the browser console. There is no hydration warning.
-7. Open "Third Companion". The title, badges and buttons no longer overlap.
-8. Use Ask AI on an entry. The proposals are specific questions or tensions.
-Wait for each step to pass before the next.
-
-## After this: finish S7 (next task, not this one)
-`lib/continuity/backward.ts` already holds the pure comparison (`fieldWasReplaced`, `findStaleClaims`,
-tested). Still to build: call it from the data layer write function for every coded table when a canon field
-is replaced, open a Continuity inbox flag per stale claim (edit the passage, accept as outdated, or revert
-the change), and add the Draft-vs-Locked priority split to `buildPlan` and `compareSchema`. Relative timing
-stays optional. Full detail is in "Steps S0 to S7", item S7.
+4. Replace this file with the next task: surfacing `stale_claim` flags in the `/continuity` inbox UI
+   (it already renders `UPDATE_KINDS` flags generically; confirm the new kind's label, excerpt and
+   revert button render sensibly, add a dedicated UI only if the generic rendering does not fit), then
+   the Draft-vs-Locked priority split in `buildPlan`/`compareSchema`. Ask Bobby before starting UX1 or
+   the Story Builder.
 
 ## Do not
-Do not start UX1 to UX6, the Story Builder canvas (SB), story architecture (AR) or Phase 9. Do not add any
-file other than what this task needs. Do not commit to Neon anything except through a migration Bobby
-applies by hand.
+Do not start UX1 to UX6, the Story Builder canvas (SB), story architecture (AR) or Phase 9. Do not
+build the Draft-vs-Locked split or relative timing in this task. Do not add any file other than what
+this task needs. Do not commit to Neon anything except through a migration Bobby applies by hand.
