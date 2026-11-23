@@ -135,6 +135,15 @@ export function passageAround(text: string, range: Range, maxSide = 700): Passag
   return { text: text.slice(from, to), start: range.start - from, end: range.end - from, cutBefore, cutAfter };
 }
 
+// Starting point for an "update canon" decision: canon's current wording for a field, with the
+// disputed excerpt swapped for the writing's own words. Shared by the full decision page
+// (app/(app)/continuity/[flagCode]/page.tsx) and the Review facts quick-resolve buttons (step UX4),
+// which otherwise have no text box for Bobby to edit the result by hand.
+export function prefillUpdateCanon(fieldText: string, existingExcerpt: string | null, newQuote: string): string {
+  const range = existingExcerpt && fieldText ? findQuote(fieldText, existingExcerpt) : null;
+  return range ? replaceRange(fieldText, range, newQuote) : fieldText;
+}
+
 export function titleCaseLabel(label: string): string {
   return label
     .trim()

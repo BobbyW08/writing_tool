@@ -122,6 +122,24 @@ export async function listOpenDecisions(): Promise<FlagRow[]> {
     .map(({ r }) => r)
 }
 
+// Same as listOpenDecisions, scoped to one story's own pieces of writing (step UX4's Review
+// facts). Used instead of hand-filtering listOpenDecisions() so the query itself stays small.
+export async function listOpenDecisionsForWritingIds(writingIds: readonly number[]): Promise<FlagRow[]> {
+  if (writingIds.length === 0) return []
+  const rows = await baseFlagQuery()
+    .where(and(
+      eq(schema.continuity.status, 'open'),
+      inArray(schema.continuity.kind, DECISION_KINDS),
+      inArray(schema.continuity.writingId, writingIds),
+    ))
+    .orderBy(schema.continuity.createdAt)
+  const enriched = await enrichEntries(rows)
+  return enriched
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => (a.r.priority === b.r.priority ? a.i - b.i : a.r.priority === 'high' ? -1 : 1))
+    .map(({ r }) => r)
+}
+
 export async function listOpenUpdates(): Promise<FlagRow[]> {
   const rows = await baseFlagQuery()
     .where(and(eq(schema.continuity.status, 'open'), inArray(schema.continuity.kind, UPDATE_KINDS)))

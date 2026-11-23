@@ -7,7 +7,7 @@ import { getFlag } from "@/lib/continuity/queries";
 import { acknowledgeFlagAction } from "@/lib/continuity/actions";
 import { CHOICE_LABELS, DECISION_KINDS, KIND_LABELS } from "@/lib/continuity/constants";
 import { entityHref, shortDate } from "@/lib/continuity/links";
-import { findQuote, passageAround, replaceRange } from "@/lib/continuity/text";
+import { findQuote, passageAround, prefillUpdateCanon } from "@/lib/continuity/text";
 import { ContinuityReviewForm } from "@/components/continuity-review-form";
 import { HighlightedText } from "@/components/highlighted-text";
 import { UndoDetailButton } from "@/components/undo-detail-button";
@@ -53,7 +53,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ flagCod
   const writingPassage = writingRange ? passageAround(writingBody, writingRange) : null;
 
   // Starting point for "Update canon": canon with the disputed words swapped for the writing's words.
-  const prefilled = canonRange ? replaceRange(fieldText, canonRange, flag.newQuote) : fieldText;
+  const prefilled = prefillUpdateCanon(fieldText, flag.existingExcerpt, flag.newQuote);
   const defaultContext = writing.startYear !== null ? `from year ${writing.startYear}` : "";
 
   return (

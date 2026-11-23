@@ -91,11 +91,12 @@ local is the working tree's uncommitted changes below.
 - UX1 (Home launcher), UX2 (type-page AI gap finder), UX3 (stories picker and per-story actions
   screen), UX5 (editor panel placement) and UX6 (entry page tabs and toolbar) done 2026-11-21: see
   the Step UX checklist and the 2026-11-21 working-log entries.
+- UX4 (Review what I have so far, board 6) done 2026-11-23: see the Step UX checklist and the
+  working-log entry for that date.
 
-**Not started:** UX4 of the start flow and page redesign (step UX, designed 2026-11-21; cleared to
-build 2026-11-23 after Bobby's wireframe review, followed by UX6b),
-Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
-2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
+**Not started:** UX6b (Timeline tab on entry pages, board 10), Story Builder canvas (step SB,
+designed 2026-11-21), story architecture (step AR, decided 2026-11-12 and held), Phase 9, and
+switching from dev schema push to migrations before deploy.
 
 **Documentation:** exactly three files. The old the old build guide (see Working log), `SESSION.md` and
 the "Writing Studio and AI layer" section were folded into this plan. Their last committed text is in git history
@@ -1025,8 +1026,39 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
       Verified live via Playwright: picker renders real counts, new-story creation redirects to the
       actions screen, "Write it myself" opens a real writing record, Review correctly greys/un-greys.
       `tsc --noEmit` and `npm run build` clean.
-- [ ] **UX4.** Review what I have so far screen (board 6). Idea generation is not a UX step: it is built
-      inside the Story Builder as part of SB7.
+- [x] **UX4.** Review what I have so far screen (board 6). Idea generation is not a UX step: it is built
+      inside the Story Builder as part of SB7. Done 2026-11-23: new route
+      `app/(app)/story-builder/[code]/review/page.tsx`, with the Review card on the actions screen
+      pointed at it instead of `/stories/[code]`. `components/review-workspace.tsx` is a client
+      workspace with a piece checklist ("the whole story, or tick a piece") and two lanes, each
+      triggered explicitly (one bounded AI call per click, hard rule 10's "keep AI calls few"):
+      **Review writing** is the new AI module `lib/ai/review-writing.ts` (task `writing_review`,
+      added to `AiTask`/`DEFAULT_MODELS`) -- one call covers every selected piece, with a style
+      sample drawn from Bobby's other Canon/Draft writing (plainText, Set aside excluded per plan
+      decision 2). Every candidate's "before" is re-verified verbatim against the piece's own
+      stored markdown via `findQuote` (continuity/text.ts) before it is ever shown; anything that
+      cannot be found there (for example because it crosses a `[words](C4)` mention) is silently
+      discarded, the same "honest limit" pattern as the continuity check's own discarded count.
+      `lib/ai/review-writing-actions.ts`'s `acceptReviewWritingSuggestionAction` is the one place an
+      edit is ever applied: it re-locates the exact "before" text by content (never by position),
+      replaces it, tags the piece UNK and AI suggested (plan decision 6), and reruns the continuity
+      check. **Review facts** reuses the existing continuity machinery as-is (`lib/continuity/
+      run-check.ts`'s `runContinuityCheck`, `resolveFlagAction`) through a thinner front end,
+      `lib/story-builder/review-actions.ts`; its 3-button quick form (Keep canon / Keep my writing /
+      Decide later) covers `keep_canon`, `update_canon` (text computed automatically via the new
+      `prefillUpdateCanon` helper in continuity/text.ts, shared with the full `/continuity/
+      [flagCode]` page) and `decide_later`; "both are true" and "changed over time" stay on the full
+      decision page, linked from the card as "More options". Added `lib/continuity/queries.ts`'s
+      `listOpenDecisionsForWritingIds` to scope the inbox query to one story. Verified live via
+      Playwright against real data on story S1 (1,216-word draft): Review writing returned 6 real,
+      well-formed suggestions; Accept correctly reworded the exact sentence in `/write/W2`'s stored
+      markdown (confirmed by reopening the page), tagged it UNK + AI suggested (confirmed in the
+      `/review` queue), and reran the continuity check; Reject correctly advanced the queue without
+      writing anything. Review facts ran clean on a second story with no open flags. `tsc --noEmit`
+      and `npm run build` clean. One session hiccup, not a code defect: the long-lived dev server
+      (running since 2026-11-21) served a stale Turbopack chunk for this brand-new route after the
+      library it imports changed; a dev server restart (Bobby's explicit go-ahead to kill the old
+      process) fixed it, confirming the issue was never in the code.
 - [x] **UX5.** Editor: unlinked names panel placement and the world tree rail (board 7). The linking and
       drop behavior arrive in UX0. Done 2026-11-21: the unlinked-names panel now sits in the same
       `max-w-[720px]` column as the writing surface (it previously stretched full width, outside that
@@ -1545,7 +1577,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
-| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2, UX3, UX5 and UX6 done 2026-11-21. **Next: UX4** (cleared 2026-11-23, then UX6b) |
+| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2, UX3, UX5 and UX6 done 2026-11-21; UX4 done 2026-11-23. **Next: UX6b** |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
@@ -1815,6 +1847,27 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-23: step UX4, Review what I have so far
+Built the Review screen (board 6): see the Step UX checklist's UX4 entry for the full file list and
+design notes. In short, two new AI-adjacent lanes sit behind a piece-selection checklist on a new
+`/story-builder/[code]/review` route -- Review writing (a brand-new `lib/ai/review-writing.ts`
+module, the first real use of hard rule 1's one carve-out) and Review facts (a thin front end onto
+the existing continuity check, nothing new in the data layer). Verified live via Playwright against
+real data on story S1: Accept correctly reworded one sentence in `/write/W2`'s actual stored
+markdown, visible on reopening the page, tagged UNK + AI suggested and showing in `/review`; Reject
+correctly advanced without writing anything; Review facts ran clean. `tsc --noEmit` and
+`npm run build` both clean.
+
+One infrastructure note, not a code defect: partway through verification the long-lived dev server
+(running since 2026-11-21, well before this session's files existed) started 500ing on the brand-new
+review route with `listOpenDecisionsForWritingIds is not a function`, even though that function
+compiled fine in `npm run build` and tsc, and even after editing its file to force Turbopack to
+re-link it. Every other route (`/continuity`, which imports the same module) kept working throughout,
+so the stale state was scoped to that one route's cached server chunk, not the module itself. A dev
+server restart (Bobby's explicit go-ahead to kill the old process, since Claude Code's auto mode
+blocks killing processes by default) fixed it immediately. Worth remembering if a brand-new route
+500s on a function that demonstrably exists: suspect the long-running dev server before the code.
 
 ### Session 2026-11-21: Next.js worktree merge, then step UX1 (Home launcher)
 Per Bobby's go-ahead to do the worktree merge and any migrations without asking first, merged

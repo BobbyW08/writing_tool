@@ -88,7 +88,7 @@ export default async function StoryBuilderActionsPage({ params }: { params: Prom
 
         {stats.hasProse ? (
           <Link
-            href={`/stories/${storyCode}`}
+            href={`/story-builder/${storyCode}/review`}
             className="flex min-h-[170px] flex-col gap-2 rounded-xl border bg-card p-5 hover:bg-accent/40"
           >
             <span className="text-xl font-bold">Review what I have so far</span>
