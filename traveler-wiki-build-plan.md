@@ -901,6 +901,7 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
 - [ ] **SB4.** Shelf: drag existing entries onto the canvas. Convert a typed box to an entry type.
 - [ ] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
 - [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
+      The left menu stays visible behind the popup, dimmed (board 8).
 - [ ] **SB7.** AI helpers: Review writing, Review facts, What happens next, then the chips. Idea generation
       also works from a selected box on the canvas: results show as dashed ghost boxes to its right, with
       Add to canvas and Dismiss (see step UX).
@@ -939,8 +940,9 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
 5. **Ideas live in the Story Builder, not on their own screen.** Decided 2026-11-21: ideas depend on what
    comes next in the story being built, so they hang off the selected box. Selecting a box shows an
    "Ideas for this box" bar with lenses (what happens next, loose ends, ripple effects, foreshadowing, ask
-   anything). Results appear as dashed ghost boxes to the right of the selected box, each a question, a
-   tension and the entries it draws from, with **Add to canvas** and **Dismiss**. Reuses the S5 beat cards
+   anything). Results appear as dashed ghost boxes to the right of the selected box, filled solid light blue (never
+   see-through, so the canvas dots do not show and an idea reads as an idea, not a set piece of the story),
+   each a question, a tension and the entries it draws from, with **Add to canvas** and **Dismiss**. Reuses the S5 beat cards
    and the S6 prompts menu. With nothing selected, the same lenses work relative to the story at hand (the story the canvas is open
    on), never the whole world. A scope switch lets Bobby narrow to the selected box or widen back to the story.
 6. **Review what I have so far.** The written pieces with word counts. Review writing (one before and after
@@ -948,7 +950,10 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
 7. **Write it myself.** The editor with linking behavior defined below, the unlinked names panel directly
    under the page, and the world tree rail.
 8. **Entry page.** Title row, badges beside it, a toolbar row with tabs and actions, the UNK banner, fields
-   edited in place on the left, the infobox on the right.
+   edited in place on the left, the infobox on the right. The tabs (Overview, Connections, Timeline,
+   Writing) are the same on story, character and location pages. The Timeline tab shows only that entry's
+   own timeline (for a story: its span, its events and its planned beats, board 10) with a button, "View in
+   the master timeline", that opens the full timeline with this entry highlighted and its years in view.
 
 ### Rules for this step
 
@@ -1031,6 +1036,12 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
       the editor (`DropEntryPlugin`, wired in UX0) — kept as the single drag source (hard rule 10, hard
       rule 15) rather than building a second, editor-local tree to match the wireframe's right-side
       placement literally.
+- [ ] **UX6b (open).** Timeline tab on entry pages (board 10). The tab shows that entry's own timeline:
+      for a story, its span bar, its events (via `involves`), its planned beats, the era band, an ordered
+      list and a panel for items with no year yet. Two buttons: "View in the master timeline" (opens the
+      full timeline with this entry highlighted, its years in view and the rest dimmed, never hidden) and,
+      on stories, "Open in Story Builder". Characters and locations show their own events the same way.
+      Reads from the link index (rule 14). Changes `components/entry-tabs.tsx` and the entry pages.
 - [x] **UX6.** Entry page header and toolbar (board 9). Done 2026-11-21: the generic entry page
       (`app/(app)/[entityType]/[slug]/page.tsx`, covering all eight world collections) now puts the
       title and badges on their own row and a separate toolbar row below it with four tabs (Overview,

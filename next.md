@@ -51,6 +51,14 @@ fallback link to `/stories/[code]`). Concretely, once Bobby has reviewed and giv
 - Once built, update `/story-builder/[code]/page.tsx`'s Review card to link there instead of to
   `/stories/[code]`.
 
+## Design follow-ups from Bobby (2026-11-23), build after UX4 is reviewed
+- **UX6b:** the Timeline tab on entry pages (board 10 of the wireframe canvas). Clicking it shows the
+  timeline of this one story (its span, events, planned beats, undated items) plus a button, "View in the
+  master timeline", that opens the full timeline with this story highlighted. Keep the four tabs as they
+  are on board 9, with no box around them. Characters and locations show their own events the same way.
+- **SB (later):** idea boxes on the Story Builder canvas are solid light blue, never see-through, so the
+  dots do not show through. The expanded box popup keeps the left menu visible behind it, dimmed.
+
 ## Do not
 Do not start the Story Builder canvas (SB), story architecture (AR) or Phase 9 without Bobby's
 go-ahead — UX1 to UX6 is the authorized scope for now. Do not build UX4's AI mechanism without
