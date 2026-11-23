@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { movedTo } from "@/lib/codes-history";
-import { getStoryByCode, getRelationshipsByCode, buildCodeMap, isUnk } from "@/lib/world/queries";
+import { getStoryByCode, getRelationshipsByCode, getEventsForStory, getBeatsForStory, getErasList, buildCodeMap, isUnk } from "@/lib/world/queries";
 import { getWritingListByStory, getWritingByCode, getStoryList } from "@/lib/studio/queries";
 import { getCheckSummary } from "@/lib/continuity/queries";
 import { createWriting } from "@/lib/studio/actions";
@@ -15,6 +15,8 @@ import { StoryKeepWriting } from "@/components/story-keep-writing";
 import { PlotOutline } from "@/components/plot-outline";
 import { PLOT_TEMPLATE_KEY } from "@/lib/sheets/templates";
 import { sheetAnswers } from "@/lib/sheets/answers";
+import { EntryTabs } from "@/components/entry-tabs";
+import { EntryTimelineTab, type EntryTimelineItem, type EntryTimelineEra } from "@/components/entry-timeline-tab";
 
 type StoryDoc = {
   id: number;
@@ -93,6 +95,16 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
   const activeSummary = activeRecord ? await getCheckSummary(activeRecord.id) : { decisions: 0, newRecords: 0, newDetails: 0, confirmed: 0, claims: 0 };
   const activeCodeMap = activeRecord ? await buildCodeMap([activeRecord.text]) : {};
 
+  // Step UX6b (board 10): the Timeline tab. Planned (not yet promoted) beats only -- a promoted
+  // beat already shows up as an event via storyDramatizes, so showing both would duplicate it.
+  const [storyEvents, storyBeats, { docs: eraDocs }] = await Promise.all([
+    getEventsForStory(doc.id),
+    getBeatsForStory(doc.id),
+    getErasList(),
+  ]);
+  const plannedBeats = (storyBeats as { code: string; name: string; startYear: number | null; yearLabel: string | null; state: string }[])
+    .filter((b) => b.state !== "promoted");
+
   type RelRow = { id: number; code: string; fromCollection: string; fromCode: string; toCollection: string; toCode: string; type?: string | null; startYear?: number | null; endYear?: number | null; notes?: string | null };
   type RelEditorEntry = { id: number; code: string; collection: string; name: string; type: string; direction: 'from' | 'to'; startYear: number | null; endYear: number | null; notes: string | null };
   const relEntries: RelEditorEntry[] = [];
@@ -103,9 +115,20 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
     relEntries.push({ id: r.id, code: r.fromCode, collection: r.fromCollection, name: r.fromCode, type: r.type ?? '', direction: 'to', startYear: r.startYear ?? null, endYear: r.endYear ?? null, notes: r.notes ?? null });
   }
 
+  const timelineItems: EntryTimelineItem[] = [
+    ...(storyEvents as { code: string; name: string; startYear: number | null; yearLabel: string | null }[]).map((ev) => ({
+      code: ev.code, name: ev.name, startYear: ev.startYear ?? null, yearLabel: ev.yearLabel ?? null, kind: "event" as const,
+    })),
+    ...plannedBeats.map((b) => ({
+      code: b.code, name: b.name, startYear: b.startYear ?? null, yearLabel: b.yearLabel ?? null, kind: "beat" as const,
+    })),
+  ];
+  const timelineEras: EntryTimelineEra[] = (eraDocs as { code: string; name: string; startYear: number | null; endYear: number | null; color: string | null }[])
+    .map((e) => ({ code: e.code, name: e.name, startYear: e.startYear ?? null, endYear: e.endYear ?? null, color: e.color ?? null }));
+
   return (
-    <div className="max-w-3xl space-y-8">
-      {/* Header */}
+    <div className="max-w-3xl space-y-6">
+      {/* Header: title and badges on their own row (board 9) */}
       <div>
         <Link href="/stories" className="text-sm text-muted-foreground hover:underline">Stories</Link>
         <div className="mt-1 flex flex-wrap items-start gap-3">
@@ -122,107 +145,132 @@ export default async function StoryReadPage({ params }: { params: Promise<{ code
             </div>
             {storyCode && <p className="font-mono text-xs text-muted-foreground">{storyCode}</p>}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Link href={`/stories/${storyCode}/beats`} className="text-sm text-muted-foreground hover:underline">
-              Story Builder
-            </Link>
-            <EditableField collection="stories" docId={doc.id} fieldName="stage" value={doc.stage} kind="select" options={STAGE_OPTIONS} />
-            <RecordActions collection="stories" id={doc.id} code={storyCode} name={doc.name} status={(doc as Record<string, unknown>).status as string} />
-          </div>
-        </div>
-        <div className="mt-2">
-          <EditableField collection="stories" docId={doc.id} fieldName="summary" value={doc.summary} kind="textarea" placeholder="Click to add summary" className="text-sm" />
+          <EditableField collection="stories" docId={doc.id} fieldName="stage" value={doc.stage} kind="select" options={STAGE_OPTIONS} />
         </div>
       </div>
 
-      {/* UNK review note */}
-      {unkTagged && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
-          <span className="font-semibold">Check this: </span>
-          <EditableField collection="stories" docId={doc.id} fieldName="reviewNote" value={doc.reviewNote} kind="textarea" placeholder="Add review note" />
-        </div>
-      )}
+      <EntryTabs
+        actions={<RecordActions collection="stories" id={doc.id} code={storyCode} name={doc.name} status={(doc as Record<string, unknown>).status as string} />}
+        tabs={[
+          {
+            id: "overview",
+            label: "Overview",
+            content: (
+              <>
+                <EditableField collection="stories" docId={doc.id} fieldName="summary" value={doc.summary} kind="textarea" placeholder="Click to add summary" className="text-sm" />
 
-      {/* Metadata */}
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground">Era</p>
-          <EditableField collection="stories" docId={doc.id} fieldName="era" value={doc.era} kind="select" options={ERA_OPTIONS} placeholder="Click to set" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground">Format</p>
-          <EditableField collection="stories" docId={doc.id} fieldName="format" value={doc.format} kind="select" options={FORMAT_OPTIONS} placeholder="Click to set" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground">Starts (year)</p>
-          <EditableField collection="stories" docId={doc.id} fieldName="startYear" value={doc.startYear} kind="number" placeholder="Click to set" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground">Ends (year)</p>
-          <EditableField collection="stories" docId={doc.id} fieldName="endYear" value={doc.endYear} kind="number" placeholder="Click to set" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground">Year label</p>
-          <EditableField collection="stories" docId={doc.id} fieldName="yearLabel" value={doc.yearLabel} kind="text" placeholder="Click to set" />
-        </div>
-        <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-muted-foreground">Floating</p>
-          <EditableField collection="stories" docId={doc.id} fieldName="floating" value={doc.floating} kind="checkbox" />
-        </div>
-        {doc.floating && (
-          <p className="col-span-2 text-xs text-muted-foreground">
-            No fixed place on the timeline yet.
-            {floatingRangeText(doc.startYear, doc.endYear) && ` ${floatingRangeText(doc.startYear, doc.endYear)}.`}
-          </p>
-        )}
-      </div>
+                {unkTagged && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
+                    <span className="font-semibold">Check this: </span>
+                    <EditableField collection="stories" docId={doc.id} fieldName="reviewNote" value={doc.reviewNote} kind="textarea" placeholder="Add review note" />
+                  </div>
+                )}
 
-      {/* Gap prompt */}
-      <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Still to decide</p>
-        <EditableField collection="stories" docId={doc.id} fieldName="gapPrompt" value={doc.gapPrompt} kind="textarea" placeholder="What still needs deciding?" className="text-sm" />
-      </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Era</p>
+                    <EditableField collection="stories" docId={doc.id} fieldName="era" value={doc.era} kind="select" options={ERA_OPTIONS} placeholder="Click to set" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Format</p>
+                    <EditableField collection="stories" docId={doc.id} fieldName="format" value={doc.format} kind="select" options={FORMAT_OPTIONS} placeholder="Click to set" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Starts (year)</p>
+                    <EditableField collection="stories" docId={doc.id} fieldName="startYear" value={doc.startYear} kind="number" placeholder="Click to set" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Ends (year)</p>
+                    <EditableField collection="stories" docId={doc.id} fieldName="endYear" value={doc.endYear} kind="number" placeholder="Click to set" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Year label</p>
+                    <EditableField collection="stories" docId={doc.id} fieldName="yearLabel" value={doc.yearLabel} kind="text" placeholder="Click to set" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-muted-foreground">Floating</p>
+                    <EditableField collection="stories" docId={doc.id} fieldName="floating" value={doc.floating} kind="checkbox" />
+                  </div>
+                  {doc.floating && (
+                    <p className="col-span-2 text-xs text-muted-foreground">
+                      No fixed place on the timeline yet.
+                      {floatingRangeText(doc.startYear, doc.endYear) && ` ${floatingRangeText(doc.startYear, doc.endYear)}.`}
+                    </p>
+                  )}
+                </div>
 
-      {/* Beats */}
-      {doc.beats && doc.beats.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Beats</h2>
-          <ol className="space-y-2">
-            {doc.beats.map((b, i) => (
-              <li key={b.id ?? i} className="flex gap-3 text-sm">
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">{i + 1}.</span>
-                <CodeText text={b.beat} codeMap={codeMap} />
-              </li>
-            ))}
-          </ol>
-          <p className="mt-2 text-xs text-muted-foreground">Edit beats in admin.</p>
-        </section>
-      )}
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Still to decide</p>
+                  <EditableField collection="stories" docId={doc.id} fieldName="gapPrompt" value={doc.gapPrompt} kind="textarea" placeholder="What still needs deciding?" className="text-sm" />
+                </div>
 
-      {/* Keep writing */}
-      {activeRecord && (
-        <StoryKeepWriting
-          storyId={doc.id}
-          storyName={doc.name}
-          allStories={allStories}
-          initialRecord={activeRecord}
-          initialSummary={activeSummary}
-          initialCodeMap={activeCodeMap}
-          initialList={writingList}
-        />
-      )}
+                {doc.beats && doc.beats.length > 0 && (
+                  <section>
+                    <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Beats</h2>
+                    <ol className="space-y-2">
+                      {doc.beats.map((b, i) => (
+                        <li key={b.id ?? i} className="flex gap-3 text-sm">
+                          <span className="shrink-0 font-mono text-xs text-muted-foreground">{i + 1}.</span>
+                          <CodeText text={b.beat} codeMap={codeMap} />
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="mt-2 text-xs text-muted-foreground">Edit beats in admin.</p>
+                  </section>
+                )}
 
-      {/* Plot outline: every story has one */}
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-muted-foreground">Plot outline</h2>
-        <PlotOutline docId={doc.id} templateId={answers[PLOT_TEMPLATE_KEY] ?? null} answers={answers} codeMap={codeMap} />
-      </section>
-
-      {/* Relationships */}
-      <RelationshipEditor myCode={storyCode} initial={relEntries} />
-
-      {/* What links here */}
-      <WhatLinksHere code={storyCode} />
+                <section className="space-y-2">
+                  <h2 className="text-sm font-semibold text-muted-foreground">Plot outline</h2>
+                  <PlotOutline docId={doc.id} templateId={answers[PLOT_TEMPLATE_KEY] ?? null} answers={answers} codeMap={codeMap} />
+                </section>
+              </>
+            ),
+          },
+          {
+            id: "connections",
+            label: "Connections",
+            content: (
+              <>
+                <RelationshipEditor myCode={storyCode} initial={relEntries} />
+                <WhatLinksHere code={storyCode} />
+              </>
+            ),
+          },
+          {
+            id: "timeline",
+            label: "Timeline",
+            content: (
+              <EntryTimelineTab
+                entryName={doc.name}
+                span={{ name: doc.name, startYear: doc.startYear ?? null, endYear: doc.endYear ?? null, yearLabel: doc.yearLabel ?? null }}
+                items={timelineItems}
+                eras={timelineEras}
+                masterTimelineHref={`/timeline?highlight=${storyCode}`}
+                storyBuilderHref={`/stories/${storyCode}/beats`}
+                eventHref={(c) => `/events/${c}`}
+                beatsHref={`/stories/${storyCode}/beats`}
+              />
+            ),
+          },
+          {
+            id: "writing",
+            label: "Writing",
+            content: activeRecord ? (
+              <StoryKeepWriting
+                storyId={doc.id}
+                storyName={doc.name}
+                allStories={allStories}
+                initialRecord={activeRecord}
+                initialSummary={activeSummary}
+                initialCodeMap={activeCodeMap}
+                initialList={writingList}
+              />
+            ) : (
+              <p className="text-sm italic text-muted-foreground">Nothing written yet.</p>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

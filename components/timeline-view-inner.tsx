@@ -108,11 +108,18 @@ export default function TimelineView({
   eras,
   focusEraCode,
   gaps = [],
+  highlightEventIds = null,
+  highlightRange = null,
 }: {
   events: TimelineEventInput[];
   eras: TimelineEraInput[];
   focusEraCode?: string | null;
   gaps?: TimeGap[];
+  // Step UX6b: "View in the master timeline" from an entry's own Timeline tab. Non-highlighted
+  // events dim the same way a type filter does (never hidden -- the footer note on board 10
+  // promises "still there") and the initial view zooms to highlightRange when given.
+  highlightEventIds?: string[] | null;
+  highlightRange?: { start: number; end: number } | null;
 }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -176,6 +183,10 @@ export default function TimelineView({
   );
 
   const [visibleRange, setVisibleRange] = useState(() => {
+    if (highlightRange) {
+      const padding = Math.max((highlightRange.end - highlightRange.start) * 0.25, 10);
+      return { start: toMs(highlightRange.start - padding), end: toMs(highlightRange.end + padding) };
+    }
     if (focusEra && focusEra.startYear != null) {
       const padding = Math.max(((focusEra.endYear ?? focusEra.startYear) - focusEra.startYear) * 0.25, 10);
       return {
@@ -429,7 +440,8 @@ export default function TimelineView({
             // value. Importance-driven sizing has to live on an inner div instead, which the
             // library never touches.
             const scale = heightForImportance(ev?.importance ?? null);
-            const dimmed = typeFilter.length > 0 && !(ev?.eventType && typeFilter.includes(ev.eventType));
+            const dimmed = (typeFilter.length > 0 && !(ev?.eventType && typeFilter.includes(ev.eventType)))
+              || (highlightEventIds != null && highlightEventIds.length > 0 && !highlightEventIds.includes(String(item.id)));
             const { key, ...itemProps } = getItemProps({
               style: { backgroundColor: "transparent", border: "none" },
             });

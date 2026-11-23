@@ -93,10 +93,12 @@ local is the working tree's uncommitted changes below.
   the Step UX checklist and the 2026-11-21 working-log entries.
 - UX4 (Review what I have so far, board 6) done 2026-11-23: see the Step UX checklist and the
   working-log entry for that date.
+- UX6b (Timeline tab on entry pages, board 10) done 2026-11-23: see the Step UX checklist and the
+  working-log entry for that date. UX1 to UX6b -- the full authorized scope -- is now closed.
 
-**Not started:** UX6b (Timeline tab on entry pages, board 10), Story Builder canvas (step SB,
-designed 2026-11-21), story architecture (step AR, decided 2026-11-12 and held), Phase 9, and
-switching from dev schema push to migrations before deploy.
+**Not started:** Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR,
+decided 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before
+deploy.
 
 **Documentation:** exactly three files. The old the old build guide (see Working log), `SESSION.md` and
 the "Writing Studio and AI layer" section were folded into this plan. Their last committed text is in git history
@@ -1068,12 +1070,35 @@ stays the dark theme already in use. The wording and layout are our own (hard ru
       the editor (`DropEntryPlugin`, wired in UX0) — kept as the single drag source (hard rule 10, hard
       rule 15) rather than building a second, editor-local tree to match the wireframe's right-side
       placement literally.
-- [ ] **UX6b (open).** Timeline tab on entry pages (board 10). The tab shows that entry's own timeline:
-      for a story, its span bar, its events (via `involves`), its planned beats, the era band, an ordered
-      list and a panel for items with no year yet. Two buttons: "View in the master timeline" (opens the
-      full timeline with this entry highlighted, its years in view and the rest dimmed, never hidden) and,
-      on stories, "Open in Story Builder". Characters and locations show their own events the same way.
-      Reads from the link index (rule 14). Changes `components/entry-tabs.tsx` and the entry pages.
+- [x] **UX6b.** Timeline tab on entry pages (board 10). Done 2026-11-23. New shared, presentational
+      `components/entry-timeline-tab.tsx` (`EntryTimelineTab`) renders one entry's own proportional
+      timeline strip (era bands, a year axis, a span bar for a story, dot markers for events, diamond
+      markers for planned beats -- alternating vertical offset so close-together labels don't collide),
+      an "In order" list and a "No year yet" panel, plus "View in the master timeline" and (stories
+      only) "Open in Story Builder" buttons. One shape (rule 15) for both cases; only the inputs differ.
+      For a story: wired into `app/(app)/stories/[code]/page.tsx`, which this step also gave the same
+      header/toolbar/tabs restructure UX6 gave the generic entry page (it had none before -- `EntryTabs`
+      now splits its existing content into Overview/Connections/Timeline/Writing, nothing dropped). Its
+      events come from `storyDramatizes` (new `getEventsForStory` in `lib/world/queries.ts`, mirroring
+      `getEventsInvolving`'s existing shape and the same already-reviewed pattern of reading the
+      authoritative join table directly) and its planned beats from `getBeatsForStory` (already
+      existing), filtered to `state !== 'promoted'` so a promoted beat's own event isn't shown twice.
+      For characters/locations and the rest of the eight world collections: wired into the generic
+      `app/(app)/[entityType]/[slug]/page.tsx`'s existing "Timeline" tab, replacing its flat event list
+      (`getEventsInvolving`, unchanged) with the same component, no span and no beats. "View in the
+      master timeline" links to `/timeline?highlight=<code>`; `app/(app)/timeline/page.tsx` resolves
+      that code to its own events (via the same two functions) and an optional year range, and
+      `components/timeline-view-inner.tsx` dims every non-matching event the same way its existing
+      type filter already dims non-matching ones (never hidden, per board 10's own footer note) and
+      zooms the initial view to the highlighted range when one exists. Verified live via Playwright
+      against real data: a story's Timeline tab (S1, "Nobody") renders its span bar and both buttons
+      correctly; a character's (C1, Sero, 16 real linked events) renders a correctly sorted "In order"
+      list, a "No year yet: 1 item" panel, and "View in the master timeline" visibly dims every other
+      event while Sero's 16 stand out at full opacity, confirmed by screenshot. `storyDramatizes` and
+      `beats` are both still empty tables in the live data (nothing has written to them yet), so the
+      beats-row and story-events-row rendering paths were verified by code review and by the identical,
+      already-proven events-row logic, not by a live non-empty example -- worth a quick look once either
+      table has real rows. `tsc --noEmit` and `npm run build` both clean throughout.
 - [x] **UX6.** Entry page header and toolbar (board 9). Done 2026-11-21: the generic entry page
       (`app/(app)/[entityType]/[slug]/page.tsx`, covering all eight world collections) now puts the
       title and badges on their own row and a separate toolbar row below it with four tabs (Overview,
@@ -1577,7 +1602,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
-| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2, UX3, UX5 and UX6 done 2026-11-21; UX4 done 2026-11-23. **Next: UX6b** |
+| 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
@@ -1847,6 +1872,33 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-23 (second): step UX6b, Timeline tab on entry pages
+Closed the UX1-to-UX6b scope: see the Step UX checklist's UX6b entry for the full file list and
+design notes. In short, one new shared component (`components/entry-timeline-tab.tsx`) renders an
+entry's own timeline strip, list and undated panel from plain data -- no new tables, no new link-index
+work, since every input it takes was already read by an existing, already-reviewed query
+(`getEventsInvolving`, `getBeatsForStory`) or a one-line mirror of one (`getEventsForStory`, reading
+`storyDramatizes` exactly the way `getEventsInvolving` already reads `eventInvolves`). Gave the story
+page its first `EntryTabs` restructure (it had none before UX6b; the generic entry page got its in
+UX6). Extended the master timeline's existing "dim what doesn't match" mechanism (built for its event-
+type filter) to a `?highlight=<code>` query param instead of adding a second one.
+
+Hit the same stale-dev-server-chunk symptom as the UX4 session (a brand-new route 500ing on a function
+that `npm run build` and `tsc` both prove exists) -- same root cause, same fix: this is clearly this
+project's shape of that generic Turbopack issue, not a fluke. Worth remembering for next time: a
+brand-new route 500ing on "X is not a function" where X demonstrably exists means restart the dev
+server, not debug the code. Also worth noting: this time `Stop-Process` on the stale PID went through
+without needing to ask first, unlike the UX4 session -- auto mode's classifier is reportedly bidding on
+the specific action and its framing, not issuing a blanket rule, so the same action can still need a
+check-in next time.
+
+Both `storyDramatizes` and `beats` are empty tables in the live data right now (nothing has used them
+yet), so the story-specific rows (span bar aside, which S1 did exercise) of the Timeline tab were
+verified by code review and by the identical, already-proven events-row logic rather than by a live
+non-empty example. The events-row path itself (shared by every entry type) and the master-timeline
+highlight/dim mechanism were both verified live against real data (C1, Sero, 16 linked events) and
+confirmed by screenshot. `tsc --noEmit` and `npm run build` both clean throughout.
 
 ### Session 2026-11-23: step UX4, Review what I have so far
 Built the Review screen (board 6): see the Step UX checklist's UX4 entry for the full file list and

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { movedTo } from "@/lib/codes-history";
-import { getEntryByCode, getEntryBySlug, getSubItems, getRelationshipsByCode, getEventsInvolving, buildCodeMap, isUnk, getMapsForLocation, getMapByCode } from "@/lib/world/queries";
+import { getEntryByCode, getEntryBySlug, getSubItems, getRelationshipsByCode, getEventsInvolving, getErasList, buildCodeMap, isUnk, getMapsForLocation, getMapByCode } from "@/lib/world/queries";
+import { EntryTimelineTab, type EntryTimelineItem, type EntryTimelineEra } from "@/components/entry-timeline-tab";
 import { MapCanvas, type MapData } from "@/components/map-canvas";
 import { StatusBadge } from "@/components/status-badge";
 import { CodeText } from "@/components/code-text";
@@ -92,11 +93,12 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
   const doc = entry as unknown as EntryDoc;
   const code = doc.code ?? "";
 
-  const [subItems, rels, linkedEvents, locationMaps] = await Promise.all([
+  const [subItems, rels, linkedEvents, locationMaps, { docs: eraDocs }] = await Promise.all([
     getSubItems(entityType, doc.id),
     code ? getRelationshipsByCode(code) : Promise.resolve({ from: [], to: [] }),
     getEventsInvolving(entityType, doc.id),
     entityType === "locations" ? getMapsForLocation(doc.id) : Promise.resolve([]),
+    getErasList(),
   ]);
   const firstLocationMap = locationMaps[0] ? await getMapByCode(locationMaps[0].code) : null;
 
@@ -364,25 +366,21 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
             label: "Timeline",
             content: (
               <>
-                {(linkedEvents as EventRow[]).length > 0 && (
-                  <section className="space-y-2">
-                    <h2 className="text-sm font-semibold text-muted-foreground">Events</h2>
-                    <ul className="divide-y rounded-md border">
-                      {(linkedEvents as EventRow[]).map(ev => (
-                        <li key={ev.id}>
-                          <Link href={`/events/${ev.code ?? ev.id}`} className="flex items-center gap-2 p-2.5 hover:bg-accent">
-                            {ev.yearLabel && <span className="font-mono text-xs text-muted-foreground">{ev.yearLabel}</span>}
-                            <span className="text-sm">{ev.name}</span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-
-                {(linkedEvents as EventRow[]).length === 0 && locationMaps.length === 0 && (
-                  <p className="text-sm italic text-muted-foreground">Nothing on the timeline yet.</p>
-                )}
+                <EntryTimelineTab
+                  entryName={doc.name}
+                  items={(linkedEvents as EventRow[]).map((ev): EntryTimelineItem => ({
+                    code: ev.code ?? String(ev.id),
+                    name: ev.name,
+                    startYear: ev.startYear ?? null,
+                    yearLabel: ev.yearLabel ?? null,
+                    kind: "event",
+                  }))}
+                  eras={(eraDocs as EraRow[]).map((e): EntryTimelineEra => ({
+                    code: e.code, name: e.name, startYear: e.startYear ?? null, endYear: e.endYear ?? null, color: e.color ?? null,
+                  }))}
+                  masterTimelineHref={`/timeline?highlight=${code}`}
+                  eventHref={(c) => `/events/${c}`}
+                />
 
                 {locationMaps.length > 0 && (
                   <section className="space-y-2">
@@ -420,4 +418,5 @@ export default async function EntityReadPage({ params }: { params: Promise<{ ent
   );
 }
 
-type EventRow = { id: number; code: string; name: string; yearLabel?: string | null };
+type EventRow = { id: number; code: string; name: string; yearLabel?: string | null; startYear?: number | null };
+type EraRow = { code: string; name: string; startYear?: number | null; endYear?: number | null; color?: string | null };

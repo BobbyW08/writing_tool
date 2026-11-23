@@ -266,6 +266,20 @@ export async function getEventsInvolving(entryCollection: string, entryId: numbe
   return evts
 }
 
+// ─── getEventsForStory ────────────────────────────────────────────────────────
+// Same shape as getEventsInvolving, for a story's own `dramatizes` list (step UX6b, board 10) --
+// which events of its own, not which world entries, so it reads storyDramatizes rather than
+// eventInvolves.
+export async function getEventsForStory(storyId: number) {
+  const dramatizes = await appDb.select({ eventId: schema.storyDramatizes.eventId })
+    .from(schema.storyDramatizes)
+    .where(eq(schema.storyDramatizes.storyId, storyId))
+  if (!dramatizes.length) return []
+  const eventIds = dramatizes.map(r => r.eventId)
+  const evts = await appDb.select().from(schema.events).where(inArray(schema.events.id, eventIds))
+  return evts
+}
+
 // ─── getEventsList ────────────────────────────────────────────────────────────
 export async function getEventsList() {
   const docs = await appDb.select().from(schema.events)
