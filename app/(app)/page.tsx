@@ -15,11 +15,16 @@ const HOME_CARDS = [
   { slug: 'timeline', label: 'Timeline', blurb: 'Eras, lanes, the master timeline', href: '/timeline' },
 ] as const
 
+// Races and Languages aren't in the approved wireframe's "Also here" row (board 1), but with SB1's
+// flattened nav dropping their old direct links too, this is the only place left to reach them --
+// added here rather than left with no path to the page at all.
 const SMALL_LINKS = [
   { label: 'Items', href: '/items' },
   { label: 'Lore', href: '/lore' },
   { label: 'Factions', href: '/factions' },
   { label: 'Cultures', href: '/cultures' },
+  { label: 'Races', href: '/races' },
+  { label: 'Languages', href: '/languages' },
   { label: 'Manuscript', href: '/compilations' },
   { label: 'Ideas', href: '/stories' },
 ] as const

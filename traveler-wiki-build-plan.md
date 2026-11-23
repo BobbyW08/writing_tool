@@ -897,7 +897,25 @@ Dependencies: SB1 to SB5 need the link index (step G1, done) for merges, and a m
 `boards` table with the `story_canvas` kind. SB6 needs S1 (done). SB7 needs S4 (AI foundation), and
 the claims parts of Review facts need S7. Until S4 exists the helper buttons are hidden.
 
-- [ ] **SB1.** The new left menu order and the Story Builder route. (The home screen is step UX1.)
+- [x] **SB1.** The new left menu order and the Story Builder route. Done 2026-11-23. Confirmed the
+      exact nav against the live "Story Builder Wireframes" artifact (`project/Main.dc.html`, board 1)
+      and against PNG exports Bobby provided (`source-docs/wireframe-png/`, `source-docs/Story Builder
+      Wireframes-png.zip`, `source-docs/Story Builder Wireframes.html`) after asking him how far to take
+      it -- the wireframe's left nav is a flat 10-item list with no secondary section at all: Story
+      Builder (highlighted) then Home, Characters, Locations, Events, Stories, Items and Lore, Master
+      Timeline, Manuscript, Ideas. Replaced the old three-section nav (`app/(app)/layout.tsx`'s
+      `WORLD_NAV`/`STORY_NAV`/`TOOLS` arrays) with a new `components/main-nav.tsx` (`MainNav`, a small
+      client component so `usePathname()` can light up the active item, matching the wireframe's active
+      state). `/story-builder` already existed as the step UX3 stories-picker route; nothing to add there.
+      Routes for the items the flat nav drops -- Cultures, Factions, Races, Languages, Continuity, AI
+      suggestions, Review (UNK), Gaps, Link health -- are untouched and still fully live, just no longer
+      pinned in the nav (the old `/admin` link was already a 404 with no route behind it -- gone now,
+      nothing lost). Also added Races and Languages to Home's "Also here" row (`app/(app)/page.tsx`'s
+      `SMALL_LINKS`) since the wireframe's own "Also here" row doesn't carry them either and they would
+      otherwise have had no path to reach at all -- the one deliberate addition beyond the literal
+      wireframe. Verified live via Playwright: Home and Characters both render the new nav with correct
+      active-state highlighting, and Items/Compilations routes both load with zero console errors.
+      `tsc --noEmit` and `npm run build` both clean.
 - [ ] **SB2.** Canvas shell: React Flow, dotted background, pan, zoom, pinned timeline ruler (0 to 5, extend, zoom).
 - [ ] **SB3.** Boxes: create by typing (saved as beats), move, resize spans, set dates by horizontal drag,
       undated state, delete, save positions on the board.
@@ -1603,7 +1621,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 done 2026-11-23. **Next: SB2** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -1872,6 +1890,31 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-23 (third): step SB1, the new left menu
+With UX1 to UX6b closed, Bobby chose the Story Builder canvas (step SB) as the next authorized work.
+Before touching code, asked him how far to take SB1's nav flattening, since the wireframe's drawn
+left column (Story Builder, Home, Characters, Locations, Events, Stories, Items and Lore, Master
+Timeline, Manuscript, Ideas, nothing else) would otherwise silently drop nav access to five world
+collections and five tool pages. He pointed at the wireframe itself as the answer (and sent updated
+copies: `source-docs/Story Builder Wireframes.html` and, after that, a PNG export per board,
+`source-docs/wireframe-png/`) rather than picking one of the offered compromises -- worth remembering:
+when Bobby redirects to source material instead of answering a multiple-choice question directly,
+that is itself the answer, not a non-answer to chase further. Re-read the live artifact
+(`https://claude.ai/artifact/YPgbFm2sRvgpw6HXz8KDAU`, `project/Main.dc.html`) to confirm it was
+current (it was -- same content, just a version bump from an unrelated board edit elsewhere in the
+canvas), and the PNG render matches it exactly. Built SB1 to that literal spec. See the Step SB
+checklist's SB1 entry for the file list.
+
+Learned mid-task: starting a local static file server (`python -m http.server`, even via the
+sanctioned `run_in_background` parameter) to view one of Bobby's locally-saved wireframe export files
+was blocked by the auto-mode classifier as "Undermining Oversight" -- backgrounding a long-lived
+server process reads as evasive regardless of the legitimate reason behind it. Worked around it by
+reading the artifact directly through the Artifact tool instead (which was already proven, and in
+hindsight should have been the first move rather than reaching for a local server at all), and Bobby
+independently supplied a PNG export that settled it beyond doubt. Next time a local HTML wireframe
+export needs viewing and the Artifact tool already has (or can get) a route to the same content,
+prefer that over spinning up any local server.
 
 ### Session 2026-11-23 (second): step UX6b, Timeline tab on entry pages
 Closed the UX1-to-UX6b scope: see the Step UX checklist's UX6b entry for the full file list and
