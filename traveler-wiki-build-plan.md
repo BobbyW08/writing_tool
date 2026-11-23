@@ -92,8 +92,8 @@ local is the working tree's uncommitted changes below.
   screen), UX5 (editor panel placement) and UX6 (entry page tabs and toolbar) done 2026-11-21: see
   the Step UX checklist and the 2026-11-21 working-log entries.
 
-**Not started:** UX4 of the start flow and page redesign (step UX, designed 2026-11-21; held for
-Bobby's review of the Review writing / Review facts AI behavior before building it),
+**Not started:** UX4 of the start flow and page redesign (step UX, designed 2026-11-21; cleared to
+build 2026-11-23 after Bobby's wireframe review, followed by UX6b),
 Story Builder canvas (step SB, designed 2026-11-21), story architecture (step AR, decided
 2026-11-12 and held), Phase 9, and switching from dev schema push to migrations before deploy.
 
@@ -1545,7 +1545,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 9 | **P0** | Audit, verify, commit and push. Done, browser checklist run 2026-11-21 (five defects found) |
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
-| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2, UX3, UX5 and UX6 done 2026-11-21. **Next: UX4** (held for Bobby's review) |
+| 12 | UX1 to UX6 | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header). UX1, UX2, UX3, UX5 and UX6 done 2026-11-21. **Next: UX4** (cleared 2026-11-23, then UX6b) |
 | 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |

@@ -5,7 +5,7 @@ the rules in `CLAUDE.md`. Do only what is written here. At the end of every sess
 file with the instructions for whatever comes after. The repo keeps exactly three instruction files:
 `CLAUDE.md`, `next.md` and `traveler-wiki-build-plan.md`.
 
-## Status: UX1, UX2, UX3, UX5 and UX6 are done. UX4 is held for Bobby's review tonight.
+## Status: UX1, UX2, UX3, UX5 and UX6 are done. UX4 is cleared to build (Bobby reviewed the wireframes and the edits are in). Build UX4, then UX6b.
 
 The Next.js 16.4.2 → 16.4.6 security upgrade is merged (commit `d3581d0`). UX1 (Home launcher), UX2
 (type-page AI gap finder) and UX3 (stories picker and per-story actions screen, `/story-builder` and
@@ -28,12 +28,11 @@ See the working-log entry "steps UX5 and UX6, editor panel placement and entry p
 detail, including exactly which existing content moved into which tab.
 
 **UX4: Review what I have so far screen (board 6, `Review.dc.html` in the "Story Builder
-Wireframes" artifact, `https://claude.ai/artifact/YPgbFm2sRvgpw6HXz8KDAU`).** Held back deliberately:
-it is the first real use of hard rule 1's one carve-out (Review writing applies a single accepted
-sentence edit to Bobby's own prose), so it gets a focused pass with Bobby rather than an autonomous
-one. Per the plan: a dedicated screen, reached from the "Review what I have so far" card on
+Wireframes" artifact, `https://claude.ai/artifact/YPgbFm2sRvgpw6HXz8KDAU`).** Bobby has now reviewed the
+wireframes, so it is cleared to build as of 2026-11-23. It is the first real use of hard rule 1's one carve-out (Review writing applies a single accepted
+sentence edit to Bobby's own prose), so build it carefully, one suggestion at a time, and never apply an edit without his explicit accept. Per the plan: a dedicated screen, reached from the "Review what I have so far" card on
 `/story-builder/[code]` once `getStoryStats(storyId).hasProse` is true (replacing that card's current
-fallback link to `/stories/[code]`). Concretely, once Bobby has reviewed and given the go-ahead:
+fallback link to `/stories/[code]`). Concretely:
 - Read `project/Review.dc.html` again before writing any code, the same way board 3/4 were read for
   UX3 (full markup already captured once this session — check the working log / prior session
   transcript before re-fetching if it's still available).
@@ -51,7 +50,7 @@ fallback link to `/stories/[code]`). Concretely, once Bobby has reviewed and giv
 - Once built, update `/story-builder/[code]/page.tsx`'s Review card to link there instead of to
   `/stories/[code]`.
 
-## Design follow-ups from Bobby (2026-11-23), build after UX4 is reviewed
+## Design follow-ups from Bobby (2026-11-23), build right after UX4
 - **UX6b:** the Timeline tab on entry pages (board 10 of the wireframe canvas). Clicking it shows the
   timeline of this one story (its span, events, planned beats, undated items) plus a button, "View in the
   master timeline", that opens the full timeline with this story highlighted. Keep the four tabs as they
@@ -61,5 +60,4 @@ fallback link to `/stories/[code]`). Concretely, once Bobby has reviewed and giv
 
 ## Do not
 Do not start the Story Builder canvas (SB), story architecture (AR) or Phase 9 without Bobby's
-go-ahead — UX1 to UX6 is the authorized scope for now. Do not build UX4's AI mechanism without
-Bobby's review and go-ahead first.
+go-ahead — UX1 to UX6 is the authorized scope for now. UX4 and UX6b are now authorized.
