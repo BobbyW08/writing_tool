@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getStoryCanvasBoard, getCanvasBeats, type BoardNodePositions } from "@/lib/world/queries";
+import { getStoryCanvasBoard, getCanvasBeats, getShelfEntries, type BoardNodePositions } from "@/lib/world/queries";
 import { createEntityAction } from "@/lib/world/actions";
 import { StoryBuilderCanvas } from "@/components/story-builder-canvas";
 
@@ -17,7 +17,7 @@ export default async function StoryBuilderCanvasPage() {
     return <p className="text-sm text-destructive">Could not create the Story Builder canvas board.</p>;
   }
 
-  const beats = await getCanvasBeats();
+  const [beats, entries] = await Promise.all([getCanvasBeats(), getShelfEntries()]);
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -37,6 +37,7 @@ export default async function StoryBuilderCanvasPage() {
         boardId={board.id}
         initialViewport={board.viewport}
         initialBeats={beats}
+        initialEntries={entries}
         initialNodePositions={(board.nodePositions ?? {}) as BoardNodePositions}
       />
     </div>

@@ -993,6 +993,15 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       - **Event and story:** the drop year is `startYear`, as for beats (rule 18). Spans keep both handles.
       - **Lore:** no year field and nothing decided yet. Place it undated at the drop point until Bobby says.
       Anything with no year sits undated (dashed outline, "no date" badge), never blocking the drop.
+      **Shelf half written 2026-11-24, not yet run in a browser.** Built from a remote session with no dev
+      server, so only `tsc --noEmit` was checked (clean); `npm run build` and a live drag test are still
+      owed. Files: `getShelfEntries()` in `lib/world/queries.ts`, `components/story-builder-shelf.tsx`
+      (right-hand "Drag onto canvas" panel, grouped with counts, entries already placed leave it),
+      `components/story-builder-entry-node.tsx` (character box shows age at its year), and the drop,
+      refuse-if-already-placed and drag-to-set-year (events, stories, items only) logic in
+      `components/story-builder-canvas.tsx`. Deleting an entry's box only removes it from the canvas.
+      **Still open in SB4:** run it in the browser, the locations year field (needs Bobby's go-ahead), the
+      lore decision, and "Make this a..." conversion of a typed box into a real entry.
 - [ ] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
 - [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
       The left menu stays visible behind the popup, dimmed (board 8).

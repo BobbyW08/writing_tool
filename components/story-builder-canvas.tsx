@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { toast } from "sonner";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -15,8 +16,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { createEntityAction, deleteEntityAction, updateFieldAction } from "@/lib/world/actions";
-import type { CanvasBeat, BoardNodePositions } from "@/lib/world/queries";
-import { YEAR_WIDTH, DEFAULT_START_YEAR } from "@/lib/story-builder/canvas-scale";
+import type { CanvasBeat, BoardNodePositions, ShelfEntry } from "@/lib/world/queries";
+import { YEAR_WIDTH, DEFAULT_START_YEAR, yearToX } from "@/lib/story-builder/canvas-scale";
+import { EntryNode, type EntryNodeData } from "@/components/story-builder-entry-node";
+import { StoryBuilderShelf, SHELF_DRAG_TYPE } from "@/components/story-builder-shelf";
 import { STORY_BUILDER_NODE_TYPES, type BeatNodeData, type BeatDraftNodeData } from "@/components/story-builder-beat-node";
 
 interface StoryBuilderCanvasProps {
@@ -24,6 +27,7 @@ interface StoryBuilderCanvasProps {
   initialViewport: { x: number; y: number; zoom: number } | null;
   initialBeats: CanvasBeat[];
   initialNodePositions: BoardNodePositions;
+  initialEntries: ShelfEntry[];
 }
 
 // Pinned to the top of the canvas, following pan and zoom (board 5): a year axis that extends in
@@ -72,6 +76,38 @@ function TimelineRuler() {
 }
 
 const DRAFT_ID = "__draft__";
+const NODE_TYPES = { ...STORY_BUILDER_NODE_TYPES, entry: EntryNode };
+
+// An existing entry placed on the canvas (step SB4). It sits at the year it already has when it has
+// one (events and stories: startYear, items: createdYear); otherwise at its stored or dropped
+// position, undated. A character's box shows an age at whatever year it sits on, so it never
+// counts as undated for placement purposes.
+function entryToFlowNode(entry: ShelfEntry, positions: BoardNodePositions, fallback: { x: number; y: number }): FlowNode {
+  const stored = positions[entry.code];
+  const x = entry.year != null ? yearToX(entry.year) : (stored?.x ?? fallback.x);
+  const y = stored?.y ?? fallback.y;
+  return {
+    id: entry.code,
+    type: "entry",
+    position: { x, y },
+    data: {
+      collection: entry.collection,
+      code: entry.code,
+      name: entry.name,
+      atYear: Math.round(x / YEAR_WIDTH),
+      undated: entry.year == null,
+      birthYear: entry.birthYear,
+    } satisfies EntryNodeData,
+  };
+}
+
+// Only these write a year of their own when dragged sideways (hard rule 18). Characters, locations
+// and lore keep the horizontal position as a board position only.
+const YEAR_FIELD: Partial<Record<ShelfEntry["collection"], string>> = {
+  events: "startYear",
+  stories: "startYear",
+  items: "createdYear",
+};
 
 function beatToFlowNode(beat: CanvasBeat, positions: BoardNodePositions, index: number, onRename: BeatNodeData["onRename"]): FlowNode {
   const stored = positions[beat.code];
@@ -85,11 +121,16 @@ function beatToFlowNode(beat: CanvasBeat, positions: BoardNodePositions, index: 
   };
 }
 
-function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositions }: StoryBuilderCanvasProps) {
+function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositions, initialEntries }: StoryBuilderCanvasProps) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { screenToFlowPosition } = useReactFlow();
   const positionsRef = useRef<BoardNodePositions>(initialNodePositions);
   const beatByCode = useRef<Map<string, CanvasBeat>>(new Map(initialBeats.map((b) => [b.code, b])));
+  const entryByCode = useRef<Map<string, ShelfEntry>>(new Map(initialEntries.map((e) => [e.code, e])));
+  // Codes of entries already on the canvas, which is also what the shelf hides.
+  const [placed, setPlaced] = useState<Set<string>>(
+    () => new Set(initialEntries.filter((e) => initialNodePositions[e.code]).map((e) => e.code))
+  );
 
   const onRename = useCallback((beatId: number, name: string) => {
     void updateFieldAction("beats", beatId, "name", name);
@@ -99,9 +140,12 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState<FlowNode>(
-    initialBeats.map((b, i) => beatToFlowNode(b, initialNodePositions, i, onRename))
-  );
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState<FlowNode>([
+    ...initialBeats.map((b, i) => beatToFlowNode(b, initialNodePositions, i, onRename)),
+    ...initialEntries
+      .filter((e) => initialNodePositions[e.code])
+      .map((e) => entryToFlowNode(e, initialNodePositions, { x: 0, y: 80 })),
+  ]);
 
   function persistPositions(next: BoardNodePositions) {
     positionsRef.current = next;
@@ -134,6 +178,22 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
   // a box out of its Undated state.
   const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback((_event, node) => {
     if (node.id === DRAFT_ID) return;
+
+    const entry = entryByCode.current.get(node.id);
+    if (entry) {
+      const entryYear = Math.round(node.position.x / YEAR_WIDTH);
+      const field = YEAR_FIELD[entry.collection];
+      if (field && entry.year !== entryYear) {
+        entry.year = entryYear;
+        void updateFieldAction(entry.collection, entry.id, field, entryYear);
+      }
+      setNodes((nds) => nds.map((n) => (n.id === node.id
+        ? { ...n, data: { ...(n.data as EntryNodeData), atYear: entryYear, undated: field ? false : (n.data as EntryNodeData).undated } satisfies EntryNodeData }
+        : n)));
+      persistPositions({ ...positionsRef.current, [node.id]: { x: node.position.x, y: node.position.y } });
+      return;
+    }
+
     const beat = beatByCode.current.get(node.id);
     if (!beat) return;
 
@@ -154,6 +214,12 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     const next = { ...positionsRef.current };
     for (const n of deleted) {
       if (n.id === DRAFT_ID) continue;
+      // Removing an entry's box takes it off the canvas only. The entry itself is never deleted here.
+      if (entryByCode.current.has(n.id)) {
+        delete next[n.id];
+        setPlaced((prev) => { const copy = new Set(prev); copy.delete(n.id); return copy; });
+        continue;
+      }
       const beat = beatByCode.current.get(n.id);
       if (!beat) continue;
       void deleteEntityAction("beats", beat.id);
@@ -190,6 +256,38 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     });
   }, [setNodes, commitDraft, cancelDraft]);
 
+  const onDragOver = useCallback((event: ReactDragEvent) => {
+    if (!event.dataTransfer.types.includes(SHELF_DRAG_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  // Dropping a shelf entry places that real entry as its own box. A drop writes nothing to the
+  // entry; only a later sideways drag of an event, story or item sets its year. An entry already on
+  // the canvas is refused with a message (per the Canvas spec).
+  const onDrop = useCallback((event: ReactDragEvent) => {
+    const code = event.dataTransfer.getData(SHELF_DRAG_TYPE);
+    if (!code) return;
+    event.preventDefault();
+    const entry = entryByCode.current.get(code);
+    if (!entry) return;
+    if (placed.has(code) || nodes.some((n) => n.id === code)) {
+      toast.error(`${entry.name} is already on the canvas.`);
+      return;
+    }
+    const drop = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    const node = entryToFlowNode(entry, {}, { x: drop.x, y: drop.y });
+    // Entries with their own year sit on it; everything else stays where it was dropped, snapped to
+    // a whole year like every other box.
+    const x = entry.year != null ? yearToX(entry.year) : Math.round(drop.x / YEAR_WIDTH) * YEAR_WIDTH;
+    node.position = { x, y: drop.y };
+    (node.data as EntryNodeData).atYear = Math.round(x / YEAR_WIDTH);
+    persistPositions({ ...positionsRef.current, [code]: { x, y: drop.y } });
+    setNodes((nds) => [...nds, node]);
+    setPlaced((prev) => new Set(prev).add(code));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placed, nodes, screenToFlowPosition, setNodes]);
+
   const onPaneDoubleClick = useCallback((event: ReactMouseEvent) => {
     const target = event.target as HTMLElement;
     if (!target.classList.contains("react-flow__pane")) return;
@@ -214,12 +312,14 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
   return (
     <div
       onDoubleClick={onPaneDoubleClick}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       className="relative h-[calc(100vh-170px)] min-h-[480px] overflow-hidden rounded-md border bg-white"
     >
       <ReactFlow
         nodes={nodes}
         edges={[]}
-        nodeTypes={STORY_BUILDER_NODE_TYPES}
+        nodeTypes={NODE_TYPES}
         onNodesChange={onNodesChangeBase}
         onNodeDragStop={onNodeDragStop}
         onNodesDelete={onNodesDelete}
@@ -235,6 +335,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
         <Controls showInteractive={false} />
       </ReactFlow>
       <TimelineRuler />
+      <StoryBuilderShelf entries={initialEntries.filter((e) => !placed.has(e.code))} />
     </div>
   );
 }

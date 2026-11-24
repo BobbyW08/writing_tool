@@ -1090,6 +1090,39 @@ export async function getCanvasBeats(): Promise<CanvasBeat[]> {
     .orderBy(schema.beats.createdAt)
 }
 
+// Step SB4: entries that can sit on the Story Builder canvas (the right-hand shelf). `year` is the
+// one number that places the box horizontally when it has one: startYear for events and stories,
+// createdYear for items. Characters carry `birthYear` separately because their box shows an age,
+// not a placement. Locations and lore have no year field yet, so they are always undated.
+export type ShelfCollection = 'characters' | 'locations' | 'events' | 'stories' | 'items' | 'lore'
+export type ShelfEntry = {
+  id: number
+  code: string
+  name: string
+  collection: ShelfCollection
+  year: number | null
+  birthYear: number | null
+}
+
+export async function getShelfEntries(): Promise<ShelfEntry[]> {
+  const [chars, locs, evs, sts, its, lr] = await Promise.all([
+    appDb.select({ id: schema.characters.id, code: schema.characters.code, name: schema.characters.name, birthYear: schema.characters.birthYear }).from(schema.characters).orderBy(schema.characters.name),
+    appDb.select({ id: schema.locations.id, code: schema.locations.code, name: schema.locations.name }).from(schema.locations).orderBy(schema.locations.name),
+    appDb.select({ id: schema.events.id, code: schema.events.code, name: schema.events.name, startYear: schema.events.startYear }).from(schema.events).orderBy(schema.events.name),
+    appDb.select({ id: schema.stories.id, code: schema.stories.code, name: schema.stories.name, startYear: schema.stories.startYear }).from(schema.stories).orderBy(schema.stories.name),
+    appDb.select({ id: schema.items.id, code: schema.items.code, name: schema.items.name, createdYear: schema.items.createdYear }).from(schema.items).orderBy(schema.items.name),
+    appDb.select({ id: schema.lore.id, code: schema.lore.code, name: schema.lore.name }).from(schema.lore).orderBy(schema.lore.name),
+  ])
+  return [
+    ...chars.map(r => ({ ...r, collection: 'characters' as const, year: null, birthYear: r.birthYear })),
+    ...locs.map(r => ({ ...r, collection: 'locations' as const, year: null, birthYear: null })),
+    ...evs.map(r => ({ id: r.id, code: r.code, name: r.name, collection: 'events' as const, year: r.startYear, birthYear: null })),
+    ...sts.map(r => ({ id: r.id, code: r.code, name: r.name, collection: 'stories' as const, year: r.startYear, birthYear: null })),
+    ...its.map(r => ({ id: r.id, code: r.code, name: r.name, collection: 'items' as const, year: r.createdYear, birthYear: null })),
+    ...lr.map(r => ({ ...r, collection: 'lore' as const, year: null, birthYear: null })),
+  ]
+}
+
 // ─── Tables (step W6) ──────────────────────────────────────────────────────
 
 export type TableColumnType = 'text' | 'number' | 'date' | 'link' | 'tag'

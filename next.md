@@ -32,6 +32,12 @@ canvas, grouped by type.
 - Event and story: drop year is `startYear` (rule 18). Lore: undated at the drop point for now.
 - No year means undated (dashed outline, "no date" badge). Never block a drop.
 Also fixed 2026-11-24 (commit `82d53f4`): idea boxes are now solid light blue, not see-through.
+**The shelf half of SB4 is already written (2026-11-24, remote session, types checked only).** First job:
+run `npm run build`, open `/story-builder`, and test it in the browser: drag one of each type from the
+shelf, confirm it leaves the shelf, a second drop of the same entry is refused with a toast, an event or
+story dragged sideways writes `startYear` and an item writes `createdYear`, a character's age line
+follows its position, and Backspace on an entry's box removes only the box. Fix whatever fails. Then
+build what is left: the locations year field (ask Bobby first), lore, and "Make this a..." conversion.
 
 Key points to carry in from SB1 to SB3:
 - Dropping an existing character/location/event/story/lore entry onto the canvas does **not** create a
