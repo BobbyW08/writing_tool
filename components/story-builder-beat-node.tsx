@@ -39,11 +39,13 @@ export function BeatNode({ data, selected }: NodeProps & { data: BeatNodeData })
   return (
     <div
       onDoubleClick={() => setEditing(true)}
-      className="rounded-md border-2 bg-blue-50/80 px-3 py-2 text-xs shadow-sm"
+      className="rounded-md border-2 px-3 py-2 text-xs shadow-sm"
       style={{
         width: 224,
+        // Solid light blue, never see-through, so the canvas dots do not show through (board 5).
+        backgroundColor: "#d6e6fb",
         borderStyle: undated ? "dashed" : "solid",
-        borderColor: selected ? "#2563eb" : "#93c5fd",
+        borderColor: selected ? "#1f6fdc" : "#2f80ed",
       }}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -93,7 +95,7 @@ function BeatDraftNode({ data }: NodeProps & { data: BeatDraftNodeData }) {
   }
 
   return (
-    <div className="rounded-md border-2 border-dashed border-blue-400 bg-blue-50/80 px-3 py-2 text-xs shadow-sm" style={{ width: 224 }}>
+    <div className="rounded-md border-2 border-dashed px-3 py-2 text-xs shadow-sm" style={{ width: 224, backgroundColor: "#d6e6fb", borderColor: "#2f80ed" }}>
       <div className="mb-1 font-semibold uppercase tracking-wide text-blue-700">Idea</div>
       <input
         ref={inputRef}
