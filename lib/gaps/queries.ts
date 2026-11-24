@@ -173,7 +173,10 @@ async function storyNoProseCandidates(): Promise<GapCandidate[]> {
   const storyIds = storyRows.map((s) => s.id);
   const beatRows = await appDb.select({ storyId: schema.beats.storyId }).from(schema.beats).where(inArray(schema.beats.storyId, storyIds));
   const beatCountByStory = new Map<number, number>();
-  for (const b of beatRows) beatCountByStory.set(b.storyId, (beatCountByStory.get(b.storyId) ?? 0) + 1);
+  for (const b of beatRows) {
+    if (b.storyId == null) continue; // filtered to storyIds above, but keeps the Map's type honest
+    beatCountByStory.set(b.storyId, (beatCountByStory.get(b.storyId) ?? 0) + 1);
+  }
 
   const withBeats = storyRows.filter((s) => (beatCountByStory.get(s.id) ?? 0) > 0);
   if (withBeats.length === 0) return [];

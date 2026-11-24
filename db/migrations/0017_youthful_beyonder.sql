@@ -1,0 +1,1 @@
+ALTER TABLE "beats" ALTER COLUMN "story_id" DROP NOT NULL;

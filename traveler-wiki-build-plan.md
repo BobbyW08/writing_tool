@@ -948,8 +948,39 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       round-tripped through the database and was restored correctly on reload after the fix; confirmed
       ctrl+scroll zoom scales both the ruler and the dot grid together. `tsc --noEmit` and `npm run
       build` both clean.
-- [ ] **SB3.** Boxes: create by typing (saved as beats), move, resize spans, set dates by horizontal drag,
-      undated state, delete, save positions on the board.
+- [x] **SB3.** Boxes: create by typing (saved as beats), move, set dates by horizontal drag, undated
+      state, delete, save positions on the board. Done 2026-11-23.
+      Before writing any code, surfaced a real conflict between the plan and the schema: `beats.storyId`
+      was `NOT NULL`, but the canvas (per SB2) is one shared board across every story, and the plan's own
+      "loose" idea box example in board 5 isn't attached to any story. Asked Bobby how a typed box should
+      relate to a story. His answer reshaped the data model: beats now start **storyless** by default,
+      and a story is a group of connected beats rather than a container you create first -- "each
+      isolated group of beats will get its own story." Dragging one beat onto another to form or join a
+      story is SB5's merging mechanic (not built yet); SB3 only needed `beats.storyId` to become
+      nullable so storyless beats are valid. Migration `db/migrations/0017_youthful_beyonder.sql`
+      (`ALTER TABLE beats ALTER COLUMN story_id DROP NOT NULL`) applied to the Neon database with
+      Bobby's explicit go-ahead (schema changes are blocked from auto-apply). Updated
+      `lib/story-builder/queries.ts`'s `getAllStoryStats` and `lib/gaps/queries.ts` to skip storyless
+      beats when bucketing by story, since they aren't any story's stat yet.
+      New `lib/world/queries.ts#getCanvasBeats()` fetches every beat regardless of story. New
+      `components/story-builder-beat-node.tsx` (`BeatNode`, `BeatDraftNode`) renders board 5's loose
+      IDEA box: dashed outline + "no date" badge while `startYear` is null, solid outline + "Year N"
+      once it has one; double-click to rename in place. `components/story-builder-canvas.tsx` now uses
+      React Flow's controlled `useNodesState`, wires up: double-click blank canvas or press N to open an
+      inline "Type anything…" box (nothing is saved until it commits non-empty text, matching board 5's
+      hint exactly), `onNodeDragStop` to set `startYear` from the horizontal position (hard rule 18 --
+      only `startYear` is ever touched by a drag, `yearLabel` is never rewritten, satisfying hard rule 3's
+      spirit) and save vertical position to the board's `nodePositions` (keyed by beat code, reusing the
+      existing `BoardNodePositions` shape from board-graph-view.tsx rather than inventing a new one), and
+      `onNodesDelete` to delete the beat (`deleteEntityAction`, already handled `beatInvolves` cleanup
+      generically) and strip its board position. Had to disable React Flow's default
+      `zoomOnDoubleClick`, which was eating the double-click meant for box creation.
+      Verified live via Playwright end to end against the real database: created a beat by double-click
+      and by pressing N, confirmed it undated (dashed, "no date") immediately after typing; dragged it
+      and confirmed `startYear` landed correctly in the database and the badge flipped to solid/"Year N";
+      renamed it by double-click and confirmed the new name persisted; deleted it with Backspace and
+      confirmed both the beat row and its board position were gone. Zero console errors throughout.
+      `tsc --noEmit` and `npm run build` both clean.
 - [ ] **SB4.** Shelf: drag existing entries onto the canvas. Convert a typed box to an entry type.
 - [ ] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
 - [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
@@ -1652,7 +1683,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 and SB2 done 2026-11-23. **Next: SB3** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1, SB2 and SB3 done 2026-11-23. **Next: SB4** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -1921,6 +1952,28 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-23 (fifth): step SB3, boxes -- and a data-model change
+
+Before writing code, found that the plan's own board-5 example (a "loose" idea box, not attached to
+any story) contradicted `beats.storyId` being `NOT NULL`, which also sat oddly against SB2's one
+shared canvas across every story. Asked Bobby directly rather than guess at a schema-level decision.
+His answer: he doesn't want a story to be a container you create beats *into* -- he wants full
+freedom to move and connect beats on one shared timeline, with a story being whatever a connected
+group of beats turns out to be ("each isolated group of beats will get its own story"), so that a
+single story reads in the context of everything else happening in the world at that time. That
+reframes beats as the primary unit and stories as derived from grouping them, confirmed with a second,
+more concrete round of the same question before touching the schema.
+
+Practical effect on SB3: `beats.storyId` became nullable (migration 0017, applied to Neon with
+Bobby's explicit approval since schema-altering commands are blocked from auto-run) and a typed box
+starts storyless. The actual beat-to-beat connecting/grouping gesture stays SB5's job (merging),
+already on the checklist -- SB3 only needed the schema to allow the storyless state it creates.
+See the SB3 checklist entry for the full build and verification list.
+
+Lesson for later steps: a plan detail that looks like a UI nuance (one example box drawn differently
+from the others) can be a sign the schema needs to change, not just the component. Worth checking
+schema constraints against the *specific examples* a wireframe or spec gives, not just its prose.
 
 ### Session 2026-11-23 (fourth): step SB2, the canvas shell
 Asked Bobby one routing question before writing code -- the plan puts the canvas at the bare

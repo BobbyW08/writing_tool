@@ -1078,6 +1078,18 @@ export async function getStoryCanvasBoard() {
   return { ...board, viewport: board.viewport as { x: number; y: number; zoom: number } | null }
 }
 
+// Step SB3: every beat box on the canvas, dated or not, regardless of story -- a beat starts
+// storyless and only joins one once merged with another beat (step SB5). Horizontal position
+// always comes from startYear, never stored (hard rule 18).
+export type CanvasBeat = { id: number; code: string; name: string; startYear: number | null; storyId: number | null }
+
+export async function getCanvasBeats(): Promise<CanvasBeat[]> {
+  return appDb
+    .select({ id: schema.beats.id, code: schema.beats.code, name: schema.beats.name, startYear: schema.beats.startYear, storyId: schema.beats.storyId })
+    .from(schema.beats)
+    .orderBy(schema.beats.createdAt)
+}
+
 // ─── Tables (step W6) ──────────────────────────────────────────────────────
 
 export type TableColumnType = 'text' | 'number' | 'date' | 'link' | 'tag'

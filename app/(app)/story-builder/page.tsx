@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getStoryCanvasBoard } from "@/lib/world/queries";
+import { getStoryCanvasBoard, getCanvasBeats, type BoardNodePositions } from "@/lib/world/queries";
 import { createEntityAction } from "@/lib/world/actions";
 import { StoryBuilderCanvas } from "@/components/story-builder-canvas";
 
@@ -17,13 +17,15 @@ export default async function StoryBuilderCanvasPage() {
     return <p className="text-sm text-destructive">Could not create the Story Builder canvas board.</p>;
   }
 
+  const beats = await getCanvasBeats();
+
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Story Builder</h1>
           <p className="text-sm text-muted-foreground">
-            Drag to pan, scroll to pan, ctrl/pinch-scroll to zoom. Boxes are coming next.
+            Drag to pan, scroll to pan, ctrl/pinch-scroll to zoom. Double-click, or press N, to add an idea.
           </p>
         </div>
         <Link href="/story-builder/pick" className="text-sm text-blue-500 hover:underline">
@@ -31,7 +33,12 @@ export default async function StoryBuilderCanvasPage() {
         </Link>
       </div>
 
-      <StoryBuilderCanvas boardId={board.id} initialViewport={board.viewport} />
+      <StoryBuilderCanvas
+        boardId={board.id}
+        initialViewport={board.viewport}
+        initialBeats={beats}
+        initialNodePositions={(board.nodePositions ?? {}) as BoardNodePositions}
+      />
     </div>
   );
 }

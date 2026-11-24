@@ -36,9 +36,12 @@ export async function getAllStoryStats(): Promise<Map<number, StoryStats>> {
     stats.set(w.storyId, s);
   }
 
+  // Step SB3: a beat typed straight onto the Story Builder canvas starts with no story (storyId
+  // null) until it's grouped with another beat (step SB5, merging) -- it isn't any story's stat yet.
   const beatRows = await appDb.select({ id: schema.beats.id, storyId: schema.beats.storyId }).from(schema.beats);
   const beatIdsByStory = new Map<number, number[]>();
   for (const b of beatRows) {
+    if (b.storyId == null) continue;
     const s = stats.get(b.storyId) ?? { ...EMPTY_STATS };
     s.beatCount += 1;
     stats.set(b.storyId, s);

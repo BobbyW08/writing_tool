@@ -238,7 +238,10 @@ export const storyDramatizes = pgTable('story_dramatizes', {
 
 export const beats = pgTable('beats', {
   ...worldSharedCols(),
-  storyId: integer('story_id').notNull(),
+  // Nullable since step SB3: a box typed straight onto the Story Builder canvas starts as a loose
+  // beat with no story. Dragging it onto another beat (step SB5, merging) is what assigns a storyId --
+  // a story is a group of connected beats, not a container you have to create first.
+  storyId: integer('story_id'),
   order: integer('order').notNull().default(0),
   startYear: integer('start_year'),
   yearLabel: text('year_label'),
