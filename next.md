@@ -13,8 +13,7 @@ SB3's entry in particular documents a real data-model change (beats now start st
 group of connected beats, formed by SB5's merging, not a container you create first) that SB4 and SB5
 both build directly on.
 
-**Not yet committed as of writing this**: confirm with Bobby whether SB3's changes are already
-committed before starting SB4 -- check `git log` and `git status` first rather than assuming.
+SB3 is committed (`c503398`).
 
 ## SB4: Shelf
 
@@ -23,6 +22,16 @@ type." Board 5's wireframe (`source-docs/wireframe-png/5. Story Builder canvas, 
 selected box.png`) shows this as a right-hand panel: "Drag onto canvas" with grouped counts
 (Characters (2), Stories (1), Locations (1), Events, Items and Lore) -- entries not yet placed on the
 canvas, grouped by type.
+
+**Bobby's answer to the x-position question (2026-11-24), build to this:**
+- Character: dropping at year X shows the character's age at that year (X minus `birthYear`), or "age
+  unknown" with an offer to set a birth year when there is none. Dropping does not change `birthYear`.
+- Location and item: the drop year is the founding year or the first mention in the story. Items already
+  have `createdYear`. Locations have no year field, so add one nullable whole-year field (migration,
+  confirm with Bobby before applying, as with 0017) and wire it into the link index extraction if needed.
+- Event and story: drop year is `startYear` (rule 18). Lore: undated at the drop point for now.
+- No year means undated (dashed outline, "no date" badge). Never block a drop.
+Also fixed 2026-11-24 (commit `82d53f4`): idea boxes are now solid light blue, not see-through.
 
 Key points to carry in from SB1 to SB3:
 - Dropping an existing character/location/event/story/lore entry onto the canvas does **not** create a

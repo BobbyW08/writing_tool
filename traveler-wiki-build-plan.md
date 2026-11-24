@@ -982,6 +982,17 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       confirmed both the beat row and its board position were gone. Zero console errors throughout.
       `tsc --noEmit` and `npm run build` both clean.
 - [ ] **SB4.** Shelf: drag existing entries onto the canvas. Convert a typed box to an entry type.
+      Bobby's decisions on what a dropped entry's horizontal position means (2026-11-24):
+      - **Character:** the drop year is the year being looked at, and the box shows the character's age at
+        that year (drop year minus `birthYear`). With no `birthYear` the box says "age unknown" and offers
+        to set one. Dropping never changes `birthYear` by itself.
+      - **Location and item:** the drop year is the year it is founded, or first mentioned in the story
+        (items already have `createdYear`). Locations have no year field yet, so SB4 needs one small schema
+        addition (a nullable whole-year field for founding or first mention) before locations can be
+        placed. Ask Bobby before running that migration.
+      - **Event and story:** the drop year is `startYear`, as for beats (rule 18). Spans keep both handles.
+      - **Lore:** no year field and nothing decided yet. Place it undated at the drop point until Bobby says.
+      Anything with no year sits undated (dashed outline, "no date" badge), never blocking the drop.
 - [ ] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
 - [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
       The left menu stays visible behind the popup, dimmed (board 8).
