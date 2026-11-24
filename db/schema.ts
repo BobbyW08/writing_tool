@@ -569,7 +569,7 @@ export const chronicles = pgTable('chronicles', {
 // story map, and whiteboards over the same canvas). See traveler-wiki-build-plan.md "boards".
 export const boards = pgTable('boards', {
   ...worldSharedCols(),
-  kind: text('kind').notNull().default('node_map'), // node_map | content_tree | family_tree | causal_tree | story_map | whiteboard
+  kind: text('kind').notNull().default('node_map'), // node_map | content_tree | family_tree | causal_tree | story_map | whiteboard | story_canvas
   rootCodes: jsonb('root_codes').$type<string[]>().default(sql`'[]'::jsonb`),
   query: jsonb('query')
     .$type<{ collections: string[]; relationshipTypes: string[]; sources: string[]; direction: 'out' | 'in' | 'both'; depth: number; yearFrom: number | null; yearTo: number | null }>()

@@ -5,50 +5,53 @@ the rules in `CLAUDE.md`. Do only what is written here. At the end of every sess
 file with the instructions for whatever comes after. The repo keeps exactly three instruction files:
 `CLAUDE.md`, `next.md` and `traveler-wiki-build-plan.md`.
 
-## Current phase: Story Builder canvas (step SB). SB1 done 2026-11-23. Do SB2 next.
+## Current phase: Story Builder canvas (step SB). SB1 and SB2 done 2026-11-23. Do SB3 next.
 
-Bobby authorized the Story Builder canvas as the next phase after UX1-to-UX6b closed (see
-`traveler-wiki-build-plan.md`'s "Story Builder canvas (step SB)" section for the full spec: menu and
-entry point, canvas, expanded box, and the Step SB checklist SB1 to SB8). SB1 (new left menu order and
-the Story Builder route) is done -- see its checklist entry and the 2026-11-23 (third) working-log
-entry for what was built and why the nav flattening went exactly as the wireframe shows (confirmed
-with Bobby, who pointed to the wireframe itself and sent updated copies, now saved in `source-docs/`:
-`Story Builder Wireframes.html`, `Story Builder Wireframes-png.zip`, and `wireframe-png/` with one PNG
-per board).
+SB1 (new left menu, `/story-builder` as the canvas route) and SB2 (canvas shell: React Flow, dotted
+background, pan, zoom, pinned timeline ruler) are both done -- see their checklist entries and the two
+2026-11-23 working-log entries for what was built, the two routing/layout questions asked and answered
+along the way, and a real viewport bug caught and fixed during live verification.
 
-## SB2: Canvas shell
+**Not yet committed as of writing this**: confirm with Bobby whether SB2's changes are already
+committed before starting SB3 -- check `git log` and `git status` first rather than assuming.
 
-Per the checklist: "React Flow, dotted background, pan, zoom, pinned timeline ruler (0 to 5, extend,
-zoom)." Read the "Story Builder canvas (step SB)" section's "Canvas" subsection in the plan in full
-before starting, and look at board 5 (`Canvas.dc.html` in the wireframe artifact, or
-`source-docs/wireframe-png/5. Story Builder canvas, with ideas for the selected box.png`) for the
-exact layout. Key points from the spec:
+## SB3: Boxes
 
-- Route `/story-builder/[code]` already exists (step UX3's per-story actions page) -- check whether
-  this step changes that route to the canvas itself, or whether the canvas is a new view reached from
-  it. Re-read the spec's "Until SB3 exists this opens the story's beats page" line (under "Start flow
-  and page redesign") for how the existing flow currently reaches Story Builder, and decide how SB2's
-  shell fits into that without breaking the picker (`/story-builder`) or per-story actions flow that
-  UX3 already built.
-- React Flow (`@xyflow/react`) -- already a project dependency (used for node maps and trees per the
-  stack table in `CLAUDE.md`). Reuse it, per hard rule 10 and the one node/edge shape rule (hard rule
-  15, `lib/graph/types.ts`) -- though the canvas's own boxes are a different, SB-specific shape (board
-  positions, not graph nodes/edges), since hard rule 18 says layout position belongs to a board, not
-  the record.
-- Dot-pattern background, pan and zoom, white canvas in the wireframe (the wireframe boards are dark
-  theme for the chrome around it, but the canvas area itself reads as drawn -- check the actual
-  colors in the board 5 image rather than assuming).
-- A custom timeline ruler pinned to the top, following pan and zoom, defaulting to years 0 to 5 (Year
-  0 is SERO's birth per hard rule 3), extending in both directions, years as whole numbers.
-- Storage: this step only needs a minimal `boards` row with `kind = 'story_canvas'` to hold the
-  viewport (the `boards` table already exists in `db/schema.ts` with a `viewport` column and a `kind`
-  column whose comment lists allowed values -- `story_canvas` is not yet one of them, so add it to
-  that comment, and add a migration if the column needs anything SB2 specifically requires beyond what
-  already exists). Box positions, sizes and groups (hard rule 18) are SB3's job, not SB2's -- this step
-  is the shell only: pan, zoom, dotted background, the pinned ruler.
+Per the checklist: "Boxes: create by typing (saved as beats), move, resize spans, set dates by
+horizontal drag, undated state, delete, save positions on the board." Read the "Story Builder canvas
+(step SB)" section's "Canvas" subsection in the plan in full before starting (the "Creating boxes" and
+"Moving" bullets especially), and look at board 5 (`source-docs/wireframe-png/5. Story Builder canvas,
+with ideas for the selected box.png`) again for exact box styling (CHARACTER, STORY-span, LOCATION,
+IDEA box variants) and the "Double click blank canvas, or press N, to create a new box" empty-state
+hint.
+
+Key points to carry in from SB2's build:
+- `lib/story-builder/canvas-scale.ts` (`YEAR_WIDTH`, `yearToX`, `xToYear`) is the one shared
+  pixel-per-year mapping -- box x positions must use it, not a new constant, so they land in the same
+  place the ruler already draws its ticks.
+- The canvas's board row (code D, `kind = 'story_canvas'`, fetched via `getStoryCanvasBoard()` in
+  `lib/world/queries.ts`) is where box *vertical* position, size and group belong (hard rule 18) --
+  almost certainly in its existing `nodePositions` jsonb column, keyed by the beat's code, the same
+  shape `BoardNodePositions` already uses for node maps (`{x, y, collapsed?, pinned?}` -- check whether
+  that shape needs extending with `width`/`height` for span boxes, or a separate field).
+- A typed box is saved as a beat (`state = 'idea'`) immediately on creation -- "every box is a record."
+  Use `createEntityAction('beats', {...})`, the same generic action SB2 reused for the board row.
+- Horizontal position is never stored on the beat itself -- it comes from `startYear` (point boxes) or
+  `startYear`/`endYear` (span boxes, drag either edge to resize). Moving a box horizontally sets those
+  fields through `updateFieldAction`, same as the master timeline's drag-to-reposition already does
+  (`updateEventYearAction` is the precedent to look at, even though this is beats not events).
+  Dragging never rewrites `yearLabel` silently (hard rule 3) -- after a horizontal drag, offer to
+  update it, don't just overwrite it.
+- Boxes with no year sit in an "Undated" state (dashed outline, "no date" badge per the wireframe) --
+  a missing date never blocks a save (hard rule 4's spirit: placeholders are first-class).
+- `components/story-builder-canvas.tsx` currently renders `nodes={[]} edges={[]}` -- SB3 is where real
+  nodes (one React Flow custom node type per box kind, or one flexible type) and the node-click/drag
+  handlers actually get wired in.
 
 ## Do not
 
-Do not start SB3 to SB8, AR, or Phase 9 without finishing SB2 and checking in first if anything about
-its scope is unclear the way SB1's nav scope was. Do not touch the `beats` table's schema or write any
-new beat rows in this step -- that starts at SB3 ("Boxes: create by typing (saved as beats)...").
+Do not start SB4 to SB8, AR, or Phase 9 without finishing SB3 and checking in first if anything about
+its scope is unclear, the same way SB1's nav scope and SB2's route scope both were. Do not build the
+shelf (dragging existing entries onto the canvas, SB4), merging (SB5), the expanded popup (SB6), or any
+AI helper (SB7) in this step -- SB3 is boxes only: create, move, resize, undated state, delete, save
+position.

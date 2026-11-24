@@ -1,48 +1,37 @@
 import Link from "next/link";
-import { getStoryPickerList, getAllStoryStats } from "@/lib/story-builder/queries";
-import { StoryBuilderNewForm } from "@/components/story-builder-new-form";
+import { getStoryCanvasBoard } from "@/lib/world/queries";
+import { createEntityAction } from "@/lib/world/actions";
+import { StoryBuilderCanvas } from "@/components/story-builder-canvas";
 
-// Step UX3, board 3: "New story" or "pick one you already have." Distinct from /stories (the full
-// world-collection browser, kept as-is for the world tree and table/board views) -- this is the
-// dedicated launch flow Home's "Open Story Builder" and the sidebar's Story Builder link reach.
-export default async function StoryBuilderPickerPage() {
-  const [stories, stats] = await Promise.all([getStoryPickerList(), getAllStoryStats()]);
+// Step SB2 (board 5): the endless canvas itself. Previously this bare route was the UX3 "new story
+// or pick existing" picker; that moved to /story-builder/pick once the canvas needed the real route
+// the plan specifies. The canvas's own board (code D, kind = story_canvas) is a singleton, created
+// lazily on first open -- there is exactly one, shared across every story, same as the master timeline.
+export default async function StoryBuilderCanvasPage() {
+  let board = await getStoryCanvasBoard();
+  if (!board) {
+    await createEntityAction("boards", { kind: "story_canvas", name: "Story Builder canvas" });
+    board = await getStoryCanvasBoard();
+  }
+  if (!board) {
+    return <p className="text-sm text-destructive">Could not create the Story Builder canvas board.</p>;
+  }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Stories</h1>
-
-      <div className="flex flex-wrap gap-5">
-        <StoryBuilderNewForm />
-
-        <section className="flex flex-1 min-w-[320px] flex-col gap-2.5 rounded-lg border p-5">
-          <div className="text-lg font-semibold">Or pick one you already have</div>
-          {stories.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No stories yet.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {stories.map((s) => {
-                const stat = stats.get(s.id);
-                return (
-                  <Link
-                    key={s.id}
-                    href={`/story-builder/${s.code}`}
-                    className="flex items-center justify-between gap-4 rounded-md border px-3.5 py-3 text-sm hover:bg-accent"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{s.name}</div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        {(stat?.wordCount ?? 0).toLocaleString()} words written, {stat?.beatCount ?? 0} beats
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-sm text-blue-500">Choose</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </section>
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Story Builder</h1>
+          <p className="text-sm text-muted-foreground">
+            Drag to pan, scroll to pan, ctrl/pinch-scroll to zoom. Boxes are coming next.
+          </p>
+        </div>
+        <Link href="/story-builder/pick" className="text-sm text-blue-500 hover:underline">
+          Stories
+        </Link>
       </div>
+
+      <StoryBuilderCanvas boardId={board.id} initialViewport={board.viewport} />
     </div>
   );
 }

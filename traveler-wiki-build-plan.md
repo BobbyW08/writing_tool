@@ -916,7 +916,38 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       wireframe. Verified live via Playwright: Home and Characters both render the new nav with correct
       active-state highlighting, and Items/Compilations routes both load with zero console errors.
       `tsc --noEmit` and `npm run build` both clean.
-- [ ] **SB2.** Canvas shell: React Flow, dotted background, pan, zoom, pinned timeline ruler (0 to 5, extend, zoom).
+- [x] **SB2.** Canvas shell: React Flow, dotted background, pan, zoom, pinned timeline ruler (0 to 5,
+      extend, zoom). Done 2026-11-23. Asked Bobby first how the canvas (which the plan puts at the
+      bare `/story-builder` route) should coexist with the UX3 "new story or pick existing" picker
+      already living there -- he confirmed the canvas takes `/story-builder`, with the picker moved to
+      `/story-builder/pick` (new `app/(app)/story-builder/pick/page.tsx`, content unchanged from the old
+      bare-route page) and the two "Stories" breadcrumb links in `/story-builder/[code]` and its
+      `/review` subpage repointed there. Home's "Open Story Builder" button and the nav's Story Builder
+      link needed no change -- both already meant "open the canvas."
+      `app/(app)/story-builder/page.tsx` now creates/fetches a singleton `boards` row (code D,
+      `kind = 'story_canvas'`, one shared board for every story, same spirit as the master timeline)
+      via a new `getStoryCanvasBoard()` query and the existing generic `createEntityAction`, and renders
+      `components/story-builder-canvas.tsx` (`StoryBuilderCanvas` and `TimelineRuler`): React Flow with
+      a dot-pattern `Background`, pan and zoom (native library behavior, `panOnScroll`), and a ruler
+      pinned to the top that reads `useViewport()` live and extends its tick range in both directions
+      as you pan -- no separate state to keep in sync. `lib/story-builder/canvas-scale.ts` is the one
+      shared pixel-per-year constant (`YEAR_WIDTH`) SB3's box positions will read too (hard rule 18).
+      Viewport (x, y, zoom) is debounce-saved to the board on `onMoveEnd` via the existing
+      `updateFieldAction`, so the canvas reopens where it was left.
+      Also noticed and fixed, while building: every wireframe board in the Story Builder flow (1, 3, 4,
+      5) draws nav + content only, with no middle world-tree column -- the already-shipped UX3 picker
+      had been carrying that column anyway (easy to miss on a form-like page, much harder to miss on a
+      pan/zoom canvas that needs the width). New `components/world-tree-aside.tsx` hides the tree for
+      every `/story-builder*` route rather than duplicating it or leaving the canvas cramped.
+      One real bug found and fixed during live verification: the initial/restored viewport did not
+      apply when set imperatively via `useReactFlow().setViewport()` in a mount effect -- it raced
+      React Flow's own first paint and silently lost. Fixed by using the `defaultViewport` prop on
+      `<ReactFlow>` instead, which is the library's documented way to set the starting viewport.
+      Verified live via Playwright: panned the canvas (wheel event), confirmed the ruler's ticks
+      extended into negative years and the dot grid tracked the pan; confirmed the panned viewport
+      round-tripped through the database and was restored correctly on reload after the fix; confirmed
+      ctrl+scroll zoom scales both the ruler and the dot grid together. `tsc --noEmit` and `npm run
+      build` both clean.
 - [ ] **SB3.** Boxes: create by typing (saved as beats), move, resize spans, set dates by horizontal drag,
       undated state, delete, save positions on the board.
 - [ ] **SB4.** Shelf: drag existing entries onto the canvas. Convert a typed box to an entry type.
@@ -1621,7 +1652,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 done 2026-11-23. **Next: SB2** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 and SB2 done 2026-11-23. **Next: SB3** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -1890,6 +1921,23 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-23 (fourth): step SB2, the canvas shell
+Asked Bobby one routing question before writing code -- the plan puts the canvas at the bare
+`/story-builder` route, which UX3's "new story or pick existing" picker already occupied -- and he
+picked moving the picker to `/story-builder/pick` and giving the canvas the bare route outright. See
+the Step SB checklist's SB2 entry for the full file list, the world-tree-aside fix (every Story
+Builder wireframe board draws nav + content with no middle tree column; the canvas needs that width
+to function as an actual endless surface), and a real bug (initial viewport silently failing to apply
+via an imperative `setViewport()` call in a mount effect, fixed with React Flow's `defaultViewport`
+prop instead) caught only because live verification checked the saved value actually round-tripped
+through a reload, not just that the save call didn't throw.
+
+Worth remembering for later SB steps: a mount-effect call into a visualization library's own instance
+API (`setViewport`, and plausibly similar imperative calls in other libraries) can silently lose a
+race with the library's first paint. Prefer the library's own "initial state" prop when one exists
+over imperatively setting it after mount, and when there's no such prop, verify the imperative call
+actually took effect (reload and check), not just that it ran without error.
 
 ### Session 2026-11-23 (third): step SB1, the new left menu
 With UX1 to UX6b closed, Bobby chose the Story Builder canvas (step SB) as the next authorized work.

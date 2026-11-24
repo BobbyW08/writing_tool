@@ -1034,7 +1034,7 @@ export async function getRecentEdits(limit = 10): Promise<{
 // A board never creates edges in the link index — it only draws them. See
 // traveler-wiki-build-plan.md "boards".
 
-export type BoardKind = 'node_map' | 'content_tree' | 'family_tree' | 'causal_tree' | 'story_map' | 'whiteboard'
+export type BoardKind = 'node_map' | 'content_tree' | 'family_tree' | 'causal_tree' | 'story_map' | 'whiteboard' | 'story_canvas'
 export type BoardQuery = {
   collections: string[]; relationshipTypes: string[]; sources: string[]
   direction: 'out' | 'in' | 'both'; depth: number
@@ -1064,6 +1064,18 @@ export async function getBoardByCode(code: string) {
     query: board.query as BoardQuery,
     nodePositions: (board.nodePositions ?? {}) as BoardNodePositions,
   }
+}
+
+// ─── Story Builder canvas board (step SB2) ──────────────────────────────────
+// One singleton board, kind = 'story_canvas', holds the canvas's viewport (x, y, zoom). Hard rule
+// 15/18: layout position belongs to a board, never the record being drawn. Box positions, sizes and
+// groups land on this same board's nodePositions once SB3 creates boxes -- this query only returns
+// the row; app/(app)/story-builder/page.tsx creates it lazily via createEntityAction if missing.
+export async function getStoryCanvasBoard() {
+  const rows = await appDb.select().from(schema.boards).where(eq(schema.boards.kind, 'story_canvas')).limit(1)
+  const board = rows[0]
+  if (!board) return null
+  return { ...board, viewport: board.viewport as { x: number; y: number; zoom: number } | null }
 }
 
 // ─── Tables (step W6) ──────────────────────────────────────────────────────

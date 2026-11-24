@@ -58,7 +58,7 @@ export default async function StoryReviewPage({ params }: { params: Promise<{ co
       <div className="flex gap-1.5 text-sm text-muted-foreground">
         <Link href="/" className="hover:underline">Home</Link>
         <span>/</span>
-        <Link href="/story-builder" className="hover:underline">Stories</Link>
+        <Link href="/story-builder/pick" className="hover:underline">Stories</Link>
         <span>/</span>
         <Link href={`/story-builder/${doc.code}`} className="hover:underline">{doc.name}</Link>
         <span>/</span>

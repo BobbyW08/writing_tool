@@ -3,7 +3,7 @@ import "./globals.css";
 import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
 import { NameSearch } from "@/components/name-search";
-import { WorldTree } from "@/components/world-tree";
+import { WorldTreeAside } from "@/components/world-tree-aside";
 import { MainNav } from "@/components/main-nav";
 import { getWorldTreeNodes } from "@/lib/world/queries";
 
@@ -41,10 +41,8 @@ export default async function AppLayout({ children, modal }: { children: React.R
             <MainNav />
           </nav>
 
-          {/* World tree panel */}
-          <aside className="flex w-56 shrink-0 flex-col border-r bg-background px-2 py-3">
-            <WorldTree nodes={treeNodes} />
-          </aside>
+          {/* World tree panel -- hidden on the Story Builder flow, see world-tree-aside.tsx */}
+          <WorldTreeAside nodes={treeNodes} />
 
           {/* Main canvas */}
           <main className="min-w-0 flex-1 overflow-y-auto p-6">{children}</main>
