@@ -26,9 +26,11 @@ import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
 import { resolveMergePairing, type MergePairing } from "@/lib/story-builder/merge";
 import { EntryNode, type EntryNodeData, ENTRY_COLLECTION_LABELS } from "@/components/story-builder-entry-node";
 import { StoryBuilderShelf, SHELF_DRAG_TYPE } from "@/components/story-builder-shelf";
-import { STORY_BUILDER_NODE_TYPES, type BeatNodeData, type BeatDraftNodeData, type BeatConvertCollection } from "@/components/story-builder-beat-node";
+import { STORY_BUILDER_NODE_TYPES, type BeatNodeData, type BeatDraftNodeData, type BeatConvertCollection, type GhostNodeData } from "@/components/story-builder-beat-node";
 import { MergeMenu } from "@/components/story-builder-merge-menu";
 import { StoryBuilderBoxPopup, type BoxPopupTarget } from "@/components/story-builder-box-popup";
+import { generateBeatCardsAction } from "@/lib/ai/actions";
+import { acceptBeatCardAction } from "@/lib/story-builder/popup-actions";
 
 interface StoryBuilderCanvasProps {
   boardId: number;
@@ -90,7 +92,9 @@ const NODE_TYPES = { ...STORY_BUILDER_NODE_TYPES, entry: EntryNode };
 // one (events and stories: startYear, items: createdYear); otherwise at its stored or dropped
 // position, undated. A character's box shows an age at whatever year it sits on, so it never
 // counts as undated for placement purposes.
-function entryToFlowNode(entry: ShelfEntry, positions: BoardNodePositions, fallback: { x: number; y: number }): FlowNode {
+function entryToFlowNode(
+  entry: ShelfEntry, positions: BoardNodePositions, fallback: { x: number; y: number }, onSuggest?: EntryNodeData["onSuggest"]
+): FlowNode {
   const stored = positions[entry.code];
   const x = entry.year != null ? yearToX(entry.year) : (stored?.x ?? fallback.x);
   const y = stored?.y ?? fallback.y;
@@ -105,6 +109,7 @@ function entryToFlowNode(entry: ShelfEntry, positions: BoardNodePositions, fallb
       atYear: Math.round(x / YEAR_WIDTH),
       undated: entry.year == null,
       birthYear: entry.birthYear,
+      onSuggest,
     } satisfies EntryNodeData,
   };
 }
@@ -122,7 +127,8 @@ function beatToFlowNode(
   positions: BoardNodePositions,
   index: number,
   onRename: BeatNodeData["onRename"],
-  onConvert: BeatNodeData["onConvert"]
+  onConvert: BeatNodeData["onConvert"],
+  onSuggest: BeatNodeData["onSuggest"]
 ): FlowNode {
   const stored = positions[beat.code];
   const x = beat.startYear != null ? beat.startYear * YEAR_WIDTH : (stored?.x ?? DEFAULT_START_YEAR * YEAR_WIDTH);
@@ -131,7 +137,7 @@ function beatToFlowNode(
     id: beat.code,
     type: "beat",
     position: { x, y },
-    data: { beatId: beat.id, name: beat.name, startYear: beat.startYear, onRename, onConvert } satisfies BeatNodeData,
+    data: { beatId: beat.id, name: beat.name, startYear: beat.startYear, onRename, onConvert, onSuggest } satisfies BeatNodeData,
   };
 }
 
@@ -175,6 +181,13 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Step SB7: idea generation from a selected box. onSuggestIdeasStable is what node data actually
+  // holds (a stable identity, so entryToFlowNode/beatToFlowNode calls don't need to be redone on
+  // every render) -- it forwards to whatever onSuggestIdeas currently is via a ref, since
+  // onSuggestIdeas itself closes over the live `nodes` array to find the selected box's position.
+  const onSuggestIdeasRef = useRef<(code: string) => void>(() => {});
+  const onSuggestIdeasStable = useCallback((code: string) => onSuggestIdeasRef.current(code), []);
+
   // Step SB4: "Make this a..." on a beat box. The beat stays in place (it is just marked promoted,
   // same as promoteBeatToEventAction already did for the Beats lane) -- the new entity's box takes
   // over the same board position, same way a deleted box's position is freed up elsewhere here.
@@ -210,22 +223,112 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     setPlaced((prev) => new Set(prev).add(newCode));
     setNodes((nds) => [
       ...nds.filter((n) => n.id !== oldCode),
-      entryToFlowNode(newEntry, nextPositions, oldPos ?? { x: 0, y: 80 }),
+      entryToFlowNode(newEntry, nextPositions, oldPos ?? { x: 0, y: 80 }, onSuggestIdeasStable),
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<FlowNode>([
-    ...initialBeats.map((b, i) => beatToFlowNode(b, initialNodePositions, i, onRename, onConvertBeat)),
+    ...initialBeats.map((b, i) => beatToFlowNode(b, initialNodePositions, i, onRename, onConvertBeat, onSuggestIdeasStable)),
     ...initialEntries
       .filter((e) => initialNodePositions[e.code])
-      .map((e) => entryToFlowNode(e, initialNodePositions, { x: 0, y: 80 })),
+      .map((e) => entryToFlowNode(e, initialNodePositions, { x: 0, y: 80 }, onSuggestIdeasStable)),
   ]);
 
   function persistPositions(next: BoardNodePositions) {
     positionsRef.current = next;
     void updateFieldAction("boards", boardId, "nodePositions", next);
   }
+
+  // Step SB7: idea generation from a selected box, defined here (after useNodesState) since these
+  // close over the live `nodes`/`setNodes`. onSuggestIdeasStable above is what node data actually
+  // holds -- a stable identity entryToFlowNode/beatToFlowNode calls don't need redoing on every
+  // render -- and forwards to whichever of these is current via the ref.
+  const clearGhosts = useCallback(() => {
+    setNodes((nds) => nds.filter((n) => !n.id.startsWith("__ghost__")));
+  }, [setNodes]);
+
+  const onDismissGhost = useCallback((ghostId: string) => {
+    setNodes((nds) => nds.filter((n) => n.id !== ghostId));
+  }, [setNodes]);
+
+  // "Add to canvas": the one moment a suggested idea becomes a real beat (hard rule 19's spirit --
+  // nothing about a suggestion is real until accepted). Reuses acceptBeatCardAction, the same path
+  // the popup's own "What happens next" button saves through.
+  const onAddGhost = useCallback((
+    ghostId: string, storyId: number, storyCode: string, name: string, summary: string, position: { x: number; y: number }
+  ) => {
+    setNodes((nds) => nds.map((n) => (n.id === ghostId ? { ...n, data: { ...(n.data as GhostNodeData), pending: true } } : n)));
+    void (async () => {
+      const result = await acceptBeatCardAction(storyId, name, summary);
+      if (!result.ok || !result.id || !result.code) {
+        toast.error(result.error ?? "Could not save that idea.");
+        setNodes((nds) => nds.map((n) => (n.id === ghostId ? { ...n, data: { ...(n.data as GhostNodeData), pending: false } } : n)));
+        return;
+      }
+      const beat: CanvasBeat = { id: result.id, code: result.code, name, startYear: null, storyId, storyCode };
+      beatByCode.current.set(beat.code, beat);
+      persistPositions({ ...positionsRef.current, [beat.code]: position });
+      setNodes((nds) => [
+        ...nds.filter((n) => n.id !== ghostId),
+        beatToFlowNode(beat, positionsRef.current, 0, onRename, onConvertBeat, onSuggestIdeasStable),
+      ]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onSuggestIdeas = useCallback((code: string) => {
+    const entry = entryByCode.current.get(code);
+    const beat = entry ? undefined : beatByCode.current.get(code);
+    let storyId: number;
+    let storyCode: string;
+    if (entry) {
+      if (entry.collection !== "stories") return;
+      storyId = entry.id;
+      storyCode = entry.code;
+    } else if (beat) {
+      if (beat.storyId == null || !beat.storyCode) {
+        toast.error("Group this idea into a story first.");
+        return;
+      }
+      storyId = beat.storyId;
+      storyCode = beat.storyCode;
+    } else {
+      return;
+    }
+
+    clearGhosts();
+    const sourceNode = nodes.find((n) => n.id === code);
+    const basePos = sourceNode?.position ?? { x: 0, y: 0 };
+    void (async () => {
+      const result = await generateBeatCardsAction(storyCode);
+      if (!result.ok) {
+        toast.error(result.error ?? "Could not get ideas.");
+        return;
+      }
+      if (!result.cards?.length) {
+        toast.info("No suggestions this time.");
+        return;
+      }
+      const ghostNodes: FlowNode[] = result.cards.map((card, i) => {
+        const ghostId = `__ghost__-${Date.now()}-${i}`;
+        // Ghost boxes wrap a full summary and run well past 90px tall -- 190px keeps them from
+        // stacking on top of each other and hiding each other's Add to canvas/Dismiss buttons.
+        const position = { x: basePos.x + 240, y: basePos.y + i * 190 };
+        const data: GhostNodeData = {
+          name: card.name,
+          summary: card.summary,
+          pending: false,
+          onAdd: () => onAddGhost(ghostId, storyId, storyCode, card.name, card.summary, position),
+          onDismiss: () => onDismissGhost(ghostId),
+        };
+        return { id: ghostId, type: "ghost", position, data, draggable: false, selectable: false };
+      });
+      setNodes((nds) => [...nds, ...ghostNodes]);
+    })();
+  }, [nodes, clearGhosts, onAddGhost, onDismissGhost, setNodes]);
+
+  onSuggestIdeasRef.current = onSuggestIdeas;
 
   // React Flow's own `defaultViewport` prop is the reliable way to set the initial viewport -- an
   // imperative setViewport() call in a mount effect races the renderer's own first paint and loses.
@@ -282,7 +385,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
       if (overlapping) {
         const target = entryByCode.current.get(overlapping.id)!;
         const droppedPosition = { x: node.position.x, y: node.position.y };
-        setNodes((nds) => nds.map((n) => (n.id === node.id ? entryToFlowNode(entry, positionsRef.current, droppedPosition) : n)));
+        setNodes((nds) => nds.map((n) => (n.id === node.id ? entryToFlowNode(entry, positionsRef.current, droppedPosition, onSuggestIdeasStable) : n)));
         const pairing = resolveMergePairing(entry, target);
         if (!pairing) {
           toast.error(`${entry.name} can't be merged with ${target.name} this way.`);
@@ -385,7 +488,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
   const onNodesDelete = useCallback((deleted: FlowNode[]) => {
     const next = { ...positionsRef.current };
     for (const n of deleted) {
-      if (n.id === DRAFT_ID) continue;
+      if (n.id === DRAFT_ID || n.id.startsWith("__ghost__")) continue;
       // Removing an entry's box takes it off the canvas only. The entry itself is never deleted here.
       if (entryByCode.current.has(n.id)) {
         delete next[n.id];
@@ -410,10 +513,10 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     cancelDraft();
     const result = await createEntityAction("beats", { name });
     if (result.error || !result.code) return;
-    const beat: CanvasBeat = { id: result.id, code: result.code, name, startYear: null, storyId: null };
+    const beat: CanvasBeat = { id: result.id, code: result.code, name, startYear: null, storyId: null, storyCode: null };
     beatByCode.current.set(beat.code, beat);
     persistPositions({ ...positionsRef.current, [beat.code]: { x: position.x, y: position.y } });
-    setNodes((nds) => [...nds, beatToFlowNode(beat, positionsRef.current, 0, onRename, onConvertBeat)]);
+    setNodes((nds) => [...nds, beatToFlowNode(beat, positionsRef.current, 0, onRename, onConvertBeat, onSuggestIdeasStable)]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancelDraft, setNodes, onRename, onConvertBeat]);
 
@@ -448,7 +551,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
       return;
     }
     const drop = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    const node = entryToFlowNode(entry, {}, { x: drop.x, y: drop.y });
+    const node = entryToFlowNode(entry, {}, { x: drop.x, y: drop.y }, onSuggestIdeasStable);
     // Entries with their own year sit on it; everything else stays where it was dropped, snapped to
     // a whole year like every other box.
     const x = entry.year != null ? yearToX(entry.year) : Math.round(drop.x / YEAR_WIDTH) * YEAR_WIDTH;
@@ -529,7 +632,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
 
 // Step SB2/SB3: the canvas -- React Flow, dotted background, pan, zoom, the pinned timeline ruler,
 // and beat boxes (create by double-click/N and typing, move to set the date, delete). The shelf
-// (SB4), merging (SB5) and the expanded popup (SB6) are built; AI helpers (SB7) are not built yet.
+// (SB4), merging (SB5), the expanded popup (SB6) and AI helpers (SB7) are built; polish (SB8) is not.
 export function StoryBuilderCanvas(props: StoryBuilderCanvasProps) {
   return (
     <ReactFlowProvider>

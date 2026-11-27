@@ -1106,15 +1106,25 @@ export async function getStoryCanvasBoard() {
 // Step SB3: every beat box on the canvas, dated or not, regardless of story -- a beat starts
 // storyless and only joins one once merged with another beat (step SB5). Horizontal position
 // always comes from startYear, never stored (hard rule 18).
-export type CanvasBeat = { id: number; code: string; name: string; startYear: number | null; storyId: number | null }
+export type CanvasBeat = {
+  id: number; code: string; name: string; startYear: number | null; storyId: number | null
+  // Step SB7: "What happens next" needs the story's own code (generateBeatCardsAction takes a
+  // code, not an id) for a grouped beat box, without a second round trip per box.
+  storyCode: string | null
+}
 
 export async function getCanvasBeats(): Promise<CanvasBeat[]> {
   // A promoted beat (step SB4's "Make this a...") is represented on the canvas by the entity it
   // became, not by its own idea box any more -- the beat row itself stays (the Beats lane still
   // shows it), it just drops out of the canvas's beat list once it is no longer an active idea.
   return appDb
-    .select({ id: schema.beats.id, code: schema.beats.code, name: schema.beats.name, startYear: schema.beats.startYear, storyId: schema.beats.storyId })
+    .select({
+      id: schema.beats.id, code: schema.beats.code, name: schema.beats.name,
+      startYear: schema.beats.startYear, storyId: schema.beats.storyId,
+      storyCode: schema.stories.code,
+    })
     .from(schema.beats)
+    .leftJoin(schema.stories, eq(schema.beats.storyId, schema.stories.id))
     .where(ne(schema.beats.state, 'promoted'))
     .orderBy(schema.beats.createdAt)
 }

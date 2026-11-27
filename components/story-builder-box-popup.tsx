@@ -14,6 +14,7 @@ import {
   resolveEntryForLinkAction, updateFieldAction,
 } from "@/lib/world/actions";
 import { WritingEditor } from "@/app/(app)/write/[code]/editor";
+import { StoryAiPanel } from "@/components/story-builder-ai-panel";
 
 export type BoxPopupTarget =
   | { kind: "entry"; collection: string; code: string; name: string; label: string }
@@ -66,13 +67,16 @@ export function StoryBuilderBoxPopup({ target, onClose }: { target: BoxPopupTarg
             <EntryNotesEditor collection={data.collection} id={data.id} initialBody={data.body} />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
-              <WritingEditor
-                record={data.writing}
-                stories={data.stories}
-                summary={data.summary}
-                codeMap={data.codeMap}
-                history={data.history}
-              />
+              <div className="space-y-4">
+                <WritingEditor
+                  record={data.writing}
+                  stories={data.stories}
+                  summary={data.summary}
+                  codeMap={data.codeMap}
+                  history={data.history}
+                />
+                <StoryAiPanel writingId={data.writing.id} storyId={data.storyId} storyCode={data.storyCode} />
+              </div>
               {data.storyQuestions && <StoryQuestionsPanel initial={data.storyQuestions} />}
             </div>
           )}

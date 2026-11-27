@@ -11,6 +11,9 @@ export type BeatNodeData = {
   startYear: number | null;
   onRename: (beatId: number, name: string) => void;
   onConvert: (beatId: number, collection: BeatConvertCollection) => void;
+  // Step SB7: "What happens next" idea generation, triggered from the selected box itself, the
+  // same place the convert dropdown already appears.
+  onSuggest: (code: string) => void;
 };
 
 const CONVERT_OPTIONS: { collection: BeatConvertCollection; label: string }[] = [
@@ -23,7 +26,7 @@ const CONVERT_OPTIONS: { collection: BeatConvertCollection; label: string }[] = 
 
 // Board 5's loose "IDEA" box: dashed outline and a "no date" badge until it has a startYear, then a
 // solid outline with the year it landed on. Double-click to rename in place.
-export function BeatNode({ data, selected }: NodeProps & { data: BeatNodeData }) {
+export function BeatNode({ id, data, selected }: NodeProps & { data: BeatNodeData }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(data.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,30 +84,85 @@ export function BeatNode({ data, selected }: NodeProps & { data: BeatNodeData })
         <p className="break-words text-sm text-neutral-800">{data.name}</p>
       )}
       {selected && !editing && (
-        <select
-          className="nodrag nopan mt-1.5 w-full rounded border border-blue-300 bg-white px-1 py-0.5 text-[11px] text-neutral-700 outline-none"
-          defaultValue=""
-          onChange={(e) => {
-            const collection = e.target.value as BeatConvertCollection;
-            e.target.value = "";
-            if (collection) data.onConvert(data.beatId, collection);
-          }}
-        >
-          <option value="" disabled>
-            Make this a...
-          </option>
-          {CONVERT_OPTIONS.map((o) => (
-            <option key={o.collection} value={o.collection}>
-              {o.label}
+        <>
+          <select
+            className="nodrag nopan mt-1.5 w-full rounded border border-blue-300 bg-white px-1 py-0.5 text-[11px] text-neutral-700 outline-none"
+            defaultValue=""
+            onChange={(e) => {
+              const collection = e.target.value as BeatConvertCollection;
+              e.target.value = "";
+              if (collection) data.onConvert(data.beatId, collection);
+            }}
+          >
+            <option value="" disabled>
+              Make this a...
             </option>
-          ))}
-        </select>
+            {CONVERT_OPTIONS.map((o) => (
+              <option key={o.collection} value={o.collection}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="nodrag nopan mt-1 w-full rounded border border-blue-300 bg-white px-1 py-0.5 text-[11px] text-blue-700 outline-none hover:bg-blue-50"
+            onClick={(e) => { e.stopPropagation(); data.onSuggest(id); }}
+          >
+            Suggest ideas
+          </button>
+        </>
       )}
     </div>
   );
 }
 
-export const STORY_BUILDER_NODE_TYPES = { beat: BeatNode, draft: BeatDraftNode };
+export type GhostNodeData = {
+  name: string;
+  summary: string;
+  pending: boolean;
+  onAdd: () => void;
+  onDismiss: () => void;
+};
+
+// Step SB7: "Idea generation also works from a selected box on the canvas: results show as dashed
+// ghost boxes to its right, with Add to canvas and Dismiss." Never a beat until "Add to canvas" is
+// clicked (hard rule 19's spirit: nothing about a suggestion counts as real until accepted) -- a
+// dismissed or unresolved ghost box writes nothing and leaves no trace.
+function GhostNode({ data }: NodeProps & { data: GhostNodeData }) {
+  return (
+    <div
+      className="rounded-md border-2 border-dashed px-3 py-2 text-xs shadow-sm"
+      // xyflow sets `pointer-events: none` on a node's wrapper unless it is draggable/selectable/
+      // connectable (none of which this ghost node is); without this override its own Add/Dismiss
+      // buttons would be unclickable, same reason BeatDraftNode overrides it below.
+      style={{ width: 224, backgroundColor: "#eef4fd", borderColor: "#7fa8e0", pointerEvents: "auto" }}
+    >
+      <div className="mb-1 font-semibold uppercase tracking-wide text-blue-500">Idea (suggested)</div>
+      <p className="break-words text-sm font-medium text-neutral-800">{data.name}</p>
+      <p className="mt-1 break-words text-[11px] text-neutral-600">{data.summary}</p>
+      <div className="nodrag nopan mt-1.5 flex gap-1">
+        <button
+          type="button"
+          disabled={data.pending}
+          className="flex-1 rounded border border-blue-300 bg-white px-1 py-0.5 text-[11px] text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+          onClick={data.onAdd}
+        >
+          Add to canvas
+        </button>
+        <button
+          type="button"
+          disabled={data.pending}
+          className="flex-1 rounded border border-neutral-300 bg-white px-1 py-0.5 text-[11px] text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+          onClick={data.onDismiss}
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export const STORY_BUILDER_NODE_TYPES = { beat: BeatNode, draft: BeatDraftNode, ghost: GhostNode };
 
 export type BeatDraftNodeData = { onCommit: (name: string) => void; onCancel: () => void };
 

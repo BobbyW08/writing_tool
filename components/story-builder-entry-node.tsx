@@ -16,6 +16,9 @@ export type EntryNodeData = {
   birthYear: number | null;
   // Step SB5: true while another box is being dragged onto this one, as the merge drop target.
   highlighted?: boolean;
+  // Step SB7: "What happens next" idea generation, only meaningful for a story box (a character,
+  // location, event, item or lore box has no "next beat" of its own to suggest).
+  onSuggest?: (code: string) => void;
 };
 
 export const ENTRY_COLLECTION_LABELS: Record<ShelfCollection, string> = {
@@ -61,6 +64,15 @@ export function EntryNode({ data, selected }: NodeProps & { data: EntryNodeData 
       </div>
       <p className="break-words text-sm font-bold text-neutral-900">{data.name}</p>
       {line && <p className="mt-1 text-[11px] text-neutral-500">{line}</p>}
+      {selected && data.collection === "stories" && data.onSuggest && (
+        <button
+          type="button"
+          className="nodrag nopan mt-1.5 w-full rounded border border-neutral-300 bg-neutral-50 px-1 py-0.5 text-[11px] text-neutral-700 outline-none hover:bg-neutral-100"
+          onClick={(e) => { e.stopPropagation(); data.onSuggest!(data.code); }}
+        >
+          Suggest ideas
+        </button>
+      )}
     </div>
   );
 }

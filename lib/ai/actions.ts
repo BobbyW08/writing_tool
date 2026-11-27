@@ -8,6 +8,7 @@ import { ensureBuiltinTags } from '@/db/tags'
 import { updateDetailsAction, updateFieldAction, updateTagsAction } from '@/lib/world/actions'
 import { generateDetailProposals, listPendingProposalsForCode, type PendingProposal } from './proposals'
 import { generateBeatCards, type BeatCard } from './beats'
+import { askAnything } from './ask-anything'
 import { generatePromptAnswers, getPromptById, listPromptGroupsForCollection, type PromptGroup } from './prompts'
 import { buildAiContext, resolveIdForCode } from './context'
 import type { ProposedValue } from './types'
@@ -63,6 +64,19 @@ export async function generateBeatCardsAction(storyCode: string): Promise<{ ok: 
     const result = await generateBeatCards(storyCode)
     if (result.error) return { ok: false, error: result.error }
     return { ok: true, cards: result.cards }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ─── askAnythingAction ──────────────────────────────────────────────────────────
+// Step SB7's "Ask AI anything" chip: one bounded call, Bobby's question plus this record's own
+// context, nothing ever written.
+export async function askAnythingAction(code: string, question: string): Promise<{ ok: boolean; answer?: string; error?: string }> {
+  try {
+    const result = await askAnything(code, question)
+    if (result.error) return { ok: false, error: result.error }
+    return { ok: true, answer: result.answer }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }

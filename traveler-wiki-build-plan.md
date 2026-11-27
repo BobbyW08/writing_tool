@@ -1071,9 +1071,49 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       Verified live for all three Write-area branches, the story-questions panel's writes and removes
       (Characters, Events), the Timeframe/Story-summary blur-save, and the storyless-beat message,
       each via Neon SQL before and after to confirm the exact row written and then cleaned up.
-- [ ] **SB7.** AI helpers: Review writing, Review facts, What happens next, then the chips. Idea generation
+- [x] **SB7.** AI helpers: Review writing, Review facts, What happens next, then the chips. Idea generation
       also works from a selected box on the canvas: results show as dashed ghost boxes to its right, with
-      Add to canvas and Dismiss (see step UX).
+      Add to canvas and Dismiss (see step UX). Finished 2026-11-26. `components/story-builder-ai-panel.tsx`
+      is the popup's "AI helpers" panel (story and grouped-beat boxes only, threaded through
+      `story-builder-box-popup.tsx`'s new `storyId`/`storyCode` on the writing variant): Review writing and
+      Review facts are the exact UX4 lanes (`review-writing(-actions).ts`, `lib/story-builder/review-actions.ts`),
+      reused scoped to this one writing record instead of a whole-story picker (hard rule 10) -- no new
+      review or fact-checking logic, only new wiring. What happens next reuses `lib/ai/beats.ts`'s
+      `generateBeatCards` (the same generator `components/story-beats-lane.tsx` already used); accepting a
+      card goes through a new thin wrapper, `acceptBeatCardAction` (`lib/story-builder/popup-actions.ts`),
+      since the popup and the canvas don't have the story's full beat list loaded to compute `order` the
+      way `story-beats-lane.tsx` does. Ask AI anything is the one built chip from the plan's "more helper
+      ideas" list (the rest stay optional, future additions, per the plan's own wording) -- a new, genuinely
+      small module, `lib/ai/ask-anything.ts` (task `quick_suggestions`, one bounded call, nothing ever
+      written), confirmed distinct from the existing "Ask AI" button (`ai-assist-bar.tsx`, which generates
+      detail-field proposals, not free-text Q&A).
+      Canvas-level idea generation: a "Suggest ideas" button appears on a selected story box
+      (`story-builder-entry-node.tsx`) or a selected, story-grouped beat box (`story-builder-beat-node.tsx`;
+      a storyless beat toasts "Group this idea into a story first." with no API call). Results render as a
+      new ghost node type (`GhostNodeData`/`GhostNode`, `STORY_BUILDER_NODE_TYPES.ghost`), ephemeral React
+      state only -- a `__ghost__-<timestamp>-<index>` id, excluded from `onNodesDelete`'s position-cleanup
+      loop, never written anywhere until "Add to canvas" (hard rule 19's spirit: nothing about a suggestion
+      is real until accepted). Accepting one reuses `acceptBeatCardAction`, the same path the popup's own
+      "What happens next" saves through, then swaps the ghost node for a real `beatToFlowNode` box and
+      persists its board position; "Dismiss" just drops the one ghost node, writing nothing. The canvas
+      callbacks (`onSuggestIdeas` and the functions it depends on) close over live `nodes`/`setNodes`, so
+      they're declared after `useNodesState`, not before it -- only the ref-forwarding wrapper
+      (`onSuggestIdeasRef`/`onSuggestIdeasStable`, a stable identity so `entryToFlowNode`/`beatToFlowNode`
+      calls don't need to be redone every render) sits earlier, since `useNodesState`'s own initializer
+      needs that stable function for the first paint.
+      Two bugs found and fixed during live testing: (1) `GhostNode`'s wrapper div was missing the
+      `pointerEvents: "auto"` override `BeatDraftNode` already had -- xyflow sets `pointer-events: none` on
+      a node that isn't draggable/selectable/connectable, which made every ghost box's own Add/Dismiss
+      buttons unclickable; (2) ghost boxes were spaced only 90px apart vertically, but a box wrapping a full
+      summary runs well past that, so multiple ghosts stacked and hid each other's buttons -- widened to
+      190px. Verified live end-to-end against the real `traveler_app` database: Review writing caught and
+      applied a real grammar fix (tagged UNK/AI suggested, `review_note` written); Review facts correctly
+      reported nothing waiting on a clean piece; What happens next generated three real beat cards and
+      accepting one created a correctly-linked `beats` row; the canvas "Suggest ideas" button generated
+      three ghost boxes, "Add to canvas" created a real beat and left the other ghosts untouched, "Dismiss"
+      left no trace in the database; the storyless-beat guard toasted without any API call; Ask AI anything
+      returned a real, context-grounded answer. All test data (beats, writing text/tags, board positions)
+      cleaned up afterward. `npm run build` and a `rebuild-links.ts` dry run both clean.
 - [ ] **SB8.** Polish: Fit to view, N shortcut, keyboard moves, narrow screen behavior.
 - [ ] **Gate SB:** build passes, merges verified against the link index, a drag changes only `startYear`
       and `endYear`, no AI result applies without an accept.
@@ -1769,7 +1809,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB6 done 2026-11-26. **Next: SB7** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB7 done 2026-11-26. **Next: SB8** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -2038,6 +2078,18 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-26 (fourth): step SB7, AI helpers
+
+Built everything in the SB7 checklist entry above: the popup's AI helpers panel, canvas-level
+"Suggest ideas" with ghost boxes, and the Ask AI anything chip -- almost entirely reuse of S4's AI
+foundation and UX4's Review writing/Review facts workspace, per hard rule 10. Full detail is in the
+checklist entry itself; the two bugs worth remembering for any future ephemeral/non-draggable
+React Flow node are both there: the missing `pointerEvents: "auto"` override (xyflow's default
+`pointer-events: none` on a non-interactive node swallows its own buttons' clicks) and the
+spacing-vs-actual-height mismatch when several such boxes are laid out programmatically next to
+each other. Verified live end to end against `traveler_app`, test data cleaned up, build and
+link-index dry run both clean.
 
 ### Session 2026-11-26 (third): step SB6, the expanded box popup
 
