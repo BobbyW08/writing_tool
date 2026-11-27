@@ -903,6 +903,92 @@ export async function updateEventInvolvesAction(
   }
 }
 
+// ─── addStoryInvolvesAction / removeStoryInvolvesAction ───────────────────────
+// Step SB5: a character-onto-story merge adds one entry to the story's involves list without
+// touching the rest of it (unlike updateEventInvolvesAction/updateStoryInvolvesAction-style full
+// replacements elsewhere, which the story edit form already owns). Mirrors storyInvolves's own
+// unique(storyId, entryCollection, entryId) constraint.
+export async function addStoryInvolvesAction(
+  storyId: number,
+  entryCollection: string,
+  entryId: number
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.insert(schema.storyInvolves)
+      .values({ storyId, entryCollection, entryId })
+      .onConflictDoNothing()
+    await appDb.update(schema.stories).set({ updatedAt: new Date() }).where(eq(schema.stories.id, storyId))
+    await syncLinksForRecord('stories', storyId)
+    revalidatePath('/stories')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+export async function removeStoryInvolvesAction(
+  storyId: number,
+  entryCollection: string,
+  entryId: number
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.delete(schema.storyInvolves).where(and(
+      eq(schema.storyInvolves.storyId, storyId),
+      eq(schema.storyInvolves.entryCollection, entryCollection),
+      eq(schema.storyInvolves.entryId, entryId)
+    ))
+    await appDb.update(schema.stories).set({ updatedAt: new Date() }).where(eq(schema.stories.id, storyId))
+    await syncLinksForRecord('stories', storyId)
+    revalidatePath('/stories')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+// ─── addEventInvolvesAction / removeEventInvolvesAction ───────────────────────
+// Step SB5: a character-onto-event merge adds one entry to the event's involves list without
+// touching the rest of it (same additive pattern as addStoryInvolvesAction) -- this is what makes
+// the event show up on the character's own page as one of their life events (hard rule 5,
+// getEventsInvolving). Mirrors eventInvolves's own unique(eventId, entryCollection, entryId).
+export async function addEventInvolvesAction(
+  eventId: number,
+  entryCollection: string,
+  entryId: number
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.insert(schema.eventInvolves)
+      .values({ eventId, entryCollection, entryId })
+      .onConflictDoNothing()
+    await appDb.update(schema.events).set({ updatedAt: new Date() }).where(eq(schema.events.id, eventId))
+    await syncLinksForRecord('events', eventId)
+    revalidatePath('/events')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+export async function removeEventInvolvesAction(
+  eventId: number,
+  entryCollection: string,
+  entryId: number
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.delete(schema.eventInvolves).where(and(
+      eq(schema.eventInvolves.eventId, eventId),
+      eq(schema.eventInvolves.entryCollection, entryCollection),
+      eq(schema.eventInvolves.entryId, entryId)
+    ))
+    await appDb.update(schema.events).set({ updatedAt: new Date() }).where(eq(schema.events.id, eventId))
+    await syncLinksForRecord('events', eventId)
+    revalidatePath('/events')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
 // ─── updateEventPinsAction ─────────────────────────────────────────────────────
 // Step W4: the map pins showing where an event happened. A chronicle uses these to move the map
 // when an event is selected.

@@ -5,76 +5,78 @@ the rules in `CLAUDE.md`. Do only what is written here. At the end of every sess
 file with the instructions for whatever comes after. The repo keeps exactly three instruction files:
 `CLAUDE.md`, `next.md` and `traveler-wiki-build-plan.md`.
 
-## Current phase: Story Builder canvas (step SB). SB1 to SB4 done 2026-11-26. Do SB5 next.
+## Current phase: Story Builder canvas (step SB). SB1 to SB5 done 2026-11-26. Do SB6 next.
 
-Read the "Story Builder canvas (step SB)" section in the plan in full, especially the "Canvas"
-subsection's "Merging" bullets (around line 826), and the 2026-11-26 working-log entry for SB4 --
-it documents four real bugs found and fixed while testing the shelf live (a floating overlay
-blocking canvas interaction, a node's inherited `pointer-events: none`, a client-side display gap,
-and promoted beats double-showing), plus the "Make this a..." conversion feature SB5 can reuse the
-pattern of (a select on a selected box, wired through a server action, swapping the box at its board
-position). SB4's changes are **not yet committed** -- commit them (or ask whether to) before or as
-part of starting SB5, so the working tree doesn't carry two steps of uncommitted work at once.
+Read the "Story Builder canvas (step SB)" section in full, especially the "Expanded box (popup)"
+subsection (plan, ~line 841) and its wireframe, and the two 2026-11-26 working-log entries for SB4
+and SB5 -- SB5's entry documents the four merge pairings and two mid-session decisions (Bobby
+confirmed "Group on this canvas only" needs no new data concept, and added character-onto-event as a
+fifth pairing beyond the original spec text, specifically so a dragged event shows on the
+character's own page as a life event). SB4 and SB5 are both committed. Commit SB5's work (or ask
+whether to) before or as part of starting SB6.
 
-## SB5: Merge menu and confirmed merges, with Undo
+## SB6: Expanded box popup
 
-Per the checklist: "Merge menu and the confirmed merges (relationship, appears in, located at),
-with Undo." The Canvas spec's "Merging" bullet (plan, ~line 826):
+Per the checklist: "Expanded box popup: Write area, state switch, story questions writing through
+the data layer. The left menu stays visible behind the popup, dimmed (board 8)." Per the plan's own
+scoping note (~line 896), SB7's AI helpers (Review writing, Review facts, What happens next, the
+chips) are **not** part of this step -- only the popup shell, the Write tab, the Draft/Canon/Set aside
+switch, and the story questions that write through the data layer. The spec's wireframe (~line 846):
 
-- Drag one box onto another and a highlight shows the drop target. On drop, a small menu asks what
-  the merge means, and nothing is written until a choice is made:
-  - **Character onto character:** "Record a relationship" (pick a type from
-    `lib/relationshipTypes.ts`'s `RELATIONSHIP_TYPES`, `startYear` = the drop year) or "Group on
-    this canvas only" (writes nothing to canon -- this option needs its own decision about what, if
-    anything, a canvas-only group is, since the board already stores groups per hard rule 15/18;
-    check how SB2/SB3 treat board-only groupings, if at all, before inventing a new concept).
-  - **Character onto a story:** records an `appears_in` relationship with `startYear` = the drop
-    year and adds the character to the story's `involves` (`storyInvolves`, `db/schema.ts` line 217
-    -- mirrors `eventInvolves`, hard rule 5: never flatten it).
-  - **Character, story or event onto a location:** records a places relationship (`visited` or
-    `lives_in` from `RELATIONSHIP_TYPES`) with `startYear` = the drop year.
-  - Every merge shows an Undo that removes what it wrote. Merges go through the data layer, so the
-    link index and the wiki pages update (hard rule 19: "A merge on the canvas writes nothing until
-    Bobby picks what it means, and each merge can be undone").
-- A board never creates edges in the link index by drawing (hard rule 19 again). Only a confirmed
-  merge writes a relationship.
+```
++--------------------------------------------------------------------+
+| STORY BOX  Origins                       [Open full page] [Close]  |
++----------------------------------------+---------------------------+
+| Write | Details | Links | History      | AI helpers                |
+| (blank page, saves as you type)        |  [Review writing]         |
+|                                        |  [Review facts]           |
+|                                        |  [What happens next]      |
+| Draft | Canon | Set aside              |  more ideas (chips)       |
++----------------------------------------+---------------------------+
+| AI results (nothing applies until you accept)  | Story details:     |
+|                                                | characters, time-  |
+|                                                | frame, locations,  |
+|                                                | events, items and  |
+|                                                | lore, themes, arc  |
++--------------------------------------------------------------------+
+```
 
-Key things already in place to build on, found this session:
-- `createRelationshipAction(fromCode, toCode, type, notes?, startYear?, endYear?)` and
-  `deleteRelationshipAction(id)` already exist in `lib/world/actions.ts` (lines 638, 761) and are
-  exactly the data-layer calls a confirmed merge should use -- Undo is just
-  `deleteRelationshipAction` on the id the merge call returned. `updateRelationshipAction` also
-  exists if a merge ever needs to edit one in place rather than delete/recreate.
-- `RELATIONSHIP_TYPES` in `lib/relationshipTypes.ts` already has every type the spec names (`visited`,
-  `lives_in`, `appears_in`, and the full Family/People/Places/Groups/Items/Events-and-stories/Other
-  groups) with labels, inverses and tree hierarchy -- no new types needed for SB5.
-- `storyInvolves` (`db/schema.ts:217`) and `eventInvolves` (`db/schema.ts:171`) both exist;
-  `updateEventInvolvesAction` in `lib/world/actions.ts` is the existing precedent for writing an
-  involves list -- look for (or write) the equivalent for `storyInvolves` if nothing already adds to
-  it piecemeal (most existing uses may replace the whole list; a merge only needs to add one entry).
-- The entry/beat node drag machinery (`onNodeDragStop` in `components/story-builder-canvas.tsx`) is
-  where a merge-drop would need to detect "dropped onto another node" (compare drop position against
-  other nodes' bounding boxes, or use React Flow's own node-intersection helpers if `@xyflow/react`
-  v12.12.1 exposes one -- check `getIntersectingNodes` on `useReactFlow()` before hand-rolling
-  bounding-box math) rather than reading it as a plain position/year change.
-- `components/story-builder-entry-node.tsx` (`EntryNodeData`) only models character/location/event/
-  story/item/lore boxes as independent entries; merging needs a new UI (the "small menu" on drop) --
-  look at how the "Make this a..." dropdown on `BeatNode` (`components/story-builder-beat-node.tsx`)
-  was built as the closest existing pattern for an on-canvas choice menu, including its `nodrag nopan`
-  class so the menu itself doesn't trigger a drag or pane-pan.
+The AI helpers panel and AI results row are SB7's. Build the popup shell (dimmed canvas behind it,
+Open full page, Close), the Write/Details/Links/History tabs, and the story questions panel on the
+right (Characters, Timeframe, Story, Locations, Events, Items and Lore -- the themes/arc question
+stays hidden until step AR exists, per the spec). Each answer writes through the data layer, same as
+everywhere else in this app.
+
+**Reuse before building new (hard rule 10):**
+- `WritingEditor` (`app/(app)/write/[code]/editor.tsx:376`) already has the Draft/Canon/Set aside
+  switch (`canonState`: `'draft' | 'canon' | 'set_aside'`), word count, the continuity check, and a
+  history panel -- and its own comment already anticipates being embedded elsewhere ("other
+  embeddings of this editor (none yet)", with an `onFieldsSaved` callback built for exactly that).
+  For a **story or beat box**, the popup's Write tab should almost certainly render this component
+  directly against that story's writing record (`getWritingListByStory`/`createWriting` in
+  `lib/studio/`, same get-or-create pattern `app/(app)/story-builder/[code]/page.tsx:34-38` already
+  uses) rather than rebuilding an editor.
+- For an **entry box** (character, location, and so on), the spec says the Write tab "edits the
+  entry's notes" -- check what field that actually means before assuming. `worldSharedCols()` in
+  `db/schema.ts` gives every world entry a `details` array and a `body` text column; check how an
+  entry's own read/edit page currently lets Bobby write freeform notes (if it does yet) before
+  deciding whether the popup's Write tab is editing `body`, a `details` row, or something else. This
+  may itself be a small gap to fill rather than something already built.
+- `app/(app)/story-builder/[code]/page.tsx` and `app/(app)/story-builder/[code]/review/page.tsx` are
+  **pre-canvas** scaffolding from the old UX3 "new story or pick existing" flow (the first's own
+  comment says "the canvas is not built yet"). Check whether "Open full page" in the new popup should
+  route to one of these, to the plain writing studio (`/write/[code]`), or somewhere else -- and
+  whether either stale page should be folded into the new flow or removed, now that the canvas
+  exists. Don't assume; this wasn't touched by SB1 to SB5 and may need its own small decision.
+- The "left menu stays visible behind the popup, dimmed" instruction implies a modal/overlay that
+  sits above the canvas but below nothing else -- check how other full-screen dimmed overlays in this
+  app are built (if any exist yet) before inventing a new pattern.
 
 ## Do not
 
-Do not start SB6 (expanded box popup), SB7 (AI helpers) or SB8 (polish) without finishing SB5 and
-checking in first if anything about its scope is unclear -- in particular:
-- What a "Group on this canvas only" merge actually does/stores (the one option in the spec that
-  writes nothing to canon) is not fully specified and is worth confirming before building, since the
-  board's existing group concept (hard rule 15) may or may not already cover it.
-- The spec's three merge pairings (character-character, character-story, {character,story,event}-
-  location) don't cover every possible drag-one-box-onto-another combination (e.g. event onto event,
-  location onto location, anything onto lore/item). Default to refusing a merge combination the spec
-  doesn't name, with a message, rather than inventing new relationship semantics -- surface any
-  combination that seems like it should obviously work (e.g. "event participated_in a story") rather
-  than silently deciding it yourself.
-Do not touch the locations year-field migration (still needs Bobby's go-ahead, same as before) as
-part of this step -- it's unrelated to merging.
+Do not start SB7 (AI helpers) or SB8 (polish) without finishing SB6 and checking in first if anything
+about its scope is unclear -- in particular the two open points above (what an entry box's "notes"
+field actually is, and what "Open full page" should link to) are real gaps, not implementation
+details to guess past. Do not build the AI helpers panel, the chips, or the AI results row in this
+step -- SB6 is the popup shell, Write/Details/Links/History tabs, the state switch, and the story
+questions only.

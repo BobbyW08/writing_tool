@@ -15,12 +15,19 @@ import {
   type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { createEntityAction, deleteEntityAction, updateFieldAction, convertBeatToEntityAction } from "@/lib/world/actions";
+import {
+  createEntityAction, deleteEntityAction, updateFieldAction, convertBeatToEntityAction,
+  createRelationshipAction, deleteRelationshipAction, addStoryInvolvesAction, removeStoryInvolvesAction,
+  addEventInvolvesAction, removeEventInvolvesAction,
+} from "@/lib/world/actions";
 import type { CanvasBeat, BoardNodePositions, ShelfEntry } from "@/lib/world/queries";
 import { YEAR_WIDTH, DEFAULT_START_YEAR, yearToX } from "@/lib/story-builder/canvas-scale";
+import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
+import { resolveMergePairing, type MergePairing } from "@/lib/story-builder/merge";
 import { EntryNode, type EntryNodeData } from "@/components/story-builder-entry-node";
 import { StoryBuilderShelf, SHELF_DRAG_TYPE } from "@/components/story-builder-shelf";
 import { STORY_BUILDER_NODE_TYPES, type BeatNodeData, type BeatDraftNodeData, type BeatConvertCollection } from "@/components/story-builder-beat-node";
+import { MergeMenu } from "@/components/story-builder-merge-menu";
 
 interface StoryBuilderCanvasProps {
   boardId: number;
@@ -129,7 +136,7 @@ function beatToFlowNode(
 
 function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositions, initialEntries }: StoryBuilderCanvasProps) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
   const positionsRef = useRef<BoardNodePositions>(initialNodePositions);
   const beatByCode = useRef<Map<string, CanvasBeat>>(new Map(initialBeats.map((b) => [b.code, b])));
   const entryByCode = useRef<Map<string, ShelfEntry>>(new Map(initialEntries.map((e) => [e.code, e])));
@@ -137,6 +144,12 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
   const [placed, setPlaced] = useState<Set<string>>(
     () => new Set(initialEntries.filter((e) => initialNodePositions[e.code]).map((e) => e.code))
   );
+  // Step SB5: a pending merge, once one box has been dropped onto another and a pairing the Canvas
+  // spec names (lib/story-builder/merge.ts) was found. Nothing is written until this resolves (hard
+  // rule 19) -- the dragged box is snapped back to its resting position the moment this is set, and
+  // only "Group on this canvas only" (character onto character) lets the drop itself stand.
+  const [mergeRequest, setMergeRequest] = useState<{ pairing: MergePairing; dropYear: number; droppedPosition: { x: number; y: number } } | null>(null);
+  const [mergeSaving, setMergeSaving] = useState(false);
 
   const onRename = useCallback((beatId: number, name: string) => {
     void updateFieldAction("beats", beatId, "name", name);
@@ -219,14 +232,50 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     [boardId]
   );
 
+  // Step SB5: while dragging an entry box, highlight whichever other entry box it currently
+  // overlaps, as the merge drop target (the Canvas spec's "a highlight shows the drop target").
+  const onNodeDrag: OnNodeDrag<FlowNode> = useCallback((_event, node) => {
+    if (!entryByCode.current.has(node.id)) return;
+    const overlapping = getIntersectingNodes(node, true).find((n) => n.id !== node.id && entryByCode.current.has(n.id));
+    const targetId = overlapping?.id ?? null;
+    setNodes((nds) => nds.map((n) => {
+      if (!entryByCode.current.has(n.id) || n.id === node.id) return n;
+      const shouldHighlight = n.id === targetId;
+      if (Boolean((n.data as EntryNodeData).highlighted) === shouldHighlight) return n;
+      return { ...n, data: { ...(n.data as EntryNodeData), highlighted: shouldHighlight } satisfies EntryNodeData };
+    }));
+  }, [getIntersectingNodes, setNodes]);
+
   // Moving a box horizontally sets its date (whole years only); moving it vertically carries no
   // meaning of its own and is stored on the board (hard rule 18). The very first move is what takes
-  // a box out of its Undated state.
+  // a box out of its Undated state. Dropping one entry box onto another is a merge instead (SB5):
+  // nothing is written until the menu resolves, so the drop itself never counts as a move.
   const onNodeDragStop: OnNodeDrag<FlowNode> = useCallback((_event, node) => {
     if (node.id === DRAFT_ID) return;
 
     const entry = entryByCode.current.get(node.id);
     if (entry) {
+      const overlapping = getIntersectingNodes(node, true).find((n) => n.id !== node.id && entryByCode.current.has(n.id));
+      // Clear every highlight regardless of outcome -- onNodeDrag only runs while the pointer moves.
+      setNodes((nds) => nds.map((n) => (
+        entryByCode.current.has(n.id) && (n.data as EntryNodeData).highlighted
+          ? { ...n, data: { ...(n.data as EntryNodeData), highlighted: false } satisfies EntryNodeData }
+          : n
+      )));
+
+      if (overlapping) {
+        const target = entryByCode.current.get(overlapping.id)!;
+        const droppedPosition = { x: node.position.x, y: node.position.y };
+        setNodes((nds) => nds.map((n) => (n.id === node.id ? entryToFlowNode(entry, positionsRef.current, droppedPosition) : n)));
+        const pairing = resolveMergePairing(entry, target);
+        if (!pairing) {
+          toast.error(`${entry.name} can't be merged with ${target.name} this way.`);
+          return;
+        }
+        setMergeRequest({ pairing, dropYear: Math.round(droppedPosition.x / YEAR_WIDTH), droppedPosition });
+        return;
+      }
+
       const entryYear = Math.round(node.position.x / YEAR_WIDTH);
       const field = YEAR_FIELD[entry.collection];
       if (field && entry.year !== entryYear) {
@@ -254,7 +303,68 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
 
     persistPositions({ ...positionsRef.current, [node.id]: { x: node.position.x, y: node.position.y } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardId]);
+  }, [boardId, getIntersectingNodes]);
+
+  // Step SB5: "Group on this canvas only" (character onto character) just lets the drop stand --
+  // it is the ordinary move path with no relationship written, since nothing about placement is
+  // meant to be special about it (hard rule 19's "writes nothing to canon").
+  const onMergeGroup = useCallback(() => {
+    if (!mergeRequest || mergeRequest.pairing.kind !== "character-character") { setMergeRequest(null); return; }
+    const { a } = mergeRequest.pairing;
+    const { droppedPosition } = mergeRequest;
+    setNodes((nds) => nds.map((n) => (n.id === a.code ? { ...n, position: droppedPosition } : n)));
+    persistPositions({ ...positionsRef.current, [a.code]: droppedPosition });
+    setMergeRequest(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergeRequest]);
+
+  const onMergeConfirm = useCallback(async (type: string) => {
+    if (!mergeRequest) return;
+    const { pairing, dropYear } = mergeRequest;
+    const [fromCode, toCode] =
+      pairing.kind === "character-character" ? [pairing.a.code, pairing.b.code]
+      : pairing.kind === "appears-in" ? [pairing.character.code, pairing.story.code]
+      : pairing.kind === "participated-in" ? [pairing.character.code, pairing.event.code]
+      : [pairing.actor.code, pairing.location.code];
+
+    setMergeSaving(true);
+    const result = await createRelationshipAction(fromCode, toCode, type, undefined, dropYear);
+    if (!result.ok || !result.id) {
+      toast.error(result.error ?? "Could not record the relationship.");
+      setMergeSaving(false);
+      return;
+    }
+    const relationshipId = result.id;
+
+    let involvesAdded = false;
+    if (pairing.kind === "appears-in") {
+      const addResult = await addStoryInvolvesAction(pairing.story.id, "characters", pairing.character.id);
+      involvesAdded = addResult.ok;
+    } else if (pairing.kind === "participated-in") {
+      // This is what makes the event show up on the character's own page as a life event.
+      const addResult = await addEventInvolvesAction(pairing.event.id, "characters", pairing.character.id);
+      involvesAdded = addResult.ok;
+    }
+
+    setMergeSaving(false);
+    setMergeRequest(null);
+
+    const typeLabel = RELATIONSHIP_TYPES.find((t) => t.value === type)?.label ?? type;
+    toast.success(`${typeLabel}: ${fromCode} → ${toCode}`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          void deleteRelationshipAction(relationshipId);
+          if (involvesAdded && pairing.kind === "appears-in") {
+            void removeStoryInvolvesAction(pairing.story.id, "characters", pairing.character.id);
+          } else if (involvesAdded && pairing.kind === "participated-in") {
+            void removeEventInvolvesAction(pairing.event.id, "characters", pairing.character.id);
+          }
+        },
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergeRequest]);
 
   const onNodesDelete = useCallback((deleted: FlowNode[]) => {
     const next = { ...positionsRef.current };
@@ -368,6 +478,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
           edges={[]}
           nodeTypes={NODE_TYPES}
           onNodesChange={onNodesChangeBase}
+          onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           onNodesDelete={onNodesDelete}
           defaultViewport={defaultViewport}
@@ -382,6 +493,16 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
           <Controls showInteractive={false} />
         </ReactFlow>
         <TimelineRuler />
+        {mergeRequest && (
+          <MergeMenu
+            pairing={mergeRequest.pairing}
+            dropYear={mergeRequest.dropYear}
+            saving={mergeSaving}
+            onClose={() => setMergeRequest(null)}
+            onGroup={onMergeGroup}
+            onConfirm={onMergeConfirm}
+          />
+        )}
       </div>
       <StoryBuilderShelf entries={initialEntries.filter((e) => !placed.has(e.code))} />
     </div>

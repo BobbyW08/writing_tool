@@ -1014,7 +1014,31 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       the Beats lane, reused here for the event case), so it keeps a record of the story's plan; the new
       entity's box replaces it at the same board position. `getCanvasBeats()` now excludes promoted beats
       so they do not also show as a stale idea box next to the thing they became.
-- [ ] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
+- [x] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
+      **Finished 2026-11-26.** `lib/story-builder/merge.ts`'s `resolveMergePairing()` is the one place
+      that decides which pairings mean anything; everything else is refused with a toast rather than
+      guessing new relationship semantics. Four pairings, direction-independent (dragging A onto B
+      means the same as dragging B onto A):
+      - **Character onto character:** a full `RELATIONSHIP_TYPES` picker, or "Group on this canvas
+        only" -- confirmed with Bobby (2026-11-26) that this writes nothing beyond the ordinary board
+        position a ordinary move already writes; no new "group" concept or schema field.
+      - **Character onto a story:** fixed to `appears_in`, plus an additive `addStoryInvolvesAction`
+        (new, since the existing `updateEventInvolvesAction`-style actions replace a whole list).
+      - **Character onto an event:** fixed to `participated_in`, plus an additive
+        `addEventInvolvesAction` -- added after Bobby clarified (2026-11-26) that this one is about the
+        character's own life-event timeline (hard rule 5's `getEventsInvolving`), not just a canon
+        relationship; not in the original spec text, which only named character-story and
+        {character,story,event}-location.
+      - **Character, story or event onto a location:** a `RELATIONSHIP_TYPES` picker filtered to the
+        `Places` group only (character-onto-character gets the unfiltered list, since the spec's own
+        wording differs: "pick a type" vs. "a places relationship").
+      Every confirmed merge's toast carries an Undo button (`deleteRelationshipAction` plus the
+      matching `removeStoryInvolvesAction`/`removeEventInvolvesAction` if one was added). The highlight
+      the spec asks for ("a highlight shows the drop target") is live during the drag itself, via
+      `getIntersectingNodes` and a `highlighted` flag on `EntryNodeData`. The dragged box always snaps
+      back to its resting position when a merge menu opens -- nothing about the drop counts as a move
+      until the menu resolves (hard rule 19), the one exception being "Group on this canvas only",
+      which lets the drop stand exactly like an ordinary move.
 - [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
       The left menu stays visible behind the popup, dimmed (board 8).
 - [ ] **SB7.** AI helpers: Review writing, Review facts, What happens next, then the chips. Idea generation
@@ -1715,7 +1739,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB4 done 2026-11-26. **Next: SB5** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB5 done 2026-11-26. **Next: SB6** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -1984,6 +2008,32 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-26 (second): step SB5, the merge menu
+
+Built the four merge pairings (see the SB5 checklist entry above for the full list and the reasoning
+behind each). Two decisions needed Bobby directly rather than guessing, both resolved this session:
+
+1. **"Group on this canvas only"** (character onto character, the option that "writes nothing to
+   canon") had no defined meaning anywhere -- `BoardNodePositions` only ever had `{x, y, collapsed?,
+   pinned?}`, no group concept. Bobby confirmed it should be nothing more than letting the two boxes
+   land near each other, stored the same way any box's position already is. No new field.
+2. **Character onto an event** was not in the original spec text at all (which only named
+   character-story, {character,story,event}-location, and character-character). Bobby asked for it
+   mid-session, specifically so dragging a character onto an event records that event as one of the
+   character's own life events -- i.e. it should show up on the character's page via the existing
+   `getEventsInvolving()` (hard rule 5), the same mechanism events already use for "every event
+   involving X". Added `addEventInvolvesAction`/`removeEventInvolvesAction` (additive, mirroring the
+   new `addStoryInvolvesAction`/`removeStoryInvolvesAction` built for the character-story case) and a
+   `participated_in` relationship, fixed the same way `appears_in` is fixed for character-story (no
+   type picker -- the meaning is already settled by which two things were dragged together).
+
+Verified live for all four pairings (character-character with Undo, character-story with
+`storyInvolves`, character-event with `eventInvolves`, character-location), plus the refusal path for
+an unsupported pairing (character onto lore) and the live drag-highlight. One test-environment
+artifact, not a code bug: the canvas's persisted viewport can drift during a long run of drag
+interactions to the point a node renders outside the visible pane (same class of issue as SB4's
+zoom-drift note) -- reset via a direct `boards.viewport` update when it happened, same as before.
 
 ### Session 2026-11-26: step SB4, the shelf, finished and fixed
 

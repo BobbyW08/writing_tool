@@ -14,6 +14,8 @@ export type EntryNodeData = {
   // True when the entry has no year of its own yet, so the box shows the dashed "no date" state.
   undated: boolean;
   birthYear: number | null;
+  // Step SB5: true while another box is being dragged onto this one, as the merge drop target.
+  highlighted?: boolean;
 };
 
 const LABELS: Record<ShelfCollection, string> = {
@@ -47,8 +49,8 @@ export function EntryNode({ data, selected }: NodeProps & { data: EntryNodeData 
       className="rounded-md bg-white px-3 py-2 text-xs"
       style={{
         width: 200,
-        border: `2px ${dashed ? "dashed" : "solid"} ${selected ? "#1f6fdc" : "#222"}`,
-        boxShadow: "3px 3px 0 #222",
+        border: `2px ${dashed ? "dashed" : "solid"} ${data.highlighted ? "#16a34a" : selected ? "#1f6fdc" : "#222"}`,
+        boxShadow: data.highlighted ? "0 0 0 3px rgba(22,163,74,0.35), 3px 3px 0 #222" : "3px 3px 0 #222",
       }}
     >
       <div className="mb-0.5 flex items-center justify-between gap-2">
