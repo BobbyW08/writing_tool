@@ -981,7 +981,7 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       renamed it by double-click and confirmed the new name persisted; deleted it with Backspace and
       confirmed both the beat row and its board position were gone. Zero console errors throughout.
       `tsc --noEmit` and `npm run build` both clean.
-- [ ] **SB4.** Shelf: drag existing entries onto the canvas. Convert a typed box to an entry type.
+- [x] **SB4.** Shelf: drag existing entries onto the canvas. Convert a typed box to an entry type.
       Bobby's decisions on what a dropped entry's horizontal position means (2026-11-24):
       - **Character:** the drop year is the year being looked at, and the box shows the character's age at
         that year (drop year minus `birthYear`). With no `birthYear` the box says "age unknown" and offers
@@ -1000,8 +1000,20 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       `components/story-builder-entry-node.tsx` (character box shows age at its year), and the drop,
       refuse-if-already-placed and drag-to-set-year (events, stories, items only) logic in
       `components/story-builder-canvas.tsx`. Deleting an entry's box only removes it from the canvas.
-      **Still open in SB4:** run it in the browser, the locations year field (needs Bobby's go-ahead), the
-      lore decision, and "Make this a..." conversion of a typed box into a real entry.
+      **Finished 2026-11-26.** Live-verified in the browser and fixed what broke (see the error log and the
+      working log entry below for the four bugs found and fixed: the shelf overlay blocking node
+      interaction, the draft box's inherited `pointer-events: none`, the converted-entity year field, and
+      promoted beats double-showing on the canvas). Bobby decided lore keeps no year field, permanently
+      undated, not as a placeholder -- lore is reference material without one true year, unlike the other
+      five types which all have a real temporal anchor. The locations year field (its one open schema
+      question) is **not built** -- still needs Bobby's go-ahead on the migration before it can be added;
+      locations are undated on the canvas until then. "Make this a..." conversion: a select on a selected
+      beat box (`BeatNode`'s "Make this a..." dropdown) calls the new `convertBeatToEntityAction()` in
+      `lib/world/actions.ts`, generic across character/location/event/story/lore. The beat stays in the
+      database, marked `state = 'promoted'` (same convention `promoteBeatToEventAction` already used for
+      the Beats lane, reused here for the event case), so it keeps a record of the story's plan; the new
+      entity's box replaces it at the same board position. `getCanvasBeats()` now excludes promoted beats
+      so they do not also show as a stale idea box next to the thing they became.
 - [ ] **SB5.** Merge menu and the confirmed merges (relationship, appears in, located at), with Undo.
 - [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
       The left menu stays visible behind the popup, dimmed (board 8).
@@ -1703,7 +1715,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1, SB2 and SB3 done 2026-11-23. **Next: SB4** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB4 done 2026-11-26. **Next: SB5** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -1972,6 +1984,55 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-26: step SB4, the shelf, finished and fixed
+
+The shelf half of SB4 (dragging existing entries onto the canvas) had been written in a prior remote
+session with no dev server, checked only with `tsc --noEmit`. This session ran it for real in the
+browser and found four bugs, all fixed:
+
+1. **The shelf panel blocked interaction with anything under it.** It was `position: absolute` on
+   top of the canvas, so any node whose position happened to land underneath it was both invisible
+   and undraggable -- confirmed with `document.elementFromPoint`, which resolved to the shelf's own
+   `<aside>`, not the node. Fixed by giving the shelf its own flex column next to the canvas instead
+   of overlaying it, so the canvas's own width (and `screenToFlowPosition`'s mapping) never extends
+   under the shelf in the first place.
+2. **The draft box (the blank "type anything" box) was unclickable once created**, including its own
+   input. xyflow sets `pointer-events: none` on a node's wrapper by default and only re-enables it
+   (`pointer-events: all`) on nodes that are draggable, selectable or connectable -- the draft box is
+   deliberately none of those, so it inherited `none` all the way down, with nothing to click back
+   into if focus ever left it. Fixed with an inline `pointerEvents: "auto"` override, which beats the
+   class-based rule on specificity without having to make the box draggable or selectable.
+3. **A converted entity's year was blank for events** (showed "no date" even though the beat's
+   `startYear` carried over correctly to the new event row) -- the client-side code that builds the
+   new box right after conversion only copied the year across for the `stories` case, missing that
+   `events` uses `startYear` too. The underlying data was always correct; only the box shown before
+   the next reload was wrong. Fixed by checking for either collection.
+4. **A converted beat kept showing up as its own "Idea" box too**, once reloaded, next to the real
+   entity it had become. `promoteBeatToEventAction` (and the new generic conversion) deliberately keep
+   the beat row in place, marked `promoted`, so the Beats lane still has a record of the plan -- but
+   `getCanvasBeats()` was not filtering that state out, so the canvas showed the same idea twice.
+   Fixed by excluding `state = 'promoted'` beats from the canvas query, matching the filter the Story
+   -> Beats lane already applies for its own view.
+
+Built on top of that: "Make this a..." conversion of a typed box into a real entry. A new generic
+`convertBeatToEntityAction()` in `lib/world/actions.ts` creates the target entity (character,
+location, event, story or lore) from the beat's own fields and marks the beat promoted, reusing
+`promoteBeatToEventAction` for the event case so the existing Beats-lane promotion keeps behaving
+exactly as it did; the canvas then swaps the beat's box for the new entity's box at the same board
+position. This is deliberately not `moveEntryAction` (hard rule 6's type-change path between two
+already-coded tables) -- a beat becoming a character seeds a brand-new character record from the
+beat's content, it does not move the beat's own B-code to a new type.
+
+Bobby confirmed lore should carry no year field at all -- not a temporary gap, but the right design,
+since lore (unlike character/location/item/event/story) has no single true year of its own; it sits
+permanently undated on the canvas. The locations year field is still outstanding and needs his
+go-ahead on the migration before it's added, same approval pattern as migration 0017.
+
+Lesson for later canvas work: a floating overlay panel positioned on top of a `react-flow` canvas (not
+beside it) will eventually block interaction with whatever the user pans underneath it -- give it its
+own layout space instead. And a custom node that is intentionally not draggable/selectable needs an
+explicit `pointer-events: auto` if anything inside it (an input, a button) still needs to be clickable.
 
 ### Session 2026-11-23 (fifth): step SB3, boxes -- and a data-model change
 
@@ -2420,6 +2481,10 @@ Errors are logged here when found and again when fixed.
 | 2026-11-21 | Hydration error on a story page from the editor's "Start writing..." placeholder in `app/(app)/write/[code]/editor.tsx`. | 2026-11-21 | Root cause: the markdown-populated initial editor state commits on a deferred microtask, so SSR's synchronous render and client hydration disagreed on whether the placeholder should show. Fixed by calling `$flushSyncAfterUpdate()` right after the markdown conversion in `editorState`, forcing a synchronous commit. Confirmed clean in the browser console on `/stories/S16`. Commit `3a03944`. |
 | 2026-11-21 | On an entry page the title overlaps the Export as Markdown button and the UNK badge. | 2026-11-21 | Root cause: the title row had no min-width override, so flex-shrink used its unwrapped content width as a floor on the title column. Fixed by letting the header row wrap (`flex-wrap`) and dropping the title column's `min-w-0` override, so the actions bar now wraps to its own line under the title whenever both don't fit, instead of the title overflowing into it. Verified on a short title with a wide actions bar, a long title, and a title with room to spare. The dedicated toolbar-with-tabs layout from the wireframes is still step UX6, not this fix. Commit `9427a7a`. |
 | 2026-11-21 | Ask AI proposals are vague restatements. The task runs on a small model and the prompt does not demand a question or tension. | 2026-11-21 | `generateDetailProposals`'s default task changed from `quick_suggestions` to `deep_suggestions` (through the existing `ai_settings` task routing, no hard-coded model), and its system prompt now explicitly asks for concrete questions, options, or tensions grounded in the record's own text and linked entries, never a settled fact. `generatePromptAnswers`/`generateBeatCards` untouched. Verified live: fresh proposals on C62 show `claude-sonnet-4-5` and read as open questions. Commit `a3d0c78`. |
+| 2026-11-26 | Story Builder: the right-hand shelf panel was positioned absolutely on top of the canvas, so any node whose position scrolled underneath it became both invisible and unclickable (confirmed via `document.elementFromPoint`, which hit the shelf's `<aside>` instead of the node). | 2026-11-26 | The shelf is now a flex sibling of the canvas (its own column) instead of an overlay, so the canvas never extends under it. `components/story-builder-shelf.tsx`, `components/story-builder-canvas.tsx`. |
+| 2026-11-26 | Story Builder: the draft "type anything" box was unclickable, including its own input, once it lost focus. | 2026-11-26 | Root cause: xyflow sets `pointer-events: none` on a node wrapper unless it is draggable/selectable/connectable, none of which the draft box is by design, so it inherited `none` down to the input. Fixed with an inline `pointerEvents: "auto"` override in `components/story-builder-beat-node.tsx`. |
+| 2026-11-26 | Story Builder: converting a beat to an event showed "no date" on its new box even though the event's own `startYear` was set correctly. | 2026-11-26 | The client-side code building the replacement box after conversion only copied the year across for the `stories` case, not `events` (both use `startYear`). `components/story-builder-canvas.tsx`'s `onConvertBeat`. |
+| 2026-11-26 | Story Builder: a beat converted to an entry still showed as its own "Idea" box after a reload, next to the entity it had become. | 2026-11-26 | `getCanvasBeats()` was not filtering out `state = 'promoted'` beats (which deliberately stay in the database as a plan record). Added that filter, matching the Beats lane's own filter. `lib/world/queries.ts`. |
 
 ## Explicitly out of scope
 

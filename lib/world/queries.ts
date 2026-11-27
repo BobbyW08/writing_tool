@@ -1084,9 +1084,13 @@ export async function getStoryCanvasBoard() {
 export type CanvasBeat = { id: number; code: string; name: string; startYear: number | null; storyId: number | null }
 
 export async function getCanvasBeats(): Promise<CanvasBeat[]> {
+  // A promoted beat (step SB4's "Make this a...") is represented on the canvas by the entity it
+  // became, not by its own idea box any more -- the beat row itself stays (the Beats lane still
+  // shows it), it just drops out of the canvas's beat list once it is no longer an active idea.
   return appDb
     .select({ id: schema.beats.id, code: schema.beats.code, name: schema.beats.name, startYear: schema.beats.startYear, storyId: schema.beats.storyId })
     .from(schema.beats)
+    .where(ne(schema.beats.state, 'promoted'))
     .orderBy(schema.beats.createdAt)
 }
 

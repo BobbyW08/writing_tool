@@ -289,6 +289,56 @@ export async function promoteBeatToEventAction(beatId: number): Promise<{ ok: bo
   }
 }
 
+// Step SB4: "Make this a..." on a Story Builder box. Converting a beat to an entry type is not a
+// type change between two already-coded tables (hard rule 6's moveEntryAction) -- a beat becoming,
+// say, a character seeds a brand-new character record from the beat's content. The beat itself stays
+// in place, marked promoted, the same way promoteBeatToEventAction already does for events (so the
+// Story -> Beats lane keeps its plan record); for the canvas, the new entity's box replaces the
+// beat's box at the same board position once this returns.
+const BEAT_CONVERT_COLLECTIONS = ['characters', 'locations', 'events', 'stories', 'lore'] as const
+export type BeatConvertCollection = (typeof BEAT_CONVERT_COLLECTIONS)[number]
+
+export async function convertBeatToEntityAction(
+  beatId: number,
+  collection: BeatConvertCollection
+): Promise<{ ok: boolean; code?: string; id?: number; error?: string }> {
+  try {
+    const [beat] = await appDb.select().from(schema.beats).where(eq(schema.beats.id, beatId)).limit(1)
+    if (!beat) return { ok: false, error: 'This beat no longer exists.' }
+
+    if (collection === 'events') {
+      const result = await promoteBeatToEventAction(beatId)
+      if (!result.ok) return { ok: false, error: result.error }
+      const [row] = await appDb.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.code, result.eventCode!)).limit(1)
+      return { ok: true, code: result.eventCode, id: row?.id }
+    }
+
+    // Only fields the target table actually has (db/schema.ts): stories carry startYear/yearLabel
+    // like events, characters carry birthYear instead, locations and lore carry neither yet.
+    const fields: Record<string, unknown> = { name: beat.name, summary: beat.summary }
+    if (collection === 'stories') {
+      fields.startYear = beat.startYear
+      fields.yearLabel = beat.yearLabel
+    }
+    if (collection === 'characters') {
+      fields.birthYear = beat.startYear
+    }
+
+    const created = await createEntityAction(collection, fields)
+    if (created.error || !created.id) return { ok: false, error: created.error }
+
+    await appDb.update(schema.beats)
+      .set({ state: 'promoted', updatedAt: new Date() })
+      .where(eq(schema.beats.id, beatId))
+
+    revalidatePath('/story-builder')
+    revalidatePath(`/${collection}`)
+    return { ok: true, code: created.code, id: created.id }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
 // ─── searchForEntry ───────────────────────────────────────────────────────────
 export async function searchForEntry(query: string): Promise<{ code: string; collection: string } | null> {
   const { resolveCodeLookup } = await import('@/lib/world/queries')

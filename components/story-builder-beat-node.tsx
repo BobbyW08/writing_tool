@@ -3,12 +3,23 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { type NodeProps } from "@xyflow/react";
 
+export type BeatConvertCollection = "characters" | "locations" | "events" | "stories" | "lore";
+
 export type BeatNodeData = {
   beatId: number;
   name: string;
   startYear: number | null;
   onRename: (beatId: number, name: string) => void;
+  onConvert: (beatId: number, collection: BeatConvertCollection) => void;
 };
+
+const CONVERT_OPTIONS: { collection: BeatConvertCollection; label: string }[] = [
+  { collection: "characters", label: "Character" },
+  { collection: "locations", label: "Location" },
+  { collection: "events", label: "Event" },
+  { collection: "stories", label: "Story" },
+  { collection: "lore", label: "Lore" },
+];
 
 // Board 5's loose "IDEA" box: dashed outline and a "no date" badge until it has a startYear, then a
 // solid outline with the year it landed on. Double-click to rename in place.
@@ -69,6 +80,26 @@ export function BeatNode({ data, selected }: NodeProps & { data: BeatNodeData })
       ) : (
         <p className="break-words text-sm text-neutral-800">{data.name}</p>
       )}
+      {selected && !editing && (
+        <select
+          className="nodrag nopan mt-1.5 w-full rounded border border-blue-300 bg-white px-1 py-0.5 text-[11px] text-neutral-700 outline-none"
+          defaultValue=""
+          onChange={(e) => {
+            const collection = e.target.value as BeatConvertCollection;
+            e.target.value = "";
+            if (collection) data.onConvert(data.beatId, collection);
+          }}
+        >
+          <option value="" disabled>
+            Make this a...
+          </option>
+          {CONVERT_OPTIONS.map((o) => (
+            <option key={o.collection} value={o.collection}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
@@ -95,7 +126,13 @@ function BeatDraftNode({ data }: NodeProps & { data: BeatDraftNodeData }) {
   }
 
   return (
-    <div className="rounded-md border-2 border-dashed px-3 py-2 text-xs shadow-sm" style={{ width: 224, backgroundColor: "#d6e6fb", borderColor: "#2f80ed" }}>
+    <div
+      className="rounded-md border-2 border-dashed px-3 py-2 text-xs shadow-sm"
+      // xyflow sets `pointer-events: none` on a node's wrapper unless it is draggable/selectable/
+      // connectable (none of which this draft node is); without this override the box -- including
+      // its own input -- is unclickable, so losing focus for any reason would strand it.
+      style={{ width: 224, backgroundColor: "#d6e6fb", borderColor: "#2f80ed", pointerEvents: "auto" }}
+    >
       <div className="mb-1 font-semibold uppercase tracking-wide text-blue-700">Idea</div>
       <input
         ref={inputRef}

@@ -15,12 +15,12 @@ import {
   type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { createEntityAction, deleteEntityAction, updateFieldAction } from "@/lib/world/actions";
+import { createEntityAction, deleteEntityAction, updateFieldAction, convertBeatToEntityAction } from "@/lib/world/actions";
 import type { CanvasBeat, BoardNodePositions, ShelfEntry } from "@/lib/world/queries";
 import { YEAR_WIDTH, DEFAULT_START_YEAR, yearToX } from "@/lib/story-builder/canvas-scale";
 import { EntryNode, type EntryNodeData } from "@/components/story-builder-entry-node";
 import { StoryBuilderShelf, SHELF_DRAG_TYPE } from "@/components/story-builder-shelf";
-import { STORY_BUILDER_NODE_TYPES, type BeatNodeData, type BeatDraftNodeData } from "@/components/story-builder-beat-node";
+import { STORY_BUILDER_NODE_TYPES, type BeatNodeData, type BeatDraftNodeData, type BeatConvertCollection } from "@/components/story-builder-beat-node";
 
 interface StoryBuilderCanvasProps {
   boardId: number;
@@ -109,7 +109,13 @@ const YEAR_FIELD: Partial<Record<ShelfEntry["collection"], string>> = {
   items: "createdYear",
 };
 
-function beatToFlowNode(beat: CanvasBeat, positions: BoardNodePositions, index: number, onRename: BeatNodeData["onRename"]): FlowNode {
+function beatToFlowNode(
+  beat: CanvasBeat,
+  positions: BoardNodePositions,
+  index: number,
+  onRename: BeatNodeData["onRename"],
+  onConvert: BeatNodeData["onConvert"]
+): FlowNode {
   const stored = positions[beat.code];
   const x = beat.startYear != null ? beat.startYear * YEAR_WIDTH : (stored?.x ?? DEFAULT_START_YEAR * YEAR_WIDTH);
   const y = stored?.y ?? 80 + (index % 6) * 70;
@@ -117,7 +123,7 @@ function beatToFlowNode(beat: CanvasBeat, positions: BoardNodePositions, index: 
     id: beat.code,
     type: "beat",
     position: { x, y },
-    data: { beatId: beat.id, name: beat.name, startYear: beat.startYear, onRename } satisfies BeatNodeData,
+    data: { beatId: beat.id, name: beat.name, startYear: beat.startYear, onRename, onConvert } satisfies BeatNodeData,
   };
 }
 
@@ -140,8 +146,48 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Step SB4: "Make this a..." on a beat box. The beat stays in place (it is just marked promoted,
+  // same as promoteBeatToEventAction already did for the Beats lane) -- the new entity's box takes
+  // over the same board position, same way a deleted box's position is freed up elsewhere here.
+  const onConvertBeat = useCallback(async (beatId: number, collection: BeatConvertCollection) => {
+    const match = [...beatByCode.current.entries()].find(([, b]) => b.id === beatId);
+    if (!match) return;
+    const [oldCode, beat] = match;
+    const result = await convertBeatToEntityAction(beatId, collection);
+    if (result.error || !result.code || !result.id) {
+      toast.error(result.error ?? "Could not convert this idea.");
+      return;
+    }
+    const newCode = result.code;
+    const oldPos = positionsRef.current[oldCode];
+    const newEntry: ShelfEntry = {
+      id: result.id,
+      code: newCode,
+      name: beat.name,
+      collection,
+      year: collection === "events" || collection === "stories" ? beat.startYear : null,
+      birthYear: collection === "characters" ? beat.startYear : null,
+    };
+
+    beatByCode.current.delete(oldCode);
+    entryByCode.current.set(newCode, newEntry);
+
+    const nextPositions = { ...positionsRef.current };
+    if (oldPos) {
+      nextPositions[newCode] = oldPos;
+      delete nextPositions[oldCode];
+    }
+    persistPositions(nextPositions);
+    setPlaced((prev) => new Set(prev).add(newCode));
+    setNodes((nds) => [
+      ...nds.filter((n) => n.id !== oldCode),
+      entryToFlowNode(newEntry, nextPositions, oldPos ?? { x: 0, y: 80 }),
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<FlowNode>([
-    ...initialBeats.map((b, i) => beatToFlowNode(b, initialNodePositions, i, onRename)),
+    ...initialBeats.map((b, i) => beatToFlowNode(b, initialNodePositions, i, onRename, onConvertBeat)),
     ...initialEntries
       .filter((e) => initialNodePositions[e.code])
       .map((e) => entryToFlowNode(e, initialNodePositions, { x: 0, y: 80 })),
@@ -241,9 +287,9 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     const beat: CanvasBeat = { id: result.id, code: result.code, name, startYear: null, storyId: null };
     beatByCode.current.set(beat.code, beat);
     persistPositions({ ...positionsRef.current, [beat.code]: { x: position.x, y: position.y } });
-    setNodes((nds) => [...nds, beatToFlowNode(beat, positionsRef.current, 0, onRename)]);
+    setNodes((nds) => [...nds, beatToFlowNode(beat, positionsRef.current, 0, onRename, onConvertBeat)]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cancelDraft, setNodes, onRename]);
+  }, [cancelDraft, setNodes, onRename, onConvertBeat]);
 
   const addDraftAt = useCallback((position: { x: number; y: number }) => {
     setNodes((nds) => {
@@ -310,31 +356,33 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
   }, [addDraftAt, screenToFlowPosition]);
 
   return (
-    <div
-      onDoubleClick={onPaneDoubleClick}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className="relative h-[calc(100vh-170px)] min-h-[480px] overflow-hidden rounded-md border bg-white"
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={[]}
-        nodeTypes={NODE_TYPES}
-        onNodesChange={onNodesChangeBase}
-        onNodeDragStop={onNodeDragStop}
-        onNodesDelete={onNodesDelete}
-        defaultViewport={defaultViewport}
-        onMoveEnd={onMoveEnd}
-        minZoom={0.2}
-        maxZoom={2.5}
-        panOnScroll
-        zoomOnDoubleClick={false}
-        deleteKeyCode={["Backspace", "Delete"]}
+    <div className="flex h-[calc(100vh-170px)] min-h-[480px] gap-3">
+      <div
+        onDoubleClick={onPaneDoubleClick}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        className="relative flex-1 overflow-hidden rounded-md border bg-white"
       >
-        <Background color="#8a8a8a" gap={28} size={1.4} />
-        <Controls showInteractive={false} />
-      </ReactFlow>
-      <TimelineRuler />
+        <ReactFlow
+          nodes={nodes}
+          edges={[]}
+          nodeTypes={NODE_TYPES}
+          onNodesChange={onNodesChangeBase}
+          onNodeDragStop={onNodeDragStop}
+          onNodesDelete={onNodesDelete}
+          defaultViewport={defaultViewport}
+          onMoveEnd={onMoveEnd}
+          minZoom={0.2}
+          maxZoom={2.5}
+          panOnScroll
+          zoomOnDoubleClick={false}
+          deleteKeyCode={["Backspace", "Delete"]}
+        >
+          <Background color="#8a8a8a" gap={28} size={1.4} />
+          <Controls showInteractive={false} />
+        </ReactFlow>
+        <TimelineRuler />
+      </div>
       <StoryBuilderShelf entries={initialEntries.filter((e) => !placed.has(e.code))} />
     </div>
   );
