@@ -280,6 +280,31 @@ export async function getEventsForStory(storyId: number) {
   return evts
 }
 
+// ─── getStoryInvolvesResolved ──────────────────────────────────────────────────
+// Step SB6: the story questions popup's Characters, Locations, Items and Lore questions each read
+// one collection of a story's storyInvolves rows, resolved to {id, code, name}. Only the four
+// collections those questions cover -- storyInvolves itself is generic across any collection
+// (move.ts's type-change logic uses it that way), but nothing else reads it back yet.
+const STORY_INVOLVES_TABLES = {
+  characters: schema.characters,
+  locations: schema.locations,
+  items: schema.items,
+  lore: schema.lore,
+} as const
+
+export async function getStoryInvolvesResolved(
+  storyId: number,
+  entryCollection: keyof typeof STORY_INVOLVES_TABLES
+): Promise<{ id: number; code: string; name: string }[]> {
+  const involves = await appDb.select({ entryId: schema.storyInvolves.entryId })
+    .from(schema.storyInvolves)
+    .where(and(eq(schema.storyInvolves.storyId, storyId), eq(schema.storyInvolves.entryCollection, entryCollection)))
+  if (!involves.length) return []
+  const ids = involves.map(r => r.entryId)
+  const table = STORY_INVOLVES_TABLES[entryCollection]
+  return appDb.select({ id: table.id, code: table.code, name: table.name }).from(table).where(inArray(table.id, ids))
+}
+
 // ─── getEventsList ────────────────────────────────────────────────────────────
 export async function getEventsList() {
   const docs = await appDb.select().from(schema.events)

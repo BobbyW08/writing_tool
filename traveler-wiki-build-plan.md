@@ -1039,8 +1039,38 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       back to its resting position when a merge menu opens -- nothing about the drop counts as a move
       until the menu resolves (hard rule 19), the one exception being "Group on this canvas only",
       which lets the drop stand exactly like an ordinary move.
-- [ ] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
-      The left menu stays visible behind the popup, dimmed (board 8).
+- [x] **SB6.** Expanded box popup: Write area, state switch, story questions writing through the data layer.
+      The left menu stays visible behind the popup, dimmed (board 8). Finished 2026-11-26. A true
+      client-side overlay (`components/story-builder-box-popup.tsx`), not a navigated route, so the
+      left nav and dimmed canvas stay visible behind it per the spec's own wording. Opens on a
+      double-click on an existing box (single click still selects for SB4's convert dropdown; a
+      double-click on blank canvas still creates a draft, since that handler only fires on the pane
+      itself, never on a node). Per box kind:
+      - **Story box:** the Write area embeds `WritingEditor` (`app/(app)/write/[code]/editor.tsx`)
+        wholesale against that story's own writing record (get-or-create, same pattern
+        `app/(app)/story-builder/[code]/page.tsx` already used) -- the Draft/Canon/Set aside switch,
+        word count and continuity check all come for free from that reuse (hard rule 10). The right
+        column is the story questions panel: Timeframe (direct fields), Story/what happens (the
+        `summary` field), Characters/Locations/Items/Lore (the generic `storyInvolves` table, one
+        new resolver `getStoryInvolvesResolved` plus the additive `addStoryInvolvesAction` built in
+        SB5), and Events (the `storyDramatizes` table, new `addStoryDramatizesAction`/
+        `removeStoryDramatizesAction`). Each add-by-code input follows the same pattern as the
+        existing `EventPinsEditor`. Themes and arc stays hidden until step AR exists.
+      - **Beat box:** same Write area as a story box, using the story its `storyId` already points
+        at, once it has one. A storyless beat (SB3's "starts with no story until grouped") shows an
+        explanatory message instead -- "group this idea with another box first" -- since the spec's
+        own wording ("saves to a writing record linked to that story") only makes sense once a story
+        exists to link to. No story questions panel for a beat box.
+      - **Any other entry box** (character, location, event, item, lore): the Write area edits the
+        entry's own `body` field directly, a plain textarea (debounced save via a new
+        `updateEntryNotesAction`) -- `body` is a plain text column already shown read-only as "Notes"
+        on the entry's own page, not the Markdown-through-Lexical pipeline `writing.text` uses, so no
+        Lexical integration was needed here.
+      "Open full page" links to `/write/<code>` for a story or beat box, or `/<collection>/<code>`
+      for any other entry box (confirmed the entity route resolves a bare code, not just a slug).
+      Verified live for all three Write-area branches, the story-questions panel's writes and removes
+      (Characters, Events), the Timeframe/Story-summary blur-save, and the storyless-beat message,
+      each via Neon SQL before and after to confirm the exact row written and then cleaned up.
 - [ ] **SB7.** AI helpers: Review writing, Review facts, What happens next, then the chips. Idea generation
       also works from a selected box on the canvas: results show as dashed ghost boxes to its right, with
       Add to canvas and Dismiss (see step UX).
@@ -1739,7 +1769,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB5 done 2026-11-26. **Next: SB6** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB6 done 2026-11-26. **Next: SB7** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -2008,6 +2038,32 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-26 (third): step SB6, the expanded box popup
+
+Built the popup described in the SB6 checklist entry above: the shell, the three Write-area
+branches (story/beat via `WritingEditor` reuse, any other entry box via a plain `body` textarea),
+and the story questions panel (Timeframe, Story/summary, Characters/Locations/Items/Lore via
+`storyInvolves`, Events via a new `storyDramatizes` write action pair). Genuinely open points were
+resolved by direct investigation rather than guessed past:
+- What an entry box's "notes" actually means: `body` is already shown read-only as "Notes" on the
+  entity page (`app/(app)/[entityType]/[slug]/page.tsx`), a plain text column distinct from
+  `writing.text`'s Markdown-through-Lexical pipeline -- so the Write area for those boxes is a plain
+  textarea, no Lexical integration needed.
+- What "Open full page" should link to: confirmed the entity route (`/[entityType]/[slug]/page.tsx`)
+  resolves a bare code directly (not only a slug), so a story/beat box links to `/write/<code>` and
+  any other entry box links to `/<collection>/<code>` with no new route needed.
+- `app/(app)/story-builder/[code]/page.tsx` and its `/review` page are left alone -- confirmed
+  (via their own code comments) they are pre-canvas UX3 scaffolding, a separate concern from this
+  popup, not something SB6 needed to touch or fold in.
+- A storyless beat (no `storyId` yet) has nothing to link a writing record to, so its Write area
+  shows an explanatory message instead of an editor, rather than silently failing or guessing a
+  home for the writing.
+
+One correction during testing: the Characters/Locations/Items/Lore/Events add-by-code fields reuse
+`resolveEntryForLinkAction`'s existing name search, which is case-sensitive SQL `LIKE` (a
+pre-existing quirk of `resolveCodeLookup`, not something this step introduced) -- typing a code
+directly always works regardless of case.
 
 ### Session 2026-11-26 (second): step SB5, the merge menu
 

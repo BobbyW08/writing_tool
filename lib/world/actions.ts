@@ -989,6 +989,38 @@ export async function removeEventInvolvesAction(
   }
 }
 
+// ─── addStoryDramatizesAction / removeStoryDramatizesAction ───────────────────
+// Step SB6: the story questions popup's "Events" question adds or removes one event from a
+// story's own dramatizes list (which of its own events, not which world entries it involves --
+// getEventsForStory in lib/world/queries.ts reads it back). Mirrors storyDramatizes's own
+// unique(storyId, eventId).
+export async function addStoryDramatizesAction(storyId: number, eventId: number): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.insert(schema.storyDramatizes).values({ storyId, eventId }).onConflictDoNothing()
+    await appDb.update(schema.stories).set({ updatedAt: new Date() }).where(eq(schema.stories.id, storyId))
+    await syncLinksForRecord('stories', storyId)
+    revalidatePath('/stories')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
+export async function removeStoryDramatizesAction(storyId: number, eventId: number): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await appDb.delete(schema.storyDramatizes).where(and(
+      eq(schema.storyDramatizes.storyId, storyId),
+      eq(schema.storyDramatizes.eventId, eventId)
+    ))
+    await appDb.update(schema.stories).set({ updatedAt: new Date() }).where(eq(schema.stories.id, storyId))
+    await syncLinksForRecord('stories', storyId)
+    revalidatePath('/stories')
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+}
+
 // ─── updateEventPinsAction ─────────────────────────────────────────────────────
 // Step W4: the map pins showing where an event happened. A chronicle uses these to move the map
 // when an event is selected.

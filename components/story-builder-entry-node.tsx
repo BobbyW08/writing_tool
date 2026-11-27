@@ -18,7 +18,7 @@ export type EntryNodeData = {
   highlighted?: boolean;
 };
 
-const LABELS: Record<ShelfCollection, string> = {
+export const ENTRY_COLLECTION_LABELS: Record<ShelfCollection, string> = {
   characters: "Character",
   locations: "Location",
   events: "Event",
@@ -54,7 +54,7 @@ export function EntryNode({ data, selected }: NodeProps & { data: EntryNodeData 
       }}
     >
       <div className="mb-0.5 flex items-center justify-between gap-2">
-        <span className="font-semibold uppercase tracking-wide text-neutral-500">{LABELS[data.collection]}</span>
+        <span className="font-semibold uppercase tracking-wide text-neutral-500">{ENTRY_COLLECTION_LABELS[data.collection]}</span>
         {dashed && (
           <span className="shrink-0 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[9px] font-medium text-neutral-600">no date</span>
         )}

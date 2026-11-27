@@ -24,10 +24,11 @@ import type { CanvasBeat, BoardNodePositions, ShelfEntry } from "@/lib/world/que
 import { YEAR_WIDTH, DEFAULT_START_YEAR, yearToX } from "@/lib/story-builder/canvas-scale";
 import { RELATIONSHIP_TYPES } from "@/lib/relationshipTypes";
 import { resolveMergePairing, type MergePairing } from "@/lib/story-builder/merge";
-import { EntryNode, type EntryNodeData } from "@/components/story-builder-entry-node";
+import { EntryNode, type EntryNodeData, ENTRY_COLLECTION_LABELS } from "@/components/story-builder-entry-node";
 import { StoryBuilderShelf, SHELF_DRAG_TYPE } from "@/components/story-builder-shelf";
 import { STORY_BUILDER_NODE_TYPES, type BeatNodeData, type BeatDraftNodeData, type BeatConvertCollection } from "@/components/story-builder-beat-node";
 import { MergeMenu } from "@/components/story-builder-merge-menu";
+import { StoryBuilderBoxPopup, type BoxPopupTarget } from "@/components/story-builder-box-popup";
 
 interface StoryBuilderCanvasProps {
   boardId: number;
@@ -150,6 +151,21 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
   // only "Group on this canvas only" (character onto character) lets the drop itself stand.
   const [mergeRequest, setMergeRequest] = useState<{ pairing: MergePairing; dropYear: number; droppedPosition: { x: number; y: number } } | null>(null);
   const [mergeSaving, setMergeSaving] = useState(false);
+
+  // Step SB6: double-clicking an existing box opens its expanded popup. A single click still just
+  // selects it (the beat convert dropdown, SB4); double-click on blank canvas still creates a draft
+  // (onPaneDoubleClick, below) since that only fires for clicks on the pane itself, never on a node.
+  const [popupTarget, setPopupTarget] = useState<BoxPopupTarget | null>(null);
+  const onNodeDoubleClick = useCallback((_event: ReactMouseEvent, node: FlowNode) => {
+    if (node.id === DRAFT_ID) return;
+    const entry = entryByCode.current.get(node.id);
+    if (entry) {
+      setPopupTarget({ kind: "entry", collection: entry.collection, code: entry.code, name: entry.name, label: ENTRY_COLLECTION_LABELS[entry.collection] });
+      return;
+    }
+    const beat = beatByCode.current.get(node.id);
+    if (beat) setPopupTarget({ kind: "beat", code: beat.code, name: beat.name });
+  }, []);
 
   const onRename = useCallback((beatId: number, name: string) => {
     void updateFieldAction("beats", beatId, "name", name);
@@ -480,6 +496,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
           onNodesChange={onNodesChangeBase}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
+          onNodeDoubleClick={onNodeDoubleClick}
           onNodesDelete={onNodesDelete}
           defaultViewport={defaultViewport}
           onMoveEnd={onMoveEnd}
@@ -505,13 +522,14 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
         )}
       </div>
       <StoryBuilderShelf entries={initialEntries.filter((e) => !placed.has(e.code))} />
+      {popupTarget && <StoryBuilderBoxPopup target={popupTarget} onClose={() => setPopupTarget(null)} />}
     </div>
   );
 }
 
 // Step SB2/SB3: the canvas -- React Flow, dotted background, pan, zoom, the pinned timeline ruler,
 // and beat boxes (create by double-click/N and typing, move to set the date, delete). The shelf
-// (SB4), merging (SB5), the expanded popup (SB6) and AI helpers (SB7) are not built yet.
+// (SB4), merging (SB5) and the expanded popup (SB6) are built; AI helpers (SB7) are not built yet.
 export function StoryBuilderCanvas(props: StoryBuilderCanvasProps) {
   return (
     <ReactFlowProvider>
