@@ -1115,35 +1115,55 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       returned a real, context-grounded answer. All test data (beats, writing text/tags, board positions)
       cleaned up afterward. `npm run build` and a `rebuild-links.ts` dry run both clean.
 - [x] **SB8.** Polish: Fit to view, N shortcut, keyboard moves, narrow screen behavior. Done
-      2026-11-27, **not yet live-verified** (no `.env.local`/DB in that session -- see the working log
-      entry). Fit to view: left React Flow's own Fit View button as is (no new control, per the
-      checklist's own instruction), only added `fitViewOptions={{ padding: 0.2 }}` so a box at the
-      edge isn't flush against the canvas border. N shortcut: the typing guard already worked; the
-      real gap was that it only checked `document.activeElement`, so N still created a box under the
-      box popup when something other than a text field had focus inside it (a button, say). Now also
-      suppressed while the popup or a pending merge menu is open, matching board 8's "dimmed behind"
-      (the canvas is covered, not removed). Keyboard moves: arrow keys nudge every selected box
-      together, mirroring drag exactly -- left/right moves a whole year and sets the box's date
-      through the same `YEAR_FIELD`/`beat.startYear` path a sideways drag uses (hard rule 18: dates
-      are whole years), up/down moves a small board-position step with no date meaning (hard rule 15).
-      No wireframe text settled this either way (checked board 5 and board 8 for "arrow"/"keyboard"/
-      "nudge" -- neither mentions it), so this follows the existing drag semantics rather than
-      inventing a second one. Narrow screen: below `lg` the right-hand shelf is a slide-in drawer
+      2026-11-27, **live-verified 2026-11-27** (second session, real `APP_DATABASE_URL`/
+      `ANTHROPIC_API_KEY` in `.env.local`, Playwright against the running dev server). Fit to view:
+      left React Flow's own Fit View button as is (no new control, per the checklist's own
+      instruction), only added `fitViewOptions={{ padding: 0.2 }}` so a box at the edge isn't flush
+      against the canvas border. **Live verification found Fit View does not actually hold up on a
+      realistic spread** -- see the 2026-11-27 error log entry (`minZoom={0.2}` clamp). Asked Bobby; he
+      chose to lower `minZoom` rather than remove it, now `0.002` (covers the real `events`/`stories`
+      year range with room to spare) -- fixed and re-verified live the same session, both on the
+      original failing 156-year spread and on a near-maximum ~2000-year spread. N shortcut: the typing guard already worked; the real gap was that it only
+      checked `document.activeElement`, so N still created a box under the box popup when something
+      other than a text field had focus inside it (a button, say). Now also suppressed while the
+      popup or a pending merge menu is open, matching board 8's "dimmed behind" (the canvas is
+      covered, not removed). Live-verified: N with the popup open creates nothing on the canvas and
+      still types a literal "n" into the popup's own Notes field; by code inspection the same guard
+      (`typing || popupTarget || mergeRequest`) covers the merge menu identically. Keyboard moves:
+      arrow keys nudge every selected box together, mirroring drag exactly -- left/right moves a
+      whole year and sets the box's date through the same `YEAR_FIELD`/`beat.startYear` path a
+      sideways drag uses (hard rule 18: dates are whole years), up/down moves a small board-position
+      step with no date meaning (hard rule 15). **Live verification found a second bug here** (React
+      Flow's built-in keyboard a11y nudge stacking with the custom one) -- found and fixed this
+      session, see the error log. Multi-select-and-move-together confirmed live (two boxes, both move
+      by the same exact step); note the actual modifier for adding a box to the selection is
+      Ctrl-click, not Shift-click as informally described in `next.md` -- that's React Flow's own
+      default `multiSelectionKeyCode`, nothing in this app sets it, so this is a wording correction,
+      not a bug. No wireframe text settled this either way (checked board 5 and board 8 for "arrow"/
+      "keyboard"/"nudge" -- neither mentions it), so this follows the existing drag semantics rather
+      than inventing a second one. Narrow screen: below `lg` the right-hand shelf is a slide-in drawer
       (toggle button, backdrop, closed by default) instead of a fixed column that squeezed the canvas
       down to nothing; the popup's own two-column grid already collapsed to one column below `lg`
-      (`grid-cols-1 lg:grid-cols-[2fr_1fr]`) before this session, nothing to do there. Deliberately did
-      not touch the app-wide left nav rail (`app/(app)/layout.tsx`) -- it never collapses at any width
-      anywhere in the app, and giving it one is the broader, not-yet-started step UX narrow-width work
-      (its own still-unchecked checklist item), not an SB8-scoped fix. `tsc --noEmit` and `npm run
-      build` both clean (build needed placeholder `APP_DATABASE_URL`/`ANTHROPIC_API_KEY` env values
-      just to get past module-level client construction during page-data collection -- no real query
-      ran). Files: `components/story-builder-canvas.tsx`, `components/story-builder-shelf.tsx` (one
-      line, `h-full` on the `<aside>` so it fills its column in both the static and drawer layouts).
-- [ ] **Gate SB:** build passes, merges verified against the link index, a drag changes only `startYear`
-      and `endYear`, no AI result applies without an accept. **Not run yet** -- needs a session with
-      real `APP_DATABASE_URL`/`ANTHROPIC_API_KEY` to verify SB8 live in the browser (Fit View on a
-      real spread of boxes, N and the arrow nudges against the popup and merge menu, the shelf drawer
-      on a narrow viewport) before this gate itself can be checked off.
+      (`grid-cols-1 lg:grid-cols-[2fr_1fr]`) before this session, nothing to do there. Live-verified
+      at 600x900: drawer closed by default, Shelf toggle opens it, backdrop click closes it, dragging
+      an unplaced entry from the drawer onto the canvas places it and the entry drops out of the
+      shelf list, an already-placed entry never reappears in the shelf to be re-dragged. Deliberately
+      did not touch the app-wide left nav rail (`app/(app)/layout.tsx`) -- it never collapses at any
+      width anywhere in the app, and giving it one is the broader, not-yet-started step UX
+      narrow-width work (its own still-unchecked checklist item), not an SB8-scoped fix. `tsc --noEmit`
+      and `npm run build` both clean against the real database. All test data this session (placed
+      boxes, the one test idea box, E60's momentarily-nudged `startYear`) cleaned up afterward; a
+      `rebuild-links.ts` dry run after cleanup matches pre-session counts exactly. Files:
+      `components/story-builder-canvas.tsx`, `components/story-builder-shelf.tsx` (one line, `h-full`
+      on the `<aside>` so it fills its column in both the static and drawer layouts).
+- [x] **Gate SB:** build passes, merges verified against the link index, a drag changes only `startYear`
+      and `endYear`, no AI result applies without an accept. All four confirmed live 2026-11-27: `tsc
+      --noEmit` and `npm run build` clean against the real database; `rebuild-links.ts --dry-run`
+      matches pre-session record counts; an arrow-nudge and a sideways drag both change only
+      `startYear`/`endYear` (never `yearLabel`); the AI helpers (SB7) were not re-exercised this
+      session since nothing in SB8 touched that code path. Fit View's `minZoom` clamp (2026-11-27
+      error log entry) was the one open point and is now fixed (Bobby chose to lower `minZoom` rather
+      than remove it).
 
 ---
 ## Start flow and page redesign (step UX)
@@ -1836,7 +1856,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB8 done (SB8 2026-11-27, code only). **Next: live-verify SB8 and run Gate SB, then ask Bobby what's next (step AR is held)** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB8 done, SB8 live-verified and Gate SB checked off 2026-11-27 (two bugs found and fixed same session: keyboard-move drift, and Fit View's `minZoom` clamp). **Next: commit and push, then ask Bobby whether to open a PR to master; step AR is held until he says go** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -2138,6 +2158,42 @@ database as whole-year `startYear`/`endYear`/`createdYear` changes, exactly like
 the shelf drawer opens, closes, and drags an entry onto the canvas correctly at a narrow viewport
 width. Only after that should Gate SB itself (link index, drag semantics, AI accept-gating -- all
 already true as of SB1-SB7, this session touched none of that logic) be checked off.
+
+**2026-11-27, same day, second session: live-verified SB8.** Pulled the latest commit from GitHub
+first (`fc4ac5d`, one commit ahead of local) -- confirmed this machine and the other laptop are the
+same history, no divergence to reconcile. `.env.local` existed here with real `APP_DATABASE_URL`/
+`ANTHROPIC_API_KEY`, so did the live pass this session's own entry above said was owed. Used the
+existing dev server already running on port 3000 (another `next dev` on this machine), logged in
+with Playwright, and built up a realistic mixed spread on the default `story_canvas` board: a
+character at year 4, an event at year 160 (156 years apart), an undated lore entry, and one idea box
+created through N. Three findings, two of them real bugs, one a `next.md` wording issue, all logged
+in the error log above:
+
+1. **Fit View does not hold up on that spread.** `minZoom={0.2}` clamps the zoom-out Fit View would
+   otherwise need, so with boxes more than ~27 years apart every box ends up entirely outside the
+   canvas (confirmed via each node's actual screen rect, not just "looks bad") -- and that broken
+   view persists, since `boards.viewport` is saved. Since the story spans centuries this is not an
+   edge case. Asked Bobby rather than deciding unilaterally (per `next.md`'s own instruction); he
+   chose to lower `minZoom` rather than remove it. Set to `0.002` (the real `events`/`stories` year
+   range runs roughly 0 to 2000, this covers that with room to spare). Re-verified live on both the
+   original 156-year spread (both boxes now genuinely visible after Fit View, not just mathematically
+   in-bounds) and a near-maximum ~2000-year spread (both boxes land inside the canvas, though
+   sub-pixel at that extreme -- an inherent cost of the scale mismatch, not a further bug).
+2. **Keyboard-move drift.** Every arrow press moved a selected box 165px/25px instead of the
+   intended 160px/20px -- React Flow's own built-in keyboard a11y nudge (default 5px) was stacking
+   with the app's own handler, confirmed by its "Moved selected node..." a11y announcement firing
+   alongside. Fixed with `disableKeyboardA11y` on `<ReactFlow>`; re-verified live at exactly +160/+20
+   per press afterward, no further drift.
+3. Multi-select is Ctrl-click, not Shift-click as `next.md` informally said -- React Flow's own
+   default, nothing this app configures. A wording correction for `next.md`'s own next revision, not
+   a code bug.
+
+N and the narrow-screen drawer held up exactly as built (see the SB8 checklist entry's own detail,
+not repeated here). All test placements, the one test idea box, and E60's momentarily-nudged
+`startYear` were reverted afterward via direct SQL against `APP_DATABASE_URL` (no app code path
+exists for deleting a beat, and the `links` table had no rows referencing it, so a plain delete was
+safe). `npx tsc --noEmit`, `npm run build`, and a `rebuild-links.ts --dry-run` all clean after
+cleanup, matching pre-session record counts, including after the `minZoom` fix. Gate SB checked off.
 
 ### Session 2026-11-26 (fourth): step SB7, AI helpers
 
@@ -2704,6 +2760,8 @@ Errors are logged here when found and again when fixed.
 | 2026-11-26 | Story Builder: converting a beat to an event showed "no date" on its new box even though the event's own `startYear` was set correctly. | 2026-11-26 | The client-side code building the replacement box after conversion only copied the year across for the `stories` case, not `events` (both use `startYear`). `components/story-builder-canvas.tsx`'s `onConvertBeat`. |
 | 2026-11-26 | Story Builder: a beat converted to an entry still showed as its own "Idea" box after a reload, next to the entity it had become. | 2026-11-26 | `getCanvasBeats()` was not filtering out `state = 'promoted'` beats (which deliberately stay in the database as a plan record). Added that filter, matching the Beats lane's own filter. `lib/world/queries.ts`. |
 | 2026-11-27 | Story Builder: the N-shortcut's typing guard only checked `document.activeElement` for an input/textarea/contenteditable, so pressing N while the box popup was open (focus anywhere else in it, e.g. a button) still created a new idea box on the canvas underneath the dimmed popup. | 2026-11-27 | The keydown handler now also bails out while `popupTarget` or `mergeRequest` is set, not only while a text field has focus. `components/story-builder-canvas.tsx`. |
+| 2026-11-27 | Story Builder: live-verifying SB8's keyboard moves (real `APP_DATABASE_URL`) showed every arrow nudge moving a selected box 5px further than the custom step (165px/25px landed in `boards.nodePositions` instead of the intended 160px/20px), compounding on every press. Root cause: React Flow's own built-in arrow-key accessibility nudge (default 5px, on unless `disableKeyboardA11y` is set) was stacking with `nudgeSelected`'s own keydown handler. Confirmed via the library's own "Moved selected node..." a11y live-region announcement firing alongside the app's handler. Left unchecked, the drift would have compounded past a half-year (80px) after ~16 presses in one direction and started landing `startYear` one year off from the number of presses. | 2026-11-27 | Added `disableKeyboardA11y` to the `<ReactFlow>` element. Re-verified live: one `ArrowRight`/`ArrowDown` press now lands exactly +160/+20 in `boards.nodePositions`, with no residual drift. `components/story-builder-canvas.tsx`. |
+| 2026-11-27 | Story Builder: Fit View does not actually fit real, widely-spread data. `minZoom={0.2}` combined with `YEAR_WIDTH = 160` means any two boxes more than ~27 years apart cannot be brought into frame -- Fit View clamps at `minZoom` rather than zooming out further, leaving every box entirely outside the visible canvas (confirmed via each node's `getBoundingClientRect()` falling well outside the canvas wrapper's bounds after clicking Fit View on a 156-year-apart test spread: a character at year 4 and an event at year 160). The resulting broken zoom/pan also persists, since the viewport is saved to `boards.viewport`. The Traveler's story spans centuries, so this is not an edge case. | 2026-11-27 | Asked Bobby: lower `minZoom` rather than remove it. Real `events`/`stories` run roughly year 0 to year 2000, so `minZoom` is now `0.002` (room past that full span). Re-verified live: a 156-year spread (the original failing case) now shows both boxes genuinely on screen after Fit View; a near-maximum ~2000-year spread (year 4 to year 2000) now lands both boxes inside the canvas bounds too, though at that extreme each box is sub-pixel (the inherent cost of fitting a multi-century spread into one view, not a further bug -- the user zooms into a cluster manually from there). `components/story-builder-canvas.tsx`. |
 
 ## Explicitly out of scope
 

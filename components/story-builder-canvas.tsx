@@ -671,11 +671,21 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
           onNodesDelete={onNodesDelete}
           defaultViewport={defaultViewport}
           onMoveEnd={onMoveEnd}
-          minZoom={0.2}
+          // Real events/stories span roughly year 0 to year 2000 (YEAR_WIDTH=160px/year), so a Fit
+          // View across the full dataset needs to zoom out much further than 0.2 -- at 0.2 two boxes
+          // more than ~27 years apart landed entirely outside the canvas (found live-verifying SB8).
+          // 0.002 covers that whole realistic span with room to grow; text won't be legible at the
+          // extreme end of that range, same as it already wasn't near the old 0.2 floor -- the point
+          // is that every box is at least inside the frame, so the user can then zoom into a cluster.
+          minZoom={0.002}
           maxZoom={2.5}
           panOnScroll
           zoomOnDoubleClick={false}
           deleteKeyCode={["Backspace", "Delete"]}
+          // React Flow's own built-in arrow-key a11y nudge (default 5px) would otherwise stack with
+          // nudgeSelected's own keydown handler above, moving a selected box further than intended
+          // (165px/25px instead of the real 160px/20px step) on every press -- found live-verifying SB8.
+          disableKeyboardA11y
           // SB8: a little breathing room around the fitted content, so a box right at the edge
           // isn't flush against the canvas border after Fit View runs.
           fitViewOptions={{ padding: 0.2 }}

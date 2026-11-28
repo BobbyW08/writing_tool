@@ -7,60 +7,39 @@ file with the instructions for whatever comes after. The repo keeps exactly thre
 
 ## What happened in the session right before this one
 
-No progress on SB8 live-verification -- `.env.local` still didn't exist, so the task below was
-still blocked the same way it was at the end of the SB8 session. Bobby asked to commit everything
-and stop (switching to his main PC), which surfaced that this environment had **no `.git` at all**
-(confirmed with `git rev-parse --show-toplevel` failing here and in every parent directory, and no
-`.git` found anywhere under `C:\dev`) -- despite the plan's working log referencing real prior
-commits and a pushed `claude/writing-drives-world` branch from elsewhere. With Bobby's confirmation,
-`git init` was run in this folder and a single commit (`5cd0cdb`, local `user.name`/`user.email` set
-to his own, no `--global` change) captured the full working tree as of SB1 to SB8 -- `node_modules`
-excluded via the existing `.gitignore`, no secrets found or committed, nothing pushed anywhere (no
-remote is configured). **This local history is disconnected from whatever real history exists on
-the main PC.** Before doing anything git-related next (push, branch, merge), reconcile the two --
-the main PC's repo (with the real pushed commits the plan already references) should almost
-certainly be treated as canonical, not this fresh init.
+Resumed on a different machine from the one that built SB1-SB8. Pulled the latest commit from
+GitHub (`fc4ac5d`, SB8 polish) -- same history as the other laptop, nothing to reconcile. This
+machine had a real `.env.local`, so SB8's live-verification (owed since the previous session had no
+env values) finally ran, and **Gate SB is now checked off**. Full detail is in the SB8 checklist
+entry and the second 2026-11-27 working log entry in `traveler-wiki-build-plan.md`.
 
-## Current phase: Story Builder canvas (step SB). SB1 to SB8 are built. Live-verify SB8, then Gate SB.
+Two real bugs turned up live-verifying SB8, both found and fixed the same session:
 
-Read the "Story Builder canvas (step SB)" section in full, and the SB8 checklist entry and the
-2026-11-27 working-log entry -- they cover exactly what SB8 built (Fit View padding, the N-shortcut
-fix, the new arrow-key nudge, the shelf-as-drawer on narrow screens) and why each choice was made.
+1. **Fit View silently failed on a realistic spread.** `minZoom={0.2}` in
+   `components/story-builder-canvas.tsx` clamped how far Fit View could zoom out, so any two boxes
+   more than ~27 years apart (at `YEAR_WIDTH = 160`) ended up entirely off-screen. Asked Bobby how to
+   handle it; he chose to lower `minZoom` rather than remove it. Now `0.002` (covers the real
+   `events`/`stories` year range, roughly 0 to 2000, with room to spare). Re-verified live on the
+   original failing spread and on a near-maximum ~2000-year spread.
+2. **Keyboard-move drift.** Arrow nudges were moving selected boxes 165px/25px instead of 160px/20px,
+   because React Flow's own built-in keyboard accessibility nudge (default 5px) was stacking with the
+   app's own handler. Fixed with `disableKeyboardA11y` on `<ReactFlow>`; re-verified live at exactly
+   the intended step afterward.
 
-**This session had no `.env.local`, so SB8 was implemented and static-checked
-(`tsc --noEmit`, `npm run build`) but never opened in a real browser against the real database.**
-Bobby confirmed proceeding that way rather than supplying credentials. That live pass is this
-session's first job, with real `APP_DATABASE_URL` and `ANTHROPIC_API_KEY` in `.env.local`.
+N and the narrow-screen drawer held up exactly as built. All test data from the verification pass
+was cleaned up afterward (reverted via direct SQL, confirmed with a `rebuild-links.ts --dry-run`
+matching pre-session counts both before and after the `minZoom` fix). `tsc --noEmit` and `npm run
+build` are both clean. Nothing was committed or pushed yet -- that's this session's job below.
 
-## Do this first: live-verify SB8
+## Do this first: commit, push, and ask about a PR
 
-Open `/story-builder` and confirm, against real data:
-
-- **Fit View**: with a realistic mixed spread of boxes (some undated, some far from year 0),
-  React Flow's Fit View control frames them sensibly with the new `padding: 0.2`. If it still looks
-  bad with certain undated/far-flung boxes, that is real data behaving correctly (an undated box has
-  nowhere better to sit) rather than a bug -- confirm with Bobby before changing anything here.
-- **N shortcut**: pressing N creates a box when nothing else is open; pressing N while the box popup
-  or the merge menu is open does nothing on the canvas (and still types a literal "n" into any of
-  the popup's own text fields).
-- **Keyboard moves**: select one box and arrow-nudge it; confirm left/right change its `startYear`/
-  `endYear`/`createdYear` in the database by exactly one year per press, and up/down only move its
-  board position (check `boards.nodePositions`, not any date field). Select two or more boxes at
-  once (shift-click) and confirm they move together.
-- **Narrow screen behavior**: at a narrow viewport width, confirm the "Shelf" toggle opens the
-  drawer, the backdrop closes it, and dragging an entry out of the drawer onto the canvas still
-  works and still refuses an entry already placed.
-
-Fix anything that does not hold up, log it in the error log (found and fixed, same session), and
-update the SB8 checklist entry and the 2026-11-27 working-log entry to say it was live-verified
-(do not add a new entry for this if it is the same session finishing SB8's verification -- extend
-the existing one).
-
-## Then: Gate SB
-
-Once SB8 is actually verified: build passes, merges verified against the link index
-(`scripts/rebuild-links.ts` dry run), a drag changes only `startYear`/`endYear`, no AI result
-applies without an accept. Check it off.
+1. Commit this session's changes on `claude/writing-drives-world`: the two SB8 fixes
+   (`disableKeyboardA11y`, `minZoom={0.002}`) in `components/story-builder-canvas.tsx`, and the
+   `traveler-wiki-build-plan.md`/`next.md` updates. Group into one or more commits as makes sense;
+   either way the commit message(s) should name both fixes.
+2. Push the branch to `origin/claude/writing-drives-world`.
+3. Ask Bobby whether to open a PR to `master` now that SB1-SB8 is fully live-verified and gated, or
+   wait. Do not open one without him saying so.
 
 ## After that
 
@@ -71,7 +50,6 @@ it is next in the table.
 ## Do not
 
 Do not touch the AI helpers panel, the Review writing/Review facts/What happens next/Ask AI anything
-flows, or the ghost-box idea-generation flow, except as needed to confirm SB8's own N/arrow-key
-guards against them still behave correctly. Do not touch `app/(app)/layout.tsx`'s nav rail -- making
-it collapse on narrow screens is step UX's job, not this one, and was deliberately left alone in
-SB8 (see the working-log entry).
+flows, or the ghost-box idea-generation flow -- none of that was touched this session and none of it
+needs re-verifying. Do not touch `app/(app)/layout.tsx`'s nav rail -- same as every SB session, that
+is step UX's job.
