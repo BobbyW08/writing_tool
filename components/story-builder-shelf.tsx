@@ -19,7 +19,7 @@ const GROUPS: { collection: ShelfCollection; label: string }[] = [
 // in the canvas itself.
 export function StoryBuilderShelf({ entries }: { entries: ShelfEntry[] }) {
   return (
-    <aside className="w-52 shrink-0 overflow-y-auto rounded-md border-2 border-neutral-800 bg-white p-3 text-xs text-neutral-900 shadow-sm">
+    <aside className="h-full w-52 shrink-0 overflow-y-auto rounded-md border-2 border-neutral-800 bg-white p-3 text-xs text-neutral-900 shadow-sm">
       <div className="mb-2 text-sm font-bold">Drag onto canvas</div>
       {GROUPS.map(({ collection, label }) => {
         const items = entries.filter((e) => e.collection === collection);

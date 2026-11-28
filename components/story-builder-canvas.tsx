@@ -122,6 +122,15 @@ const YEAR_FIELD: Partial<Record<ShelfEntry["collection"], string>> = {
   items: "createdYear",
 };
 
+// SB8: keyboard moves. Horizontal is a whole year at a time (dates are whole years, hard rule 18);
+// vertical is a small board-position step with no date meaning of its own (hard rule 15).
+const ARROW_NUDGE: Record<string, [number, number]> = {
+  ArrowLeft: [-YEAR_WIDTH, 0],
+  ArrowRight: [YEAR_WIDTH, 0],
+  ArrowUp: [0, -20],
+  ArrowDown: [0, 20],
+};
+
 function beatToFlowNode(
   beat: CanvasBeat,
   positions: BoardNodePositions,
@@ -162,6 +171,9 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
   // selects it (the beat convert dropdown, SB4); double-click on blank canvas still creates a draft
   // (onPaneDoubleClick, below) since that only fires for clicks on the pane itself, never on a node.
   const [popupTarget, setPopupTarget] = useState<BoxPopupTarget | null>(null);
+  // SB8: below the `lg` breakpoint the shelf is a drawer instead of a fixed column, so it stops
+  // squeezing the canvas down to nothing on a narrow screen.
+  const [shelfOpen, setShelfOpen] = useState(false);
   const onNodeDoubleClick = useCallback((_event: ReactMouseEvent, node: FlowNode) => {
     if (node.id === DRAFT_ID) return;
     const entry = entryByCode.current.get(node.id);
@@ -569,20 +581,76 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
     addDraftAt(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
   }, [addDraftAt, screenToFlowPosition]);
 
+  // SB8: keyboard moves. Horizontal nudges a whole year at a time and set the box's date exactly
+  // like a sideways drag does (hard rule 18: dates are whole years); vertical nudges a small board
+  // position step with no date meaning of its own (hard rule 15), same as a vertical drag. Every
+  // currently selected box moves together. Draft and ghost boxes are skipped -- neither is a real
+  // record yet, so neither has a date or a board position to move.
+  const nudgeSelected = useCallback((dx: number, dy: number): boolean => {
+    const movingIds = new Set(
+      nodes.filter((n) => n.selected && n.id !== DRAFT_ID && !n.id.startsWith("__ghost__")).map((n) => n.id)
+    );
+    if (movingIds.size === 0) return false;
+
+    const nextPositions = { ...positionsRef.current };
+    setNodes((nds) => nds.map((n) => {
+      if (!movingIds.has(n.id)) return n;
+      const position = { x: n.position.x + dx, y: n.position.y + dy };
+      nextPositions[n.id] = position;
+
+      const entry = entryByCode.current.get(n.id);
+      if (entry) {
+        const year = Math.round(position.x / YEAR_WIDTH);
+        const field = YEAR_FIELD[entry.collection];
+        if (field && entry.year !== year) {
+          entry.year = year;
+          void updateFieldAction(entry.collection, entry.id, field, year);
+        }
+        return { ...n, position, data: { ...(n.data as EntryNodeData), atYear: year, undated: field ? false : (n.data as EntryNodeData).undated } satisfies EntryNodeData };
+      }
+
+      const beat = beatByCode.current.get(n.id);
+      if (beat) {
+        const year = Math.round(position.x / YEAR_WIDTH);
+        if (beat.startYear !== year) {
+          beat.startYear = year;
+          void updateFieldAction("beats", beat.id, "startYear", year);
+        }
+        return { ...n, position, data: { ...(n.data as BeatNodeData), startYear: year } satisfies BeatNodeData };
+      }
+
+      return { ...n, position };
+    }));
+    persistPositions(nextPositions);
+    return true;
+  }, [nodes, setNodes]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const active = document.activeElement;
       const typing = active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
-      if (typing || e.key.toLowerCase() !== "n") return;
-      e.preventDefault();
-      const container = document.querySelector(".react-flow__pane");
-      const rect = container?.getBoundingClientRect();
-      const center = rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : { x: 400, y: 300 };
-      addDraftAt(screenToFlowPosition(center));
+      // SB8: N and the arrow nudges are canvas-only shortcuts. The box popup dims the canvas behind
+      // it rather than removing it (board 8), and a pending merge menu sits over it the same way, so
+      // both are suppressed here too -- not only while a text field has focus -- or pressing N after
+      // clicking a popup button (not a text field) could still create a box on the canvas underneath.
+      if (typing || popupTarget || mergeRequest) return;
+
+      if (e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        const container = document.querySelector(".react-flow__pane");
+        const rect = container?.getBoundingClientRect();
+        const center = rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : { x: 400, y: 300 };
+        addDraftAt(screenToFlowPosition(center));
+        return;
+      }
+
+      const delta = ARROW_NUDGE[e.key];
+      if (delta && nudgeSelected(delta[0], delta[1])) e.preventDefault();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addDraftAt, screenToFlowPosition]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addDraftAt, screenToFlowPosition, popupTarget, mergeRequest, nudgeSelected]);
 
   return (
     <div className="flex h-[calc(100vh-170px)] min-h-[480px] gap-3">
@@ -608,6 +676,9 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
           panOnScroll
           zoomOnDoubleClick={false}
           deleteKeyCode={["Backspace", "Delete"]}
+          // SB8: a little breathing room around the fitted content, so a box right at the edge
+          // isn't flush against the canvas border after Fit View runs.
+          fitViewOptions={{ padding: 0.2 }}
         >
           <Background color="#8a8a8a" gap={28} size={1.4} />
           <Controls showInteractive={false} />
@@ -623,8 +694,42 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
             onConfirm={onMergeConfirm}
           />
         )}
+        {/* SB8: below `lg` the shelf (to the right) is a drawer instead of a fixed column -- see the
+            wrapper below. This toggle only exists at that width; above it the shelf is already
+            visible so there is nothing to open. */}
+        <button
+          type="button"
+          onClick={() => setShelfOpen(true)}
+          className="absolute right-3 top-14 z-20 rounded-md border bg-white px-2 py-1 text-xs font-medium shadow-sm lg:hidden"
+        >
+          Shelf
+        </button>
       </div>
-      <StoryBuilderShelf entries={initialEntries.filter((e) => !placed.has(e.code))} />
+      {shelfOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          onClick={() => setShelfOpen(false)}
+        />
+      )}
+      {/* The shelf itself (components/story-builder-shelf.tsx) is unchanged -- only how it sits next
+          to the canvas changes with width. Below `lg` it is a slide-in drawer over the canvas,
+          closed by default so a narrow screen keeps the canvas at full width (board 5's three
+          columns -- nav, canvas, shelf -- otherwise leave no room for the canvas on a phone). At
+          `lg` and up it reverts to the original static column. */}
+      <div
+        className={`fixed inset-y-0 right-0 z-40 h-full w-64 max-w-[85vw] overflow-y-auto bg-white p-2 shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-auto lg:w-auto lg:max-w-none lg:translate-x-0 lg:overflow-visible lg:bg-transparent lg:p-0 lg:shadow-none lg:transition-none ${
+          shelfOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setShelfOpen(false)}
+          className="mb-1 block text-xs text-muted-foreground lg:hidden"
+        >
+          Close
+        </button>
+        <StoryBuilderShelf entries={initialEntries.filter((e) => !placed.has(e.code))} />
+      </div>
       {popupTarget && <StoryBuilderBoxPopup target={popupTarget} onClose={() => setPopupTarget(null)} />}
     </div>
   );
@@ -632,7 +737,7 @@ function CanvasInner({ boardId, initialViewport, initialBeats, initialNodePositi
 
 // Step SB2/SB3: the canvas -- React Flow, dotted background, pan, zoom, the pinned timeline ruler,
 // and beat boxes (create by double-click/N and typing, move to set the date, delete). The shelf
-// (SB4), merging (SB5), the expanded popup (SB6) and AI helpers (SB7) are built; polish (SB8) is not.
+// (SB4), merging (SB5), the expanded popup (SB6), AI helpers (SB7) and polish (SB8) are all built.
 export function StoryBuilderCanvas(props: StoryBuilderCanvasProps) {
   return (
     <ReactFlowProvider>

@@ -1114,9 +1114,36 @@ the claims parts of Review facts need S7. Until S4 exists the helper buttons are
       left no trace in the database; the storyless-beat guard toasted without any API call; Ask AI anything
       returned a real, context-grounded answer. All test data (beats, writing text/tags, board positions)
       cleaned up afterward. `npm run build` and a `rebuild-links.ts` dry run both clean.
-- [ ] **SB8.** Polish: Fit to view, N shortcut, keyboard moves, narrow screen behavior.
+- [x] **SB8.** Polish: Fit to view, N shortcut, keyboard moves, narrow screen behavior. Done
+      2026-11-27, **not yet live-verified** (no `.env.local`/DB in that session -- see the working log
+      entry). Fit to view: left React Flow's own Fit View button as is (no new control, per the
+      checklist's own instruction), only added `fitViewOptions={{ padding: 0.2 }}` so a box at the
+      edge isn't flush against the canvas border. N shortcut: the typing guard already worked; the
+      real gap was that it only checked `document.activeElement`, so N still created a box under the
+      box popup when something other than a text field had focus inside it (a button, say). Now also
+      suppressed while the popup or a pending merge menu is open, matching board 8's "dimmed behind"
+      (the canvas is covered, not removed). Keyboard moves: arrow keys nudge every selected box
+      together, mirroring drag exactly -- left/right moves a whole year and sets the box's date
+      through the same `YEAR_FIELD`/`beat.startYear` path a sideways drag uses (hard rule 18: dates
+      are whole years), up/down moves a small board-position step with no date meaning (hard rule 15).
+      No wireframe text settled this either way (checked board 5 and board 8 for "arrow"/"keyboard"/
+      "nudge" -- neither mentions it), so this follows the existing drag semantics rather than
+      inventing a second one. Narrow screen: below `lg` the right-hand shelf is a slide-in drawer
+      (toggle button, backdrop, closed by default) instead of a fixed column that squeezed the canvas
+      down to nothing; the popup's own two-column grid already collapsed to one column below `lg`
+      (`grid-cols-1 lg:grid-cols-[2fr_1fr]`) before this session, nothing to do there. Deliberately did
+      not touch the app-wide left nav rail (`app/(app)/layout.tsx`) -- it never collapses at any width
+      anywhere in the app, and giving it one is the broader, not-yet-started step UX narrow-width work
+      (its own still-unchecked checklist item), not an SB8-scoped fix. `tsc --noEmit` and `npm run
+      build` both clean (build needed placeholder `APP_DATABASE_URL`/`ANTHROPIC_API_KEY` env values
+      just to get past module-level client construction during page-data collection -- no real query
+      ran). Files: `components/story-builder-canvas.tsx`, `components/story-builder-shelf.tsx` (one
+      line, `h-full` on the `<aside>` so it fills its column in both the static and drawer layouts).
 - [ ] **Gate SB:** build passes, merges verified against the link index, a drag changes only `startYear`
-      and `endYear`, no AI result applies without an accept.
+      and `endYear`, no AI result applies without an accept. **Not run yet** -- needs a session with
+      real `APP_DATABASE_URL`/`ANTHROPIC_API_KEY` to verify SB8 live in the browser (Fit View on a
+      real spread of boxes, N and the arrow nudges against the popup and merge menu, the shelf drawer
+      on a narrow viewport) before this gate itself can be checked off.
 
 ---
 ## Start flow and page redesign (step UX)
@@ -1809,7 +1836,7 @@ canvas". AR is "Story architecture". G, W, U and P0 have their own sections.
 | 10 | **UX0** | Fix the five browser-checklist defects. Done 2026-11-21 |
 | 11 | S4 to S7 | AI foundation, beats, Ask AI and prompts menu, backward check and Draft-vs-Locked priority split all done 2026-11-21 |
 | 12 | UX1 to UX6b | Start flow and page redesign (home launcher, type page, stories, review, editor, entry header, entry timeline tab). All done -- UX1, UX2, UX3, UX5 and UX6 on 2026-11-21, UX4 and UX6b on 2026-11-23 |
-| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB7 done 2026-11-26. **Next: SB8** |
+| 13 | SB | Story Builder canvas (SB1 to SB8). Replaces the vertical beats lane as the visual home for beats. SB1 to SB8 done (SB8 2026-11-27, code only). **Next: live-verify SB8 and run Gate SB, then ask Bobby what's next (step AR is held)** |
 | 14 | AR | Arcs, themes, motifs. Held until Bobby says go |
 | 15 | Phase 9 | Cartographer studio design. Only after every item above is closed |
 
@@ -2078,6 +2105,39 @@ layout here are our own. Do not reuse its code, artwork, icons, names or prompts
 
 Old build guide: `git show f488683:BUILD_GUIDE.md` holds the per-step detail through 2026-11-10 (root
 causes, verification traces, file lists for U1 to U6, W3 to W6 and Phases 4 to 8).
+
+### Session 2026-11-27: step SB8, polish
+
+Did all four checklist items -- full detail in the SB8 checklist entry above, not repeated here.
+Short version: Fit View needed no new control, just `fitViewOptions={{ padding: 0.2 }}`; the N
+shortcut had a real gap (only checked focus, not whether the popup/merge menu was covering the
+canvas -- logged in the error log above); keyboard moves are new (arrow nudges, mirroring drag's
+own horizontal-sets-date/vertical-is-board-position split, since neither board 5 nor board 8 says
+anything about keyboard moves specifically); narrow screens needed the shelf turned into a drawer
+below `lg`, and nothing else in the Story Builder's own three panels (the popup's grid already
+collapsed). Left the app-wide nav rail alone -- out of scope, see the SB8 entry above.
+
+**Not live-verified.** This session had no `.env.local` (no `APP_DATABASE_URL`, no
+`ANTHROPIC_API_KEY`), confirmed with Bobby before proceeding -- he chose to have this session
+implement and static-check only, with live verification owed for a later session (same choice
+space as SB4's first half). `npx tsc --noEmit` clean before and after. `npm run build` clean, but
+only after exporting placeholder `APP_DATABASE_URL`/`ANTHROPIC_API_KEY` values for that one run --
+the build's page-data collection step constructs the Neon client at module load even though every
+page here is `force-dynamic`, so it needs a syntactically valid connection string but never queries
+it. No `eslint.config.js` exists in this repo (pre-existing, not something this session touched;
+`npm run lint` fails the same way on `main`), so lint was not part of this session's verification
+the same way it has not been for any prior SB session either -- `tsc`/`build` are what this repo's
+working log has always cited.
+
+**Owed before Gate SB:** a real session, with real env values, needs to actually open
+`/story-builder`, select several boxes and the various box kinds (story, beat, character/location/
+event/item, undated) and confirm: Fit View frames a real mixed spread sensibly; N creates a box only
+when the popup and merge menu are both closed, and still types a literal "n" inside the popup's own
+inputs; arrow keys move single and multi-selected boxes and the horizontal moves land in the
+database as whole-year `startYear`/`endYear`/`createdYear` changes, exactly like a drag does; and
+the shelf drawer opens, closes, and drags an entry onto the canvas correctly at a narrow viewport
+width. Only after that should Gate SB itself (link index, drag semantics, AI accept-gating -- all
+already true as of SB1-SB7, this session touched none of that logic) be checked off.
 
 ### Session 2026-11-26 (fourth): step SB7, AI helpers
 
@@ -2643,6 +2703,7 @@ Errors are logged here when found and again when fixed.
 | 2026-11-26 | Story Builder: the draft "type anything" box was unclickable, including its own input, once it lost focus. | 2026-11-26 | Root cause: xyflow sets `pointer-events: none` on a node wrapper unless it is draggable/selectable/connectable, none of which the draft box is by design, so it inherited `none` down to the input. Fixed with an inline `pointerEvents: "auto"` override in `components/story-builder-beat-node.tsx`. |
 | 2026-11-26 | Story Builder: converting a beat to an event showed "no date" on its new box even though the event's own `startYear` was set correctly. | 2026-11-26 | The client-side code building the replacement box after conversion only copied the year across for the `stories` case, not `events` (both use `startYear`). `components/story-builder-canvas.tsx`'s `onConvertBeat`. |
 | 2026-11-26 | Story Builder: a beat converted to an entry still showed as its own "Idea" box after a reload, next to the entity it had become. | 2026-11-26 | `getCanvasBeats()` was not filtering out `state = 'promoted'` beats (which deliberately stay in the database as a plan record). Added that filter, matching the Beats lane's own filter. `lib/world/queries.ts`. |
+| 2026-11-27 | Story Builder: the N-shortcut's typing guard only checked `document.activeElement` for an input/textarea/contenteditable, so pressing N while the box popup was open (focus anywhere else in it, e.g. a button) still created a new idea box on the canvas underneath the dimmed popup. | 2026-11-27 | The keydown handler now also bails out while `popupTarget` or `mergeRequest` is set, not only while a text field has focus. `components/story-builder-canvas.tsx`. |
 
 ## Explicitly out of scope
 
